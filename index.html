@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover"/>
 <title>Virtual Coffee — Simon Goffin, Product Manager</title>
 
 <!-- ── Discovery ──────────────────────────────────────────────────
      This page is a résumé, so it gets found before it gets rendered.
      The 3D café is invisible to crawlers and link-preview bots, hence
      the meta block below plus the semantic #cv-text panel in <body>. -->
-<meta name="description" content="Take a virtual coffee with Simon Goffin — Product Manager in private banking (Degroof Petercam), Brussels. An interactive 3D café where the résumé on the table talks back. EN / FR."/>
+<meta name="description" content="Take a virtual coffee with Simon Goffin — Product Manager in private banking (Degroof Petercam), Brussels. An interactive 3D café where the résumé on the table talks back, in his own voice. EN / FR."/>
 <meta name="author" content="Simon Goffin"/>
 <meta name="keywords" content="Simon Goffin, Product Manager, Product Owner, PSPO, Degroof Petercam, Brussels, CLM, onboarding, MiFID, AML, résumé, CV"/>
 <link rel="canonical" href="https://ndashiz.be/virtualcoffee/"/>
@@ -22,7 +22,7 @@
 <meta property="og:site_name" content="Virtual Coffee"/>
 <meta property="og:url" content="https://ndashiz.be/virtualcoffee/"/>
 <meta property="og:title" content="Virtual Coffee — Simon Goffin, Product Manager"/>
-<meta property="og:description" content="Pull up a chair. An interactive 3D café where my résumé sits on the table — tap a section and I'll tell you about it out loud. EN / FR."/>
+<meta property="og:description" content="Pull up a chair. An interactive 3D café where my résumé sits on the table — tap a section and I'll tell you about it out loud, in my own voice. EN / FR."/>
 <meta property="og:image" content="https://ndashiz.be/virtualcoffee/og.jpg"/>
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
@@ -32,7 +32,7 @@
 
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="Virtual Coffee — Simon Goffin, Product Manager"/>
-<meta name="twitter:description" content="Pull up a chair. An interactive 3D café where my résumé sits on the table — tap a section and I'll tell you about it out loud."/>
+<meta name="twitter:description" content="Pull up a chair. An interactive 3D café where my résumé sits on the table — tap a section and I'll tell you about it, in my own voice."/>
 <meta name="twitter:image" content="https://ndashiz.be/virtualcoffee/og.jpg"/>
 
 <link rel="icon" href="favicon.svg" type="image/svg+xml"/>
@@ -46,9 +46,9 @@
 <style>
   :root{--gold:#f4b740;--navy:#14263d;}
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;overflow:hidden;background:#120e0c;font-family:"Inter",sans-serif;}
+  html,body{margin:0;height:100%;overflow:hidden;background:#120e0c;font-family:"Inter",sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
   #app{position:fixed;inset:0;}
-  canvas{display:block;}
+  canvas{display:block;touch-action:none;}
 
   /* cinematic overlays */
   .vig{position:fixed;inset:0;z-index:12;pointer-events:none;
@@ -56,24 +56,22 @@
   .grade{position:fixed;inset:0;z-index:12;pointer-events:none;mix-blend-mode:soft-light;
     background:linear-gradient(180deg,rgba(255,190,110,.20),rgba(20,30,50,.25));}
 
-  .sign{position:fixed;top:14px;left:50%;transform:translateX(-50%) rotate(-1.6deg);z-index:20;
+  .sign{position:fixed;top:calc(14px + env(safe-area-inset-top));left:50%;transform:translateX(-50%) rotate(-1.6deg);z-index:20;
     font-family:"Caveat",cursive;font-weight:700;font-size:30px;color:var(--gold);
     background:rgba(22,28,33,.88);padding:7px 24px 9px;border-radius:10px;line-height:1.02;text-align:center;
-    box-shadow:0 10px 30px rgba(0,0,0,.5),inset 0 0 0 2px #3a4d56;backdrop-filter:blur(3px);
-    transition:opacity .3s;}
-  /* A long answer reaches the top of the screen, where the sign already is.
-     The sign is decoration, the answer is the point — so it steps aside. */
-  .sign.dim{opacity:.1;}
+    box-shadow:0 10px 30px rgba(0,0,0,.5),inset 0 0 0 2px #3a4d56;backdrop-filter:blur(3px);}
   .sign small{display:block;font-family:"Space Grotesk",sans-serif;font-weight:500;font-size:10px;
     color:#9fb4bc;letter-spacing:2.4px;text-transform:uppercase;margin-top:2px;}
 
-  /* Stacking, bottom to top: overlays 12 · bubble 25 · sign 20 ·
+  /* Stacking, bottom to top: overlays 12 · sign 20 · prompt 20 ·
      how-to 50 · text résumé 60 · tools 70.
      The tools sit on top of everything on purpose — the language toggle
      must stay reachable from inside the text résumé (for a visitor with
      no WebGL that panel IS the site) and from the welcome card, which
      tells people the toggle is up there. */
-  .tools{position:fixed;top:16px;right:16px;z-index:70;display:flex;gap:8px;align-items:center;}
+  .tools{position:fixed;top:calc(16px + env(safe-area-inset-top));
+    right:calc(16px + env(safe-area-inset-right));z-index:70;
+    display:flex;gap:8px;align-items:center;}
   .lang{display:inline-flex;border:1px solid #3a4d56;
     border-radius:999px;overflow:hidden;background:rgba(22,28,33,.88);backdrop-filter:blur(3px);}
   .lang button{background:transparent;color:#9fb4bc;border:0;padding:8px 15px;cursor:pointer;
@@ -88,10 +86,8 @@
 
   /* ── Text résumé ───────────────────────────────────────────────
      Not a second-class citizen: it is the accessible reading of the
-     café (keyboard, screen readers), what a visitor without WebGL
-     gets, and what a crawler that never runs the 3D can index. */
-  /* Above the welcome card (50): the card itself points people here, so
-     opening it from there must not leave the résumé behind a blur. */
+     café (keyboard, screen readers, sound off), what a visitor without
+     WebGL gets, and what a crawler that never runs the 3D can index. */
   .cv{position:fixed;inset:0;z-index:60;overflow-y:auto;overscroll-behavior:contain;
     background:#141c24;padding:74px 20px 72px;}   /* top clears the .tools bar */
   .cv[hidden]{display:none;}
@@ -109,6 +105,7 @@
   .cvsheet .meta{color:#8fa3b4;font-size:13.5px;margin:0 0 8px;}
   .cvsheet ul{margin:0 0 4px;padding-left:20px;}
   .cvsheet li{margin:3px 0;}
+  .cvsheet p{margin:0 0 10px;}
   .cvsheet a{color:var(--gold);}
   .cvsheet .tags{display:flex;flex-wrap:wrap;gap:7px;padding:0;margin:0;list-style:none;}
   .cvsheet .tags li{background:#1d2a35;border:1px solid #2b3a46;border-radius:999px;
@@ -120,21 +117,7 @@
   .visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
     overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;}
 
-  .bubble{position:fixed;z-index:25;transform:translate(-50%,-100%);max-width:330px;width:max-content;
-    background:#fdfcf8;color:#26323c;padding:12px 16px;border-radius:15px;font-size:13.5px;line-height:1.45;
-    box-shadow:0 16px 38px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .25s;
-    max-height:42vh;overflow-y:auto;overscroll-behavior:contain;}
-  /* Scrollable once shown — the longest answer can outgrow a short viewport.
-     The résumé never sits under the bubble, so taking pointer events is free. */
-  .bubble.show{opacity:1;pointer-events:auto;}
-  .bubble::after{content:"";position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);
-    border:10px solid transparent;border-top-color:#fdfcf8;border-bottom:0;}
-  .eq{display:inline-flex;gap:2.5px;align-items:flex-end;height:11px;margin-right:7px;vertical-align:-1px;}
-  .eq i{width:3px;background:#2aa79b;border-radius:2px;animation:eq .9s ease-in-out infinite;}
-  .eq i:nth-child(2){animation-delay:.15s}.eq i:nth-child(3){animation-delay:.3s}.eq i:nth-child(4){animation-delay:.45s}
-  @keyframes eq{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
-
-  .prompt{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;
+  .prompt{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:20;
     font-family:"Caveat",cursive;font-weight:700;font-size:22px;color:#f5e6c4;
     text-shadow:0 2px 10px rgba(0,0,0,.7);pointer-events:none;animation:floaty 3s ease-in-out infinite;white-space:nowrap;}
   @keyframes floaty{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-4px)}}
@@ -153,21 +136,20 @@
   #enterBtn:hover{transform:scale(1.05);}
 
   @media(max-width:640px){
-    /* The tools need the full top row on a narrow screen, so the sign
-       drops below them instead of being sat on. */
-    .sign{font-size:23px;top:62px;}
-    .bubble{max-width:min(300px,88vw);font-size:12.5px}
-    .tools{top:12px;right:12px;gap:6px}
-    .lang button,.pill{padding:7px 12px;font-size:12px}
-    /* nowrap runs off both edges here — let the invitation wrap. */
-    .prompt{white-space:normal;max-width:86vw;line-height:1.2;font-size:20px;}
-    .cv{padding:64px 16px 60px}
-    .cvsheet h1{font-size:27px}
-    .cvsheet{font-size:15px}
+    .sign{left:12px;transform:rotate(-1.6deg);font-size:21px;padding:5px 14px 7px;}
+    .sign small{font-size:8.5px;letter-spacing:1.8px;}
+    .tools{gap:6px;}
+    .lang button,.pill{padding:7px 12px;font-size:12px;}
+    .prompt{font-size:16px;white-space:normal;width:min(92vw,340px);text-align:center;line-height:1.3;}
+    .hcard{padding:20px 18px 18px;}
+    .hcard h2{font-size:30px;}
+    .hsteps{font-size:13.5px;}
+    .cv{padding:64px 16px 60px;}
+    .cvsheet{font-size:15px;}
+    .cvsheet h1{font-size:27px;}
   }
   @media(prefers-reduced-motion:reduce){
-    .prompt{animation:none}
-    .eq i{animation:none;transform:scaleY(.7)}
+    .prompt{animation:none;}
   }
 </style>
 </head>
@@ -187,50 +169,53 @@
     <button id="lang-fr" lang="fr">FR</button>
   </div>
 </div>
-<div class="bubble" id="bubble" role="status" aria-live="polite"></div>
 <div class="prompt" id="prompt">Hover the résumé on the table &amp; tap a section&nbsp;☕</div>
 
 <!-- ════════════════════════════════════════════════════════════════
      TEXT RÉSUMÉ
      Both languages ship as static markup rather than being built from
      the DATA object below: a crawler or a link-preview bot that never
-     executes the 3D still reads the whole résumé, and there is no
-     builder to drift out of sync. The 3D scene paints its own copy
-     from DATA — keep the two in step when the CV changes.
+     executes the 3D still reads the whole résumé. It is also the only
+     way to READ what Simon says — the spoken sections have no
+     subtitles since the recordings replaced them.
+     Keep this in step with DATA when the CV changes.
      ════════════════════════════════════════════════════════════════ -->
 <main class="cv" id="cv-text" hidden>
   <div class="cvsheet">
+
     <div data-cvlang="en">
       <header>
         <h1>Simon Goffin</h1>
         <p class="role">Product Manager · Digital</p>
-        <p class="lede">Product Manager turning messy processes into clean digital journeys — and building little things for fun, like the café you just walked out of.</p>
+        <p class="lede">The person who speaks both business and IT without needing a translator in the room. I take heavy, messy processes and turn them into digital journeys people actually enjoy using.</p>
       </header>
 
       <h2>Work experience</h2>
       <h3>Product Manager — Degroof Petercam</h3>
       <p class="meta">2024 – present · Client Lifecycle Management &amp; Onboarding · Brussels</p>
       <ul>
-        <li>Lead two cross-functional teams of 10+ senior experts.</li>
-        <li>Own client lifecycle transformations: onboarding, MiFID, anti-money-laundering, digital identity and e-signature.</li>
-        <li>Shipped a fully digital onboarding that opens an account in under 15 minutes.</li>
+        <li>Product owner of two digital products: the bank's CRM, and the client platform behind its execution-only and discretionary mandates.</li>
+        <li>Two cross-functional squads, 10+ people across business, IT and compliance.</li>
+        <li>Shipped a fully digital onboarding — AML checks, MiFID, digital ID, e-signature — one paperless flow that opens an account in under 15 minutes.</li>
+        <li>Launched self-service, so clients update their own data and the back office stops drowning in paperwork.</li>
       </ul>
       <h3>Finance Consultant — EY</h3>
-      <p class="meta">2021 – 2024</p>
+      <p class="meta">2021 – 2024 · consulting for private banks</p>
       <h3>AML Data Analyst — Degroof Petercam</h3>
-      <p class="meta">2020</p>
+      <p class="meta">2020 · where I learned which problems were worth solving</p>
 
       <h2>Education</h2>
       <h3>Master in Management Science — Solvay Business School</h3>
       <p class="meta">Major in econometrics</p>
       <h3>Bachelor in Economics — Solvay Business School</h3>
       <h3>Full-stack coding bootcamp — Le Wagon, Amsterdam</h3>
-      <p class="meta">Ruby on Rails, JavaScript, PostgreSQL</p>
+      <p class="meta">Nine weeks, Ruby on Rails / JavaScript / PostgreSQL. Not to become a developer — to understand exactly how the thing gets built, so I can follow the conversation with engineers.</p>
 
       <h2>Skills</h2>
       <ul class="tags">
-        <li>Jira</li><li>Confluence</li><li>Monday</li><li>Figma</li><li>Adobe XD</li>
-        <li>Visio</li><li>Lucidchart</li><li>BPMN</li><li>Power BI</li>
+        <li>Jira</li><li>Confluence</li><li>Monday</li><li>Figma</li>
+        <li>BPMN (Visio, Lucidchart)</li><li>Power BI</li>
+        <li>SQL</li><li>Ruby on Rails</li><li>JavaScript</li>
         <li>Codex</li><li>Claude Code</li>
       </ul>
 
@@ -243,45 +228,52 @@
       <h2>Languages</h2>
       <ul><li>French — native</li><li>English — fluent</li><li>Dutch — intermediate</li></ul>
 
+      <h2>Off the clock</h2>
+      <p>I'm a builder, literally. I bought a place in Brussels and have spent the last year and a half renovating it by hand — woodwork, electricity, all of it. I said "a weekend project" out loud once; the house heard me and laughed. I own two of the four floors and I'm the building's syndic, which is a fancy way of saying I volunteered to manage everyone's problems, including my own.</p>
+      <p>The other thing I can't leave alone is AI. This whole café you're standing in was built to play with the tech — if you're not learning to work with AI right now, you'll be outdated by Tuesday. I'd rather be early than obsolete.</p>
+      <p>Beyond that: a people person who gets his energy from a full room, and a runner — a few challenge races a year that I actually train for, mostly so the finish line stays a goal and not a medical event.</p>
+
       <h2>Contact</h2>
       <ul>
         <li><a href="mailto:goffin.simon@gmail.com">goffin.simon@gmail.com</a></li>
         <li>Brussels, Belgium</li>
       </ul>
-      <p class="cvnote">This is the flat reading of the café. The 3D version has me telling you the same thing out loud — grab a coffee and come back.</p>
+      <p class="cvnote">This is the flat reading of the café. In the 3D version I tell you all of this out loud, in my own voice — grab a coffee and come back.</p>
     </div>
 
     <div data-cvlang="fr" hidden>
       <header>
         <h1>Simon Goffin</h1>
         <p class="role">Product Manager · Digital</p>
-        <p class="lede">Product Manager : je transforme des processus compliqués en parcours digitaux simples — et je bricole des petits projets pour le plaisir, comme le café que vous venez de quitter.</p>
+        <p class="lede">Celui qui parle business et IT sans avoir besoin d'un traducteur dans la pièce. Je prends des processus lourds et compliqués et je les transforme en parcours digitaux qu'on a vraiment plaisir à utiliser.</p>
       </header>
 
       <h2>Expérience</h2>
       <h3>Product Manager — Degroof Petercam</h3>
       <p class="meta">2024 – aujourd'hui · Client Lifecycle Management &amp; Onboarding · Bruxelles</p>
       <ul>
-        <li>Je dirige deux équipes transverses de plus de 10 experts seniors.</li>
-        <li>Je pilote les transformations du cycle de vie client : onboarding, MiFID, lutte anti-blanchiment, identité digitale et signature électronique.</li>
-        <li>Livré un onboarding 100 % digital qui ouvre un compte en moins de 15 minutes.</li>
+        <li>Product owner de deux produits digitaux : le CRM de la banque, et la plateforme client derrière ses mandats execution-only et discrétionnaires.</li>
+        <li>Deux squads transverses, plus de 10 personnes entre business, IT et compliance.</li>
+        <li>Livré un onboarding 100 % digital — contrôles anti-blanchiment, MiFID, identité digitale, signature électronique — un seul flux sans papier qui ouvre un compte en moins de 15 minutes.</li>
+        <li>Lancé le self-service : les clients mettent à jour leurs données eux-mêmes, et le back office arrête de se noyer dans la paperasse.</li>
       </ul>
       <h3>Consultant Finance — EY</h3>
-      <p class="meta">2021 – 2024</p>
+      <p class="meta">2021 – 2024 · conseil auprès de banques privées</p>
       <h3>Data Analyst AML — Degroof Petercam</h3>
-      <p class="meta">2020</p>
+      <p class="meta">2020 · là où j'ai appris quels problèmes valaient la peine d'être résolus</p>
 
       <h2>Formation</h2>
       <h3>Master en Sciences de Gestion — Solvay Business School</h3>
       <p class="meta">Majeure économétrie</p>
       <h3>Bachelier en Économie — Solvay Business School</h3>
       <h3>Bootcamp full-stack — Le Wagon, Amsterdam</h3>
-      <p class="meta">Ruby on Rails, JavaScript, PostgreSQL</p>
+      <p class="meta">Neuf semaines, Ruby on Rails / JavaScript / PostgreSQL. Pas pour devenir développeur — pour comprendre exactement comment tout se construit, et pouvoir suivre la conversation avec les ingénieurs.</p>
 
       <h2>Compétences</h2>
       <ul class="tags">
-        <li>Jira</li><li>Confluence</li><li>Monday</li><li>Figma</li><li>Adobe XD</li>
-        <li>Visio</li><li>Lucidchart</li><li>BPMN</li><li>Power BI</li>
+        <li>Jira</li><li>Confluence</li><li>Monday</li><li>Figma</li>
+        <li>BPMN (Visio, Lucidchart)</li><li>Power BI</li>
+        <li>SQL</li><li>Ruby on Rails</li><li>JavaScript</li>
         <li>Codex</li><li>Claude Code</li>
       </ul>
 
@@ -294,12 +286,17 @@
       <h2>Langues</h2>
       <ul><li>Français — langue maternelle</li><li>Anglais — courant</li><li>Néerlandais — intermédiaire</li></ul>
 
+      <h2>En dehors du boulot</h2>
+      <p>Je suis un bâtisseur, au sens propre : j'ai acheté un immeuble à Bruxelles et je passe depuis un an et demi à le rénover de mes propres mains — la menuiserie, l'électricité, tout. Un jour j'ai dit « un projet de week-end » à voix haute ; la maison m'a entendu, et elle a ri. Je possède deux des quatre étages, et je suis aussi le syndic de l'immeuble — une façon élégante de dire que je me suis porté volontaire pour gérer les problèmes de tout le monde, y compris les miens.</p>
+      <p>L'autre chose que je ne peux pas lâcher, c'est l'IA. Tout cet endroit où vous êtes a été construit pour jouer avec la techno : si on n'apprend pas à travailler avec l'IA maintenant, on sera dépassé d'ici mardi. Je préfère être en avance qu'obsolète.</p>
+      <p>À côté de ça : un people person qui tire son énergie d'une pièce pleine, et un coureur — quelques courses à défi par an, pour lesquelles je m'entraîne vraiment, surtout pour que la ligne d'arrivée reste un objectif et pas un événement médical.</p>
+
       <h2>Contact</h2>
       <ul>
         <li><a href="mailto:goffin.simon@gmail.com">goffin.simon@gmail.com</a></li>
         <li>Bruxelles, Belgique</li>
       </ul>
-      <p class="cvnote">Ceci est la version à plat du café. Dans la version 3D, je vous raconte la même chose à voix haute — prenez un café et repassez.</p>
+      <p class="cvnote">Ceci est la version à plat du café. Dans la version 3D, je vous raconte tout ça à voix haute, avec ma vraie voix — prenez un café et repassez.</p>
     </div>
   </div>
 </main>
@@ -418,13 +415,12 @@ window.VC = (function(){
     onLang(fn){ subs.push(fn); },
     set onOpenCV(fn){ onOpen = fn; },
     textOnly,
-    /* A tap is not a hover. Coarse pointers get their own wording. */
-    coarse: matchMedia('(hover: none), (pointer: coarse)').matches,
   };
 })();
 </script>
 
 <script src="three.min.js"></script>
+
 <script>
 /* =====================================================================
    VIRTUAL COFFEE 3D — max-quality pass
@@ -446,7 +442,7 @@ const DATA={
  en:{
   sign:["Virtual Coffee","discussion with Simon"],
   prompt:"Hover the résumé on the table & tap a section\u00A0☕",
-  promptTouch:"Tap the résumé on the table, then pick a section\u00A0☕",
+  promptTouch:"Tap the résumé to lift it, then tap a section\u00A0☕",
   labels:{intro:"ABOUT ME",experience:"WORK EXPERIENCE",education:"EDUCATION",
           skills:"SKILLS",certifications:"CERTIFICATIONS",languages:"LANGUAGES",contact:"CONTACT"},
   body:{
@@ -458,18 +454,20 @@ const DATA={
    languages:["FR native · EN fluent","NL intermediate"],
    contact:["goffin.simon@gmail.com","Brussels, Belgium"]},
   speech:{
-   intro:"Hi, thanks for sitting down with me. I'm Simon, a product manager in private banking. I love turning messy processes into clean digital journeys — and I build little things for fun, like this café you're sitting in right now.",
-   experience:"As Product Manager at Degroof Petercam, I lead two cross-functional teams of over ten senior experts. I own all our client lifecycle transformations — onboarding, MiFID, anti-money-laundering, digital identity and e-signature. My favourite win: a fully digital onboarding that opens an account in under fifteen minutes. Before that, I was a finance consultant at EY, and I started out as an anti-money-laundering analyst.",
-   skills:"On the product side I live in Jira, Confluence and Monday. For design, Figma and Adobe XD. I model processes in Visio and Lucidchart, and build dashboards in Power BI. And I'm hands-on with AI tools like Codex and Claude Code — that's actually how I built this place.",
-   education:"I hold a Master in Management Science from Solvay Business School, with a major in econometrics, plus a Bachelor in Economics. I also did the Le Wagon full-stack coding bootcamp in Amsterdam — that's where my building habit really started.",
-   certifications:"I'm a certified Professional Scrum Product Owner and Scrum Master, and I hold Microsoft certifications in Dynamics 365 and Azure.",
-   languages:"French is my mother tongue, I'm fluent in English, and I speak intermediate Dutch.",
-   contact:"Best way to reach me is email — goffin dot simon at gmail dot com. I'm based in Brussels. Let's grab a real coffee sometime!"}
+   intro:`Hey, thanks for sitting down with me. I'm Simon, a product manager in private banking here in Brussels. My whole job, really, is being the person who speaks both business and IT without needing a translator in the room. I take heavy, messy processes and turn them into digital journeys people actually enjoy using. And clearly I don't stop at nine to five, since you're currently sitting in a cafe I built for fun. Tap a section, let's get into it.`,
+   experience:`So, today I'm product owner of two digital products at Degroof Petercam: the bank's CRM, and the client platform behind our execution-only and discretionary mandates. Two cross-functional squads, more than ten sharp people across business, IT and compliance, and me in the middle keeping everyone speaking the same language. The one I'm proudest of: a fully digital onboarding, anti-money-laundering checks, MiFID, digital ID, e-signature, all in one paperless flow that opens an account in under fifteen minutes. Then we launched self-service, so clients update their own data and the back office stops drowning in paperwork. Before all that, three years at EY consulting for private banks, and I actually started my career as an anti-money-laundering analyst, which is where I learned exactly which problems were worth solving.`,
+   skills:`Right, the toolbox. On the product side I live in Jira, Confluence and Monday. For design and process, Figma, plus BPMN in Visio and Lucidchart. I build my own dashboards in Power BI. And on the technical side I'm genuinely hands-on: SQL, Ruby on Rails, JavaScript, a bit of everything, plus AI tools like Codex and Claude Code, which, again, is how this whole cafe exists. The point isn't that I do all these myself, it's that when an engineer explains a constraint, I actually understand it.`,
+   education:`So, I did Solvay Business School, management science with a focus on econometrics. Solid grounding, but by the end I had this itch, I felt I needed to understand the IT side properly. Not to become a developer, that was never the goal, but to get a real foot in the digital world before it left me behind. I also just wanted to go abroad for a bit after my studies. So I went to Amsterdam and did Le Wagon, a nine-week full-stack bootcamp, and ended up staying six months in total before starting work. Now, let's be honest, nine weeks doesn't turn you into some genius developer. But it did something more useful, it taught me exactly how the whole thing gets built, step by step. And that's the reason I can sit with engineers today and actually follow the conversation.`,
+   certifications:`On paper: I'm a certified Scrum Product Owner and Scrum Master, and I've got Microsoft certifications in Dynamics 365 and Azure. In plain terms, that means I can hold my own with an engineering team and with a management committee in the same afternoon, without either side feeling like I'm bluffing.`,
+   languages:`French is my mother tongue. English, fluent, clearly, since I've been talking your ear off. And Dutch, intermediate, which in Brussels is basically a survival skill and a daily act of courage.`,
+   contact:`So, if any of this resonated, the easiest way to reach me is email: goffin dot simon at gmail dot com. I'm here in Brussels. And look, the virtual coffee was nice, but I'm always up for a real one. Just say the word.`,
+   about:`Ah, you want to explore the personal stuff? Then this isn't really a virtual coffee anymore. Hang on, let me order us a couple of beers, one for you, one for me. There we go. Much better. So, off the clock, I'm a builder, and I mean that literally. I bought a place in Brussels and I've spent the last year and a half renovating it with my own hands, the woodwork, the electricity, all of it. I said "a weekend project" out loud once. The house heard me and laughed. I own two of the four floors, and I'm also the syndic for the building, which is a fancy way of saying I volunteered to manage everyone's problems, including my own. The other thing I can't leave alone is AI. Honestly, this whole place you're sitting in? I built it just to play with the tech, because I really believe if you're not learning to work with AI right now, you'll be outdated by Tuesday. I'd rather be early than obsolete. Beyond that, I'm a people person, I get my energy from a full room. And I run, a few challenge races a year that I actually train for, mostly so the finish line stays a goal and not a medical event.`,
+   outro:`Well, that's about everything I can tell you about myself. You've reached the end. And look, I'm aware this has been a bit of a one-way street, me talking, you listening, which is not really my style, I promise. In real life I'm much more fun, mostly because you get to talk back. So if any of this landed with you, don't be a stranger. Drop me a message on LinkedIn and let's turn this virtual coffee into a real one. I'd genuinely love the actual conversation. See you on the other side.`}
  },
  fr:{
   sign:["Café Virtuel","discussion avec Simon"],
   prompt:"Survolez le CV sur la table & touchez une section\u00A0☕",
-  promptTouch:"Touchez le CV sur la table, puis une section\u00A0☕",
+  promptTouch:"Touchez le CV pour le soulever, puis touchez une section\u00A0☕",
   labels:{intro:"À PROPOS",experience:"EXPÉRIENCE",education:"FORMATION",
           skills:"COMPÉTENCES",certifications:"CERTIFICATIONS",languages:"LANGUES",contact:"CONTACT"},
   body:{
@@ -481,20 +479,38 @@ const DATA={
    languages:["FR natif · EN courant","NL intermédiaire"],
    contact:["goffin.simon@gmail.com","Bruxelles, Belgique"]},
   speech:{
-   intro:"Salut, merci de prendre un café avec moi. Je suis Simon, product manager dans la banque privée. J'adore transformer des processus compliqués en parcours digitaux simples — et je bricole des petits projets pour le plaisir, comme ce café où tu es assis.",
-   experience:"Comme Product Manager chez Degroof Petercam, je dirige deux équipes transverses de plus de dix experts seniors. Je pilote toutes nos transformations du cycle de vie client : onboarding, MiFID, lutte anti-blanchiment, identité digitale et signature électronique. Ma plus belle réussite : un onboarding cent pour cent digital qui ouvre un compte en moins de quinze minutes. Avant ça, j'étais consultant finance chez EY.",
-   skills:"Côté produit, je vis dans Jira, Confluence et Monday. Pour le design, Figma et Adobe XD. Je modélise les processus dans Visio et Lucidchart, et je construis des tableaux de bord dans Power BI. Et je suis à l'aise avec les outils d'IA comme Codex et Claude Code — c'est comme ça que j'ai construit cet endroit.",
-   education:"J'ai un Master en Sciences de Gestion de Solvay, avec une majeure en économétrie, et un bachelier en économie. J'ai aussi fait le bootcamp full-stack Le Wagon à Amsterdam.",
-   certifications:"Je suis certifié Professional Scrum Product Owner et Scrum Master, et j'ai des certifications Microsoft en Dynamics 365 et Azure.",
-   languages:"Le français est ma langue maternelle, je parle couramment anglais, et j'ai un niveau intermédiaire en néerlandais.",
-   contact:"Le mieux pour me joindre, c'est par e-mail — goffin point simon arobase gmail point com. Je suis à Bruxelles. On se prend un vrai café bientôt !"}
+   intro:`Salut, merci de prendre un café avec moi. Je suis Simon, product manager dans la banque privée, à Bruxelles. Mon vrai métier : être celui qui parle business et IT sans avoir besoin d'un traducteur dans la pièce. Je prends des processus lourds et compliqués et je les transforme en parcours digitaux qu'on a vraiment plaisir à utiliser. Et visiblement je ne m'arrête pas à dix-sept heures, puisque vous êtes assis dans un café que j'ai construit pour le fun. Touchez une section, on y va.`,
+   experience:`Aujourd'hui, je suis product owner de deux produits digitaux chez Degroof Petercam : le CRM de la banque, et la plateforme client derrière nos mandats execution-only et discrétionnaires. Deux squads transverses, plus de dix personnes entre business, IT et compliance, et moi au milieu pour que tout le monde parle la même langue. Ma plus grande fierté : un onboarding cent pour cent digital — contrôles anti-blanchiment, MiFID, identité digitale, signature électronique — un seul flux sans papier qui ouvre un compte en moins de quinze minutes. Ensuite on a lancé le self-service : les clients mettent à jour leurs données eux-mêmes, et le back office arrête de se noyer dans la paperasse. Avant tout ça, trois ans chez EY à conseiller des banques privées, et j'ai commencé ma carrière comme analyste anti-blanchiment — c'est là que j'ai appris quels problèmes valaient vraiment la peine d'être résolus.`,
+   skills:`Bon, la boîte à outils. Côté produit, je vis dans Jira, Confluence et Monday. Design et process : Figma, plus du BPMN dans Visio et Lucidchart. Je construis mes propres dashboards dans Power BI. Et côté technique, je mets vraiment les mains dedans : SQL, Ruby on Rails, JavaScript, un peu de tout — plus les outils d'IA comme Codex et Claude Code, c'est d'ailleurs comme ça que ce café existe. L'important, ce n'est pas que je fasse tout moi-même : c'est que quand un ingénieur m'explique une contrainte, je la comprends vraiment.`,
+   education:`J'ai fait la Solvay Business School, sciences de gestion avec une majeure en économétrie. Une base solide, mais à la fin il me manquait quelque chose : comprendre vraiment le côté IT. Pas pour devenir développeur — ça n'a jamais été le but — mais pour mettre un vrai pied dans le digital avant qu'il ne me laisse derrière. Et j'avais envie de partir un peu à l'étranger après mes études. Donc direction Amsterdam : Le Wagon, un bootcamp full-stack de neuf semaines, et six mois sur place au total avant de commencer à travailler. Soyons honnêtes : neuf semaines ne font pas de vous un génie du code. Mais ça m'a apporté plus utile : comprendre exactement comment tout se construit, étape par étape. Et c'est pour ça qu'aujourd'hui je peux m'asseoir avec des ingénieurs et vraiment suivre la conversation.`,
+   certifications:`Sur le papier : certifié Scrum Product Owner et Scrum Master, plus des certifications Microsoft en Dynamics 365 et Azure. En clair, ça veut dire que je peux tenir ma place face à une équipe d'ingénieurs et face à un comité de direction le même après-midi, sans que personne n'ait l'impression que je bluffe.`,
+   languages:`Le français est ma langue maternelle. L'anglais, courant. Et le néerlandais, intermédiaire — ce qui à Bruxelles est à la fois une compétence de survie et un acte de courage quotidien.`,
+   contact:`Si tout ça vous a parlé, le plus simple pour me joindre, c'est l'e-mail : goffin point simon arobase gmail point com. Je suis à Bruxelles. Et franchement, le café virtuel c'était sympa, mais je suis toujours partant pour un vrai. Faites signe.`,
+   about:`Ah, vous voulez le côté perso ? Alors ce n'est plus vraiment un café virtuel. Attendez, je nous commande deux bières — une pour vous, une pour moi. Voilà. C'est mieux. En dehors du boulot, je suis un bâtisseur, au sens propre : j'ai acheté un immeuble à Bruxelles et je passe depuis un an et demi à le rénover de mes propres mains — la menuiserie, l'électricité, tout. Un jour j'ai dit « un projet de week-end » à voix haute. La maison m'a entendu, et elle a ri. Je possède deux des quatre étages, et je suis aussi le syndic de l'immeuble — une façon élégante de dire que je me suis porté volontaire pour gérer les problèmes de tout le monde, y compris les miens. L'autre chose que je ne peux pas lâcher, c'est l'IA. Honnêtement, tout cet endroit où vous êtes assis ? Je l'ai construit juste pour jouer avec la techno, parce que je suis convaincu que si on n'apprend pas à travailler avec l'IA maintenant, on sera dépassé d'ici mardi. Je préfère être en avance qu'obsolète. À côté de ça, je suis un people person — je tire mon énergie d'une pièce pleine. Et je cours : quelques courses à défi par an, pour lesquelles je m'entraîne vraiment, surtout pour que la ligne d'arrivée reste un objectif, et pas un événement médical.`,
+   outro:`Voilà, c'est à peu près tout ce que je peux vous raconter sur moi. Vous êtes arrivé au bout. Et je sais, c'était un peu à sens unique — moi qui parle, vous qui écoutez — ce n'est pas vraiment mon style, promis. Dans la vraie vie, je suis beaucoup plus drôle, surtout parce que vous pouvez me répondre. Alors si quelque chose vous a parlé, ne restez pas un inconnu : envoyez-moi un message sur LinkedIn et transformons ce café virtuel en vrai café. C'est la vraie conversation qui m'intéresse. À bientôt de l'autre côté.`}
  }
 };
-/* Optional pre-recorded audio overrides: AUDIO.fr.experience="audio/exp-fr.mp3"; */
-const AUDIO={en:{},fr:{}};
+/* Simon's real voice (EN). Missing keys (e.g. skills, all FR) fall back to browser TTS. */
+const AUDIO={
+ en:{
+  welcome:"audio/en/welcome.mp3",
+  intro:"audio/en/intro.mp3",
+  about:"audio/en/about.mp3",
+  experience:"audio/en/experience.mp3",
+  education:"audio/en/education.mp3",
+  certifications:"audio/en/certifications.mp3",
+  languages:"audio/en/languages.mp3",
+  contact:"audio/en/contact.mp3",
+  outro:"audio/en/outro.mp3"
+ },
+ fr:{}
+};
 
 let lang=VC.lang, current=null, hoverKey=null, speaking=false, audioEl=null, queue=[];
 const RM=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const TOUCH=matchMedia("(pointer: coarse)").matches;
+var paperLifted=false;      /* touch: sheet stays up until you tap away */
+var stagingReady=false;
 
 /* ---------------- RENDERER / SCENE / CAMERA ---------------- */
 const app=document.getElementById("app");
@@ -520,9 +536,9 @@ app.appendChild(renderer.domElement);
 const maxAniso=renderer.capabilities.getMaxAnisotropy();
 function onResize(){
   camera.aspect=innerWidth/innerHeight;
-  camera.fov=camera.aspect<0.75?64:50;
-  camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
+  if(stagingReady)applyStaging();
+  else{camera.fov=camera.aspect<0.75?64:50;camera.updateProjectionMatrix();}
 }
 addEventListener("resize",onResize); onResize();
 
@@ -635,21 +651,33 @@ function drawMenu(){
   x.fillStyle="#22303a";x.fillRect(0,0,1024,400);
   speckle(x,1024,400,900,.05);
   x.textAlign="center";
-  x.fillStyle="#f4b740";x.font="700 66px 'Caveat',cursive";
-  x.fillText("Virtual Coffee",512,78);
+  x.fillStyle="#f4b740";x.font="700 56px 'Caveat',cursive";
+  x.fillText("Virtual Coffee — La Carte",512,68);
   x.strokeStyle="rgba(244,183,64,.8)";x.lineWidth=3;
-  x.beginPath();x.moveTo(340,96);x.quadraticCurveTo(512,110,684,96);x.stroke();
-  x.fillStyle="#e9eef2";x.font="600 40px 'Caveat',cursive";
-  const L=["Espresso  2.5","Cappuccino  3.5","Flat white  4.0"],
-        R=["Filter  3.0","Chai latte  3.8","Croissant  2.2"];
-  L.forEach((s,i)=>{x.textAlign="left";x.fillText(s,120,170+i*62);});
-  R.forEach((s,i)=>{x.textAlign="left";x.fillText(s,600,170+i*62);});
-  /* cup doodle */
-  x.strokeStyle="#e9eef2";x.lineWidth=4;
-  x.strokeRect(892,300,64,44);
-  x.beginPath();x.arc(956,322,16,-1.3,1.3);x.stroke();
-  x.beginPath();x.moveTo(908,290);x.quadraticCurveTo(914,276,908,262);x.stroke();
-  x.beginPath();x.moveTo(932,290);x.quadraticCurveTo(938,276,932,262);x.stroke();
+  x.beginPath();x.moveTo(300,88);x.quadraticCurveTo(512,102,724,88);x.stroke();
+  const L=[["Le cappuccino salfari","3,8 €"],
+           ["Le café serré du lendemain","2,5 €"],
+           ["Le déca de 18 h","2,0 €"],
+           ["L'allongé du syndic","2,8 €"]];
+  const R=[["L'espresso d'avant-daily","2,2 €"],
+           ["Le latte « c'était un mail »","4,5 €"],
+           ["Le flat white sprint review","4,0 €"],
+           ["Le moka onboarding express","4,2 €"]];
+  x.font="600 33px 'Caveat',cursive";
+  L.forEach((it,k)=>{
+    x.fillStyle="#e9eef2";x.textAlign="left";x.fillText(it[0],56,152+k*58);
+    x.fillStyle="#f4b740";x.textAlign="right";x.fillText(it[1],492,152+k*58);
+  });
+  R.forEach((it,k)=>{
+    x.fillStyle="#e9eef2";x.textAlign="left";x.fillText(it[0],552,152+k*58);
+    x.fillStyle="#f4b740";x.textAlign="right";x.fillText(it[1],988,152+k*58);
+  });
+  /* small cup doodle by the title */
+  x.strokeStyle="#e9eef2";x.lineWidth=3;
+  x.strokeRect(920,36,40,28);
+  x.beginPath();x.arc(960,50,10,-1.3,1.3);x.stroke();
+  x.beginPath();x.moveTo(930,30);x.quadraticCurveTo(934,20,930,10);x.stroke();
+  x.beginPath();x.moveTo(946,30);x.quadraticCurveTo(950,20,946,10);x.stroke();
   if(!menuTex){menuTex=new THREE.CanvasTexture(c);menuTex.encoding=THREE.sRGBEncoding;menuTex.anisotropy=maxAniso;}
   else menuTex.needsUpdate=true;
 }
@@ -812,11 +840,14 @@ counter.position.set(2.7,.525,-3.6);counter.castShadow=true;counter.receiveShado
 const counterTop=new THREE.Mesh(new THREE.BoxGeometry(3.35,.07,.9),
   new THREE.MeshStandardMaterial({color:0x2a2a30,roughness:.35,metalness:.25}));
 counterTop.position.set(2.7,1.09,-3.6);counterTop.castShadow=true;counterTop.receiveShadow=true;scene.add(counterTop);
-const board=new THREE.Mesh(new THREE.PlaneGeometry(2.6,1.0),
+const board=new THREE.Mesh(new THREE.PlaneGeometry(3.1,1.2),
   new THREE.MeshBasicMaterial({map:menuTex}));
-board.position.set(2.7,2.4,-4.98);scene.add(board);
-const boardFrame=new THREE.Mesh(new THREE.BoxGeometry(2.75,1.14,.04),woodDark);
-boardFrame.position.set(2.7,2.4,-4.99);scene.add(boardFrame);
+/* The frame is a BOX 0.04 deep, so centring it at -4.99 pushes its front
+   face to -4.97 — in front of the menu plane, which hid the whole board.
+   Keep the plane ahead of that face. */
+board.position.set(2.7,2.42,-4.96);scene.add(board);
+const boardFrame=new THREE.Mesh(new THREE.BoxGeometry(3.18,1.36,.04),woodDark);
+boardFrame.position.set(2.7,2.42,-4.99);scene.add(boardFrame);
 const machine=new THREE.Mesh(new THREE.BoxGeometry(.55,.42,.4),
   new THREE.MeshStandardMaterial({color:0x9ea2a8,roughness:.3,metalness:.65}));
 machine.position.set(3.5,1.34,-3.65);machine.castShadow=true;scene.add(machine);
@@ -928,6 +959,17 @@ function person(shirt,pants,skin,hairC){
   neck.position.y=1.5;g.add(neck);
   const head=new THREE.Mesh(new THREE.SphereGeometry(.15,18,16),mSk);
   head.position.y=1.64;head.castShadow=true;g.add(head);P.head=head;
+  const mEye=new THREE.MeshStandardMaterial({color:0x23232b});
+  for(const e of[-1,1]){
+    const white=new THREE.Mesh(new THREE.SphereGeometry(.019,10,10),
+      new THREE.MeshStandardMaterial({color:0xf3efe7}));
+    white.position.set(.052*e,.022,.128);head.add(white);
+    const pupil=new THREE.Mesh(new THREE.SphereGeometry(.011,8,8),mEye);
+    pupil.position.set(.052*e,.022,.143);head.add(pupil);
+  }
+  const npcMouth=new THREE.Mesh(new THREE.BoxGeometry(.048,.009,.012),
+    new THREE.MeshStandardMaterial({color:0x8a4a3a}));
+  npcMouth.position.set(0,-.052,.14);head.add(npcMouth);
   const hair=new THREE.Mesh(new THREE.SphereGeometry(.155,18,14),mH);
   hair.scale.set(1,.72,1);hair.position.set(0,1.7,-.015);g.add(hair);P.hair=hair;
   scene.add(g);return P;
@@ -1066,6 +1108,10 @@ for(const s of[-1,1]){
 const mouthMesh=new THREE.Mesh(new THREE.BoxGeometry(.078,.016,.02),
   new THREE.MeshStandardMaterial({color:0x7a3b2b}));
 mouthMesh.position.set(0,-.088,.168);simonHead.add(mouthMesh);
+/* invisible hitbox so visitors can tap Simon himself (off-resume story) */
+const simonBox=new THREE.Mesh(new THREE.BoxGeometry(.85,1.35,.65),
+  new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
+simonBox.position.set(0,1.25,-1.08);scene.add(simonBox);
 
 /* Simon's cup + saucer + steam + pen + croissant */
 const saucer=new THREE.Mesh(new THREE.CylinderGeometry(.085,.07,.014,20),
@@ -1087,6 +1133,28 @@ for(let i=0;i<5;i++){
   const s=new THREE.Mesh(new THREE.SphereGeometry(.015,8,8),
     new THREE.MeshBasicMaterial({color:0xe8e3da,transparent:true,opacity:0,depthWrite:false}));
   s.userData.phase=i*.5;scene.add(s);steam.push(s);
+}
+/* beers for the off-record moment (hidden until "about") */
+const beers=new THREE.Group();
+function beerGlass(x,z){
+  const g=new THREE.Group();
+  const glass=new THREE.Mesh(new THREE.CylinderGeometry(.042,.036,.13,16),
+    new THREE.MeshStandardMaterial({color:0xd98a2b,roughness:.15,transparent:true,opacity:.92}));
+  glass.position.y=.065;g.add(glass);
+  const foam=new THREE.Mesh(new THREE.CylinderGeometry(.044,.042,.028,16),
+    new THREE.MeshStandardMaterial({color:0xf6efe0,roughness:.6}));
+  foam.position.y=.142;g.add(foam);
+  g.position.set(x,.81,z);return g;
+}
+beers.add(beerGlass(.44,-.62));   /* Simon's side */
+beers.add(beerGlass(-.05,.05));   /* visitor's side */
+beers.visible=false;scene.add(beers);
+let beerMode=false;
+function setBeerMode(on){
+  beerMode=on;
+  beers.visible=on;
+  cup.visible=!on;saucer.visible=!on;
+  steam.forEach(st=>st.visible=!on);
 }
 const pen=new THREE.Group();
 const penBody=new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.16,10),
@@ -1168,9 +1236,11 @@ function drawResume(){
   zone("intro",404,96,566,130,false);
   zone("experience",404,282,566,300,false);
   zone("education",404,650,566,190,false);
+  ZONES.push({key:"outro",x:404,y:1296,w:566,h:70});
+  const oAct=current==="outro",oHov=hoverKey==="outro";
   ctx.textAlign="center";ctx.font="700 26px 'Caveat',cursive";
-  ctx.fillStyle="rgba(20,38,61,.45)";
-  ctx.fillText(lang==="fr"?"— touchez une section pour en parler —":"— tap a section and let's talk about it —",686,1330);
+  ctx.fillStyle=oAct?"#b8860b":(oHov?"rgba(184,134,11,.85)":"rgba(20,38,61,.45)");
+  ctx.fillText(lang==="fr"?"— et pour conclure, touchez ici ☕ —":"— and to wrap up, tap here ☕ —",686,1330);
   tex.needsUpdate=true;
 }
 drawResume();
@@ -1197,33 +1267,49 @@ function pick(e){
   pointer.x=((e.clientX-r.left)/r.width)*2-1;
   pointer.y=-((e.clientY-r.top)/r.height)*2+1;
   ray.setFromCamera(pointer,camera);
-  const hit=ray.intersectObject(paper)[0];
+  const hits=ray.intersectObjects([paper,simonBox]);
+  const hit=hits[0];
   if(!hit){paperHover=false;
     if(hoverKey){hoverKey=null;drawResume();}
     document.body.style.cursor="default";return null;}
+  if(hit.object===simonBox){
+    paperHover=false;
+    if(hoverKey){hoverKey=null;drawResume();}
+    document.body.style.cursor="pointer";
+    return "__simon";
+  }
   paperHover=true;
   const u=hit.uv.x*CW,v=(1-hit.uv.y)*CH;
   const z=ZONES.find(z=>u>=z.x-14&&u<=z.x+z.w+16&&v>=z.y-34&&v<=z.y+z.h-34);
   const k=z?z.key:null;
   if(k!==hoverKey){hoverKey=k;drawResume();}
   document.body.style.cursor=k?"pointer":"default";
-  return k;
+  return k?k:"__paper";
 }
-addEventListener("pointermove",pick);
-addEventListener("pointerdown",e=>{const k=pick(e);if(k)selectSection(k);});
+addEventListener("pointermove",e=>{if(TOUCH)return;pick(e);});
+addEventListener("pointerdown",e=>{
+  const k=pick(e);
+  if(k==="__simon"){selectAbout();return;}
+  if(TOUCH){
+    if(k===null){paperLifted=false;return;}      /* tap away -> lay it back down */
+    if(!paperLifted){paperLifted=true;return;}   /* first tap -> lift the sheet */
+    if(k!=="__paper")selectSection(k);           /* lifted -> taps pick sections */
+  }else if(k&&k!=="__paper")selectSection(k);
+});
 
 /* ---------------- SPEECH ---------------- */
-const bubble=document.getElementById("bubble");
 const promptEl=document.getElementById("prompt");
-const signEl=document.getElementById("sign");
 function selectSection(key){
+  if(beerMode)setBeerMode(false);
   current=key;drawResume();
   promptEl.style.display="none";
-  signEl.classList.add("dim");          /* the conversation has started */
-  bubble.innerHTML='<span class="eq"><i></i><i></i><i></i><i></i></span>'+DATA[lang].speech[key];
-  bubble.classList.add("show");
-  bubble.scrollTop=0;
   speak(DATA[lang].speech[key],key);
+}
+function selectAbout(){
+  setBeerMode(true);
+  current=null;hoverKey=null;drawResume();
+  promptEl.style.display="none";
+  speak(DATA[lang].speech.about,"about");
 }
 function bestVoice(code){
   const vs=speechSynthesis.getVoices(),sh=code.slice(0,2);
@@ -1237,16 +1323,24 @@ function bestVoice(code){
     if(!v.localService)s+=1;return s;};
   return c.sort((a,b)=>sc(b)-sc(a))[0];
 }
-function speak(text,key){
-  stopSpeaking();speaking=true;
-  const f=key&&AUDIO[lang][key];
-  if(f){audioEl=new Audio(f);audioEl.onended=endSpeech;audioEl.onerror=endSpeech;
-    audioEl.play().catch(endSpeech);return;}
+function ttsStart(text){
   if(!("speechSynthesis"in window)){endSpeech();return;}
   const code=lang==="fr"?"fr-FR":"en-GB";
   const v=bestVoice(code)||bestVoice(lang);
   queue=text.match(/[^.!?…]+[.!?…]+["']?|\S[^.!?…]*$/g)||[text];
   next(code,v);
+}
+function speak(text,key){
+  stopSpeaking();speaking=true;
+  const f=key&&AUDIO[lang][key];
+  if(f){
+    audioEl=new Audio(f);
+    audioEl.onended=endSpeech;
+    audioEl.onerror=()=>{audioEl=null;ttsStart(text);};
+    audioEl.play().catch(()=>{audioEl=null;ttsStart(text);});
+    return;
+  }
+  ttsStart(text);
 }
 function next(code,v){
   if(!queue.length){endSpeech();return;}
@@ -1265,13 +1359,11 @@ function stopSpeaking(){queue=[];speaking=false;
    VC owns the EN/FR toggle, the <html lang> attribute and the text
    résumé, because those have to keep working without a scene. The café
    is just one more subscriber. */
-function promptText(){const d=DATA[lang];return VC.coarse?d.promptTouch:d.prompt;}
 function applyLang(l){
   if(l===lang)return;stopSpeaking();lang=l;
   const d=DATA[lang];
   document.getElementById("sign").innerHTML=d.sign[0]+"<small>"+d.sign[1]+"</small>";
-  promptEl.textContent=promptText();
-  if(current)bubble.innerHTML='<span class="eq"><i></i><i></i><i></i><i></i></span>'+d.speech[current];
+  promptEl.textContent=TOUCH?d.promptTouch:d.prompt;
   drawResume();
   renderHowto();
 }
@@ -1283,44 +1375,66 @@ if("speechSynthesis"in window){speechSynthesis.getVoices();speechSynthesis.onvoi
 const HOWTO={
  en:{title:"Welcome to my virtual coffee\u00A0☕",
      steps:["🪑 You're sitting across the table from me, in a small café",
-            VC.coarse?"👆 Tap the résumé on the table — it lifts up. Then tap any section"
-                     :"👆 Hover the résumé on the table — it lifts up. Click any section",
-            "🔊 I'll tell you about it out loud — turn your sound on",
+            "👆 Hover the résumé on the table — it lifts up. Tap any section",
+            "🍺 Tap me — Simon — for the off-the-record story",
+            "🔊 It's my real voice — turn your sound on",
+            "🇬🇧 EN / FR toggle at the top right",
+            "📄 In a hurry? “Text résumé” gives you the flat version"],
+     stepsTouch:["🪑 You're sitting across the table from me, in a small café",
+            "👆 Tap the résumé to lift it, then tap any section",
+            "🍺 Tap me — Simon — for the off-the-record story",
+            "🔊 It's my real voice — turn your sound on",
             "🇬🇧 EN / FR toggle at the top right",
             "📄 In a hurry? “Text résumé” gives you the flat version"],
      btn:"Take a seat",
-     welcome:"Welcome! Make yourself comfortable. Hover the résumé on the table, tap a section, and I'll do the talking."},
+     welcome:`Hey, welcome, grab a seat. Here's how this works: the resume is sitting right there on the table. Hover over it and it lifts up, which is already fancier than my actual desk. Tap any section that catches your eye and I'll tell you about it, in my own words, like we're having a real coffee, except I do all the talking. There's no right order, start wherever you're curious. And if you'd rather hear this in French, there's a switch for that. So, where do we begin?`},
  fr:{title:"Bienvenue dans mon café virtuel\u00A0☕",
      steps:["🪑 Vous êtes assis en face de moi, dans un petit café",
-            VC.coarse?"👆 Touchez le CV posé sur la table — il se soulève. Puis touchez une section"
-                     :"👆 Survolez le CV posé sur la table — il se soulève. Cliquez une section",
-            "🔊 Je vous la raconte à voix haute — activez le son",
+            "👆 Survolez le CV posé sur la table — il se soulève. Touchez une section",
+            "🍺 Touchez-moi — Simon — pour la version off",
+            "🔊 Activez le son — c'est ma vraie voix",
+            "🇫🇷 Bouton EN / FR en haut à droite",
+            "📄 Pressé ? « CV en texte » donne la version à plat"],
+     stepsTouch:["🪑 Vous êtes assis en face de moi, dans un petit café",
+            "👆 Touchez le CV pour le soulever, puis touchez une section",
+            "🍺 Touchez-moi — Simon — pour la version off",
+            "🔊 Activez le son — c'est ma vraie voix",
             "🇫🇷 Bouton EN / FR en haut à droite",
             "📄 Pressé ? « CV en texte » donne la version à plat"],
      btn:"Prendre place",
-     welcome:"Bienvenue ! Installez-vous. Survolez le CV sur la table, touchez une section, et c'est moi qui parle."}
+     welcome:`Hé, bienvenue, installez-vous. Voilà comment ça marche : le CV est posé juste là, sur la table. Survolez-le, il se soulève — déjà plus chic que mon vrai bureau. Touchez la section qui vous intrigue et je vous la raconte, avec mes mots, comme autour d'un vrai café — sauf que c'est moi qui fais toute la conversation. Pas d'ordre imposé : commencez où vous êtes curieux. Alors, on commence où ?`}
 };
 function renderHowto(){
   const h=HOWTO[lang],el=document.getElementById("howto");
   el.querySelector("h2").textContent=h.title;
-  el.querySelector(".hsteps").innerHTML=h.steps.map(x=>"<li>"+x+"</li>").join("");
+  el.querySelector(".hsteps").innerHTML=(TOUCH?h.stepsTouch:h.steps).map(x=>"<li>"+x+"</li>").join("");
   document.getElementById("enterBtn").textContent=h.btn;
 }
 renderHowto();
-promptEl.textContent=promptText();
+promptEl.textContent=TOUCH?DATA[lang].promptTouch:DATA[lang].prompt;
 document.getElementById("enterBtn").addEventListener("click",()=>{
   entered=true;
   const el=document.getElementById("howto");
   el.classList.add("hide");
   setTimeout(()=>el.style.display="none",450);
-  speak(HOWTO[lang].welcome,null);
+  speak(HOWTO[lang].welcome,"welcome");
 });
 
 /* ---------------- ANIMATION LOOP ---------------- */
 const clock=new THREE.Clock();
-const headBase=new THREE.Vector3(0,1.92,-1.08);
-const proj=new THREE.Vector3();
 const camTarget=new THREE.Vector3(0,1.08,-.95);
+function applyStaging(){
+  const portrait=camera.aspect<0.75;
+  camera.fov=portrait?64:50;
+  camBase.set(0,portrait?1.38:1.34,portrait?1.72:1.6);
+  camTarget.set(0,portrait?1.02:1.08,-.95);
+  camera.position.set(camBase.x,camBase.y,camBase.z);
+  camera.updateProjectionMatrix();
+  paperRest.pos.set(0,.802,portrait?.20:.24);
+  paperUp.pos.set(0,portrait?1.06:1.0,portrait?.66:.5);
+  paperUp.rot=portrait?-.98:-.85;
+}
+stagingReady=true;applyStaging();
 function animate(){
   requestAnimationFrame(animate);
   const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;
@@ -1386,31 +1500,20 @@ function animate(){
     }
     pos.needsUpdate=true;
   }
-  paperT+=((paperHover?1:0)-paperT)*Math.min(1,dt*7);
+  const liftTarget=TOUCH?(paperLifted?1:0):(paperHover?1:0);
+  paperT+=(liftTarget-paperT)*Math.min(1,dt*7);
   paper.position.lerpVectors(paperRest.pos,paperUp.pos,paperT);
   paper.rotation.x=paperRest.rot+(paperUp.rot-paperRest.rot)*paperT;
 
   keySpot.intensity=1.5+Math.sin(t*9)*.03;
   lampPts.forEach((p,i)=>p.intensity=.85+Math.sin(t*7+i*2)*.04);
 
-  if(!RM){
+  if(!RM&&!TOUCH){
     camera.position.x+= (camBase.x+pointer.x*.10-camera.position.x)*.04;
     camera.position.y+= (camBase.y+pointer.y*.05-camera.position.y)*.04;
   }
   camera.position.z=camBase.z;
   camera.lookAt(camTarget);
-
-  /* Pin the bubble over Simon's head, then keep it fully on screen. It is
-     anchored translate(-50%,-100%), so its box sits up-and-left of the
-     projected point and a long answer would otherwise run off the top. */
-  if(bubble.classList.contains("show")){
-    proj.copy(headBase).project(camera);
-    const bw=bubble.offsetWidth,bh=bubble.offsetHeight,M=12;
-    const bx=Math.min(Math.max((proj.x*.5+.5)*innerWidth,bw/2+M),innerWidth-bw/2-M);
-    const by=Math.min(Math.max((-proj.y*.5+.5)*innerHeight,bh+M),innerHeight-M);
-    bubble.style.left=bx+"px";
-    bubble.style.top=by+"px";
-  }
 
   renderer.render(scene,camera);
 }

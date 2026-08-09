@@ -1,8 +1,9 @@
 # Virtual Coffee
 
 An interactive 3D résumé. You sit across a café table from Simon, his CV is
-lying on the table, and tapping a section makes him tell you about it out loud.
-Bilingual EN / FR.
+lying on the table, and tapping a section makes him tell you about it out loud —
+in his own recorded voice. Tap Simon himself and he orders a round of beers for
+the off-the-record version. Bilingual EN / FR.
 
 **Live** : <https://ndashiz.be/virtualcoffee/>
 
@@ -36,6 +37,7 @@ index.html          Everything: markup, CSS, the VC shell, the 3D café
 fonts.css           @font-face for the three self-hosted families
 fonts/*.woff2       Space Grotesk · Inter · Caveat (latin + latin-ext)
 three.min.js        three.js r134, vendored
+audio/en/*.mp3      Simon's recorded voice, one file per section (~4.6 MB)
 og.jpg              1200×630 share card, rendered from the scene itself
 favicon.svg
 .nojekyll           skip the Jekyll build on Pages
@@ -95,9 +97,10 @@ readable.
 ### The text résumé is not a fallback, it is the second half of the site
 
 It is what a screen reader reads, what a keyboard user gets, what a crawler
-indexes, and what a visitor without WebGL sees. Both languages ship as **static
-markup** rather than being generated from the `DATA` object, so a bot that never
-runs the 3D still reads the whole CV.
+indexes, what a visitor without WebGL sees, and — since the recordings removed
+the subtitles — the only way to *read* any of this. Both languages ship as
+**static markup** rather than being generated from the `DATA` object, so a bot
+that never runs the 3D still reads the whole CV.
 
 The cost is two copies of the content. **When the CV changes, update both** —
 `DATA` (drawn on the 3D sheet, and spoken) and the `[data-cvlang]` blocks.
@@ -119,14 +122,30 @@ the café sign fades out while a bubble is up.
 
 ## Voice
 
-Speech uses the browser's `SpeechSynthesis`, picking the best available voice for
-`en-GB` / `fr-FR` (preferring neural/premium/Google/Siri faces). Quality varies a
-lot per OS. `AUDIO[lang][section]` is an escape hatch: point it at an mp3 and
-that section plays a recording instead.
+`AUDIO[lang][section]` maps a section to a recording. English is fully recorded
+in Simon's own voice (`audio/en/*.mp3`); **French has no recordings yet**, so
+every FR section falls back to the browser's `SpeechSynthesis`, which picks the
+best available `fr-FR` voice and sounds noticeably more robotic. `skills` has no
+mp3 in either language and always falls back.
+
+To record more, drop the file in and add the key:
 
 ```js
-AUDIO.fr.experience = "audio/exp-fr.mp3";
+AUDIO.fr.experience = "audio/fr/experience.mp3";
 ```
+
+A missing key falls back to TTS, and so does a file that fails to load
+(`audioEl.onerror`), so a broken path degrades rather than going silent.
+
+### There are no subtitles
+
+The recordings replaced the on-screen speech bubble the prototype used to have.
+Anyone with sound off, in a quiet office, or hard of hearing now gets nothing
+from the spoken sections — which is precisely why the **text résumé** matters,
+and why it carries the "Off the clock" content too. It is not a full transcript
+of what Simon says, though: the spoken sections are longer and more personal
+than the CV. A real transcript panel is the obvious next step if that gap
+matters.
 
 ## Credits
 
