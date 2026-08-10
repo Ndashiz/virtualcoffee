@@ -9,79 +9,47 @@ the off-the-record version. Bilingual EN / FR.
 
 ## How it is served
 
-The café **used to be** a GitHub Pages project site. It is not any more: the
-**VPS** serves it now, at the same URL. That move is what makes the switch below
-possible — Simon needs to be able to close the bar, and Pages has no backend.
+GitHub Pages serves the café; the VPS answers one question about it.
+
+`ndashiz.be` is a Cloudflare-proxied domain whose origin is the **user** site repo
+`Ndashiz/ndashiz.github.io`. Every other repo on the account is published as a
+*project* site underneath it, at `ndashiz.be/<repo-name>/` — so this repo being
+named `virtualcoffee` is what produces the URL. Renaming the repo moves the site.
 
 ```
-git push                            →  GitHub                (source of truth)
-ssh vps, deploy-virtualcoffee.sh    →  /var/www/virtualcoffee/
-Cloudflare  ndashiz.be/virtualcoffee*  ──→  the VPS           (Origin Rule — see below)
+git push  →  GitHub Pages  →  ndashiz.be/virtualcoffee/
+                              └── ~1–2 min build, then Cloudflare cache (~10 min)
 ```
 
-Three pieces, three owners:
+That is the whole deployment. There is no server to restart and nothing to copy.
 
-| Piece | Lives at | Put there by |
-|---|---|---|
-| The static site | `/var/www/virtualcoffee/` | `jarvis/deploy/deploy-virtualcoffee.sh` |
-| The nginx vhost | `/etc/nginx/sites-enabled/virtualcoffee` | `jarvis/deploy/nginx-virtualcoffee.conf`, copied by hand |
-| The API | Jarvis backend, `127.0.0.1:3007`, route `/api/vc/ping` | `jarvis/deploy/deploy.sh` |
+### Why the CV is not on the VPS
 
-nginx maps `/virtualcoffee/api/` onto `/api/vc/`, so the page reaches its API as
-the **relative** url `api/ping`. Static site and API therefore share one origin
-*and* one path prefix: **there is no CORS in this feature**, nothing to add to
-an allowlist, and the same line of client code works in local dev and in prod.
+Moving it there was tried and deliberately reversed. Serving the café from the
+VPS would have made the switch same-origin and removed every line of CORS below
+— but it would also have made **the CV itself depend on a personal VPS being up**.
+A résumé that 404s because a box rebooted is a worse failure than a switch that
+occasionally cannot be flipped, so the dependency runs the other way: Pages
+serves the page, and only the *switch* asks the VPS.
 
-### The Cloudflare step — Simon's job, not the deploy script's
+The route that would have made it possible — a Cloudflare Origin Rule
+overriding the origin for `/virtualcoffee*` — turned out to be a paid feature on
+this account, which settled the question.
 
-`ndashiz.be` is a Cloudflare-proxied domain whose origin is still GitHub Pages.
-Copying the files onto the VPS changes **nothing** for the public until
-Cloudflare is told to send `/virtualcoffee*` there. Two ways to do that:
+`jarvis/deploy/nginx-virtualcoffee.conf` and `deploy-virtualcoffee.sh` are kept
+as a working standby: they still publish and serve the café correctly, and the
+ping's absolute url means the page behaves identically either way (its origin is
+`https://ndashiz.be` in both cases). If you ever enable that path, remember the
+copy under `/var/www/virtualcoffee/` drifts the moment you stop deploying to it.
 
-**Option A — an Origin Rule in the dashboard. Recommended.**
-
-1. **DNS** → add `vps` · `A` · *the VPS IP* · proxy status **DNS only** (grey
-   cloud). This record exists only to be the rule's target; proxying it would
-   put the traffic through Cloudflare twice.
-2. **Rules → Origin Rules → Create rule**, name it `virtualcoffee → VPS`.
-   Custom expression:
-   ```
-   (http.host eq "ndashiz.be" and starts_with(http.request.uri.path, "/virtualcoffee"))
-   ```
-   Action: **DNS Record → Rewrite to → `vps.ndashiz.be`**. Leave the Host header
-   and the SNI alone, so the origin still sees `ndashiz.be` and the vhost in
-   `nginx-virtualcoffee.conf` matches.
-3. **SSL/TLS** must be **Full** or **Full (strict)**. Install a Cloudflare
-   **Origin Certificate** for `ndashiz.be` on the VPS — *not* certbot. certbot's
-   HTTP-01 challenge is served from `/.well-known/acme-challenge/`, which this
-   rule does **not** route to the VPS, so it cannot succeed; the Origin
-   Certificate is issued from the dashboard with no challenge at all and lasts
-   15 years.
-4. **Caching → Purge** the `/virtualcoffee/` prefix once. Cloudflare is holding
-   the old Pages copy and will keep serving it otherwise.
-
-**Option B — a Worker route.** Add the route `ndashiz.be/virtualcoffee*` to a
-Worker that re-fetches `https://vps.ndashiz.be` + path. It works, and it is the
-wrong tool here: a Worker only ships via `wrangler deploy` (pushing to `main`
-deploys nothing), it puts a JS hop in front of every mp3 and every ping, and the
-only Worker on this zone today is the LazyPO auth gate on `ndashiz.be/pro/*` —
-routing a public résumé through an auth gate and a CSP that has already broken
-production twice is a trade with no upside. Keep them apart.
-
-**If neither is done**, nothing looks broken, which is the trap. The public keeps
-getting the GitHub Pages copy; `api/ping` resolves to a Pages 404, the response
-is not JSON, and — by design — **the café stays open**. What is silently lost:
-the switch does nothing, the Jarvis dashboard counts zero visitors, and the copy
-in `/var/www/` quietly drifts away from the one people actually see.
-
-### Still true after the move
+### Still true
 
 - **The LazyPO Cloudflare Worker does not apply here.** Its route is
   `ndashiz.be/pro/*`, so `/virtualcoffee/` gets no auth gate, no CSP and none of
   its security headers. Nothing on this page needs them.
 - **`robots.txt` cannot live in this repo.** Crawlers only read
-  `ndashiz.be/robots.txt`, still served by `Ndashiz/ndashiz.github.io` — the
-  Origin Rule only diverts `/virtualcoffee*`. Same for a sitemap entry.
+  `ndashiz.be/robots.txt`, served by `Ndashiz/ndashiz.github.io`. Same for a
+  sitemap entry.
 
 ## Layout
 
@@ -102,22 +70,26 @@ No build step, no bundler, no dependencies to install. Open `index.html` or:
 npx serve -l 4321 .
 ```
 
-There is no API in front of that, so the ping 404s, the café stays open, and
-nothing in the console says otherwise — which is exactly the production
-behaviour when the backend is down. That is the point, not a gap.
+The ping still goes to the real `jarvis.ndashiz.be`, but the backend grants CORS
+to `https://ndashiz.be` only, so the browser refuses the answer and the café
+stays open. You get a console CORS complaint and nothing else — which is exactly
+the production behaviour when the backend is down. That is the point, not a gap.
+To exercise the closed café locally, see "Trying the closed café locally" below.
 
 ## The switch — "is the bar open?"
 
 One public endpoint, called once on load:
 
 ```
-GET  api/ping?e=<event>&l=<lang>&r=<ref>
+GET  https://jarvis.ndashiz.be/api/vc/ping?e=<event>&l=<lang>&r=<ref>
 →    200  {"open": true}          Cache-Control: no-store
+                                  Access-Control-Allow-Origin: https://ndashiz.be
+                                  Vary: Origin
 ```
 
-Relative url, always. `api/ping` resolves against `/virtualcoffee/`, so it hits
-the VPS in production and the local server in dev with no build-time
-substitution and no environment variable.
+Absolute, and **cross-origin**: the café is on GitHub Pages, the switch is on the
+VPS. The grant is scoped to this one route — see "The CORS contract" below, which
+is the part of this feature most likely to be broken by a well-meaning edit.
 
 Everything it can carry is a closed enum, validated again server-side, and
 anything else is dropped on the floor:
@@ -170,13 +142,52 @@ wire, so the answer normally lands while the welcome card is still up.
 The scene reads it through a shim, `const PING = window.VCPing || {tap(){}, whenClosed(){}}`,
 so a café whose ping block never ran is simply an uncounted café.
 
+### The CORS contract — the fragile part
+
+The café and the switch are on different origins, so the whole feature rests on
+one grant, set on one route in `jarvis/backend/src/routes/vc.ts`:
+
+```
+Access-Control-Allow-Origin: https://ndashiz.be
+Vary: Origin
+Cross-Origin-Resource-Policy: cross-origin
+(and Access-Control-Allow-Credentials explicitly REMOVED)
+```
+
+Three things about it are easy to get wrong, and each was verified against the
+running server rather than assumed:
+
+**It must stay a CORS *simple request*** — a `GET` with no custom header. A
+preflight from `ndashiz.be` is answered by Jarvis's global `cors()` before any
+route is reached, and comes back *without* an `Allow-Origin`, so a preflight can
+never be made to work here. Change the ping to a `POST`, or add a
+`Content-Type`, and the switch dies **silently and permanently**: everything
+fails open, so nothing on either side reports it. `deploy-virtualcoffee.sh`
+greps for both mistakes.
+
+**Do not add `ndashiz.be` to `ALLOWED_ORIGINS`.** It is the obvious-looking
+shortcut and it is the dangerous one: the global `cors()` applies
+`credentials: true` to every allowlisted origin on *every* route, which would
+hand any page on that host — including LazyPO's deliberately ungated
+`/pro/quiz.html` — credentialed access to all the owner-gated Jarvis APIs with
+the session cookie.
+
+**`Access-Control-Allow-Credentials` must be absent.** The global `cors()` emits
+it on every response, including ones it grants no origin to. Next to our own
+`Allow-Origin` it would turn this public route into a credentialed cross-origin
+grant, so the route strips it explicitly. There is a test asserting the header is
+*not* there.
+
 ### Privacy
 
 Counters, on Simon's own server, and nothing else. No cookie, no third party, no
-analytics product, and `access_log off` on the API location in
-`nginx-virtualcoffee.conf` — with no HTTP logger in the Jarvis backend either, so
-**no IP address is written down anywhere**. nginx is also told not to forward
-`X-Real-IP` / `X-Forwarded-For` to the backend: it has no use for them.
+analytics product, and `access_log off` on the `location /api/vc/` block in
+`jarvis/deploy/nginx-jarvis-root.conf` — with no HTTP logger in the Jarvis backend
+either, so **no IP address is written down anywhere**. nginx is also told not to
+forward `X-Real-IP` / `X-Forwarded-For` to the backend: it has no use for them.
+
+That one nginx line is load-bearing for a public promise. If the vhost is ever
+replaced without it, the sentence printed on the CV becomes false.
 
 `document.referrer` is bucketed into one of five words *in the browser*, before
 anything leaves the page. The URL itself never travels — the useful fact is
@@ -226,16 +237,25 @@ lamp breathes very slightly, and holds perfectly steady when motion is reduced.
 
 ### Trying the closed café locally
 
-No backend needed — stub the endpoint as a static file:
+The ping is an absolute url, so a static stub in the page's own folder no longer
+intercepts it, and from `localhost` the real endpoint is CORS-refused anyway.
+Two ways to see the closed room:
+
+**Override the response in devtools.** Network tab → right-click the `ping`
+request → *Override content*, return `{"open":false}`, reload. Nothing to edit,
+nothing to revert.
+
+**Or point the ping at a local file**, temporarily, in `index.html`:
 
 ```bash
-mkdir -p api && printf '{"open":false}' > api/ping
-npx serve -l 4321 .
+printf '{"open":false}' > /tmp/ping.json && npx serve -l 4321 . & npx serve -l 4322 /tmp
 ```
 
-`fetch(...).json()` does not care about the content type, so the page reads it as
-the real answer and closes the bar. Delete `api/` to reopen it; it is
-`.gitignore`d so it can never be deployed by accident.
+…then change the fetch url to `http://localhost:4322/ping.json` and reload.
+
+**Revert it before committing.** `deploy-virtualcoffee.sh` greps for the real
+host precisely because a stray local url would kill the switch in production
+without a single visible symptom — everything fails open, so nothing complains.
 
 ## The parts that are not obvious
 

@@ -506,9 +506,18 @@ window.VCPing = (function(){
       try { ctl = new AbortController(); } catch (_) {}
       if (ctl) timer = setTimeout(function(){ try { ctl.abort(); } catch (_) {} }, 2000);
 
-      fetch('api/ping?' + qs, {          /* RELATIVE on purpose: /virtualcoffee/api/ping in prod,
-                                            localhost:4321/api/ping in dev, same line of code */
+      /* Absolute, and cross-origin: the café is served by GitHub Pages, the switch lives on
+         the VPS behind jarvis.ndashiz.be. The backend grants exactly this origin on exactly
+         this route.
+
+         This MUST stay a CORS "simple request" — a GET with no custom header. A preflight
+         from here is answered by Jarvis's global cors() before the route is reached and comes
+         back without an Allow-Origin, so a preflight can never be made to work. Turn this into
+         a POST, or add a Content-Type, and the switch dies silently and permanently: the
+         failure mode is fail-open, so nothing on either side will ever tell you. */
+      fetch('https://jarvis.ndashiz.be/api/vc/ping?' + qs, {
         method: 'GET',
+        mode: 'cors',
         credentials: 'omit',             /* nothing of the visitor's travels with it */
         cache: 'no-store',
         signal: ctl ? ctl.signal : undefined
