@@ -239,6 +239,7 @@
         <li>Brussels, Belgium</li>
       </ul>
       <p class="cvnote">This is the flat reading of the café. In the 3D version I tell you all of this out loud, in my own voice — grab a coffee and come back.</p>
+      <p class="cvnote"><strong>Privacy.</strong> This page keeps a headcount on my own server, and nothing else: which section was opened, whether you read it in EN or FR, and whether you arrived from LinkedIn, GitHub, a search engine or straight here. Counters only — no cookie, no third party, no analytics service, no access log, so no IP address is written down and nothing here can identify you. If your browser sends Global Privacy Control or Do Not Track, the visit is counted once and neither the language nor the referrer is sent at all.</p>
     </div>
 
     <div data-cvlang="fr" hidden>
@@ -297,6 +298,7 @@
         <li>Bruxelles, Belgique</li>
       </ul>
       <p class="cvnote">Ceci est la version à plat du café. Dans la version 3D, je vous raconte tout ça à voix haute, avec ma vraie voix — prenez un café et repassez.</p>
+      <p class="cvnote"><strong>Vie privée.</strong> Cette page tient un simple comptage sur mon propre serveur, et rien d'autre : quelle section a été ouverte, si vous lisez en EN ou en FR, et si vous arrivez de LinkedIn, de GitHub, d'un moteur de recherche ou directement. Des compteurs, point — aucun cookie, aucun tiers, aucun service d'analytics, aucun journal d'accès, donc aucune adresse IP écrite nulle part et rien qui puisse vous identifier. Si votre navigateur envoie Global Privacy Control ou Do Not Track, la visite est comptée une fois et ni la langue ni la provenance ne sont transmises.</p>
     </div>
   </div>
 </main>
@@ -410,11 +412,141 @@ window.VC = (function(){
   if (!hasWebGL) textOnly('no WebGL context');
 
   return {
-    hasWebGL, fontsReady, setLang,
+    hasWebGL, fontsReady, setLang, openCV,
     get lang(){ return lang; },
     onLang(fn){ subs.push(fn); },
     set onOpenCV(fn){ onOpen = fn; },
     textOnly,
+  };
+})();
+</script>
+
+<script>
+/* =====================================================================
+   VCPing — "is the bar open?", and a headcount
+   ---------------------------------------------------------------------
+   WHY THIS IS ITS OWN <script>, HERE, BETWEEN THE OTHER TWO
+
+   Not inside the VC shell above: a syntax error anywhere in that IIFE
+   leaves window.VC undefined, and VC is what swaps in the text résumé
+   when the 3D fails. A visit counter must never be able to take the
+   fallback down with it — a separate <script> is a parser boundary, so
+   the worst this block can do is not run.
+
+   Not after the scene either: the answer decides whether the café opens
+   at all, and the scene paints its first frame as soon as three.js has
+   parsed. Firing from here starts the request while three.min.js (600 kB)
+   is still on the wire, so the answer normally lands while the welcome
+   card is still up — before anyone has taken a seat.
+
+   Everything below is best-effort and silent. There is no failure path
+   that reaches the visitor: a café that cannot count is still a café,
+   and — the rule that outranks all the others — a café that cannot ask
+   is OPEN.
+   ===================================================================== */
+window.VCPing = (function(){
+
+  /* The server validates these as well. The copy here is not a second
+     line of defence, it is so that a typo in the scene never becomes a
+     query string the backend has to think about. */
+  var EVENTS = ['open','enter','cv','intro','experience','education','skills',
+                'certifications','languages','contact','outro','about'];
+
+  /* Global Privacy Control / Do Not Track. We still ASK the switch — a
+     visitor has to be told the bar is closed either way, and that answer
+     is a fact about Simon, not about them — but the request then carries
+     the event "open" and nothing else: no language, no referrer, and no
+     further request for anything they click. Said out loud in the privacy
+     note at the foot of the text résumé. */
+  var PRIVATE = (function(){
+    try {
+      return navigator.globalPrivacyControl === true ||
+             navigator.doNotTrack === '1' || navigator.doNotTrack === 'yes' ||
+             window.doNotTrack === '1' || navigator.msDoNotTrack === '1';
+    } catch (_) { return true; }     /* unreadable → assume the stricter answer */
+  })();
+
+  /* document.referrer, bucketed into one of five words before it leaves
+     the page. The URL itself never goes anywhere: the useful fact is
+     "LinkedIn", not which post. Same-host navigation counts as direct,
+     anything unrecognised as other. */
+  function referrerBucket(){
+    var raw = '';
+    try { raw = document.referrer || ''; } catch (_) { return 'direct'; }
+    if (!raw) return 'direct';
+    var host;
+    try { host = new URL(raw).hostname.toLowerCase(); } catch (_) { return 'other'; }
+    if (host === location.hostname)                    return 'direct';
+    if (/(^|\.)(linkedin\.com|lnkd\.in)$/.test(host))   return 'linkedin';
+    if (/(^|\.)(github\.com|github\.io)$/.test(host))   return 'github';
+    if (/(^|\.)google\.[a-z.]+$/.test(host))            return 'google';
+    return 'other';
+  }
+  var REF = PRIVATE ? null : referrerBucket();
+
+  var closed = false, closedFns = [];
+  function markClosed(){
+    if (closed) return;
+    closed = true;
+    closedFns.splice(0).forEach(function(fn){ try { fn(); } catch (e) { console.error(e); } });
+  }
+
+  function send(event, isLoad){
+    try {
+      if (typeof fetch !== 'function') return;   /* pre-2017 browser: no ping, café stays open */
+      if (PRIVATE && !isLoad) return;            /* GPC: exactly one request, and only for the switch */
+      if (EVENTS.indexOf(event) < 0) return;
+
+      var qs = 'e=' + event;
+      if (!PRIVATE) qs += '&l=' + (window.VC && VC.lang === 'fr' ? 'fr' : 'en') + '&r=' + REF;
+
+      /* Two seconds, then we drop it. A café that hangs on its own
+         analytics is worse than one that never counted the visit. */
+      var ctl = null, timer = 0;
+      try { ctl = new AbortController(); } catch (_) {}
+      if (ctl) timer = setTimeout(function(){ try { ctl.abort(); } catch (_) {} }, 2000);
+
+      fetch('api/ping?' + qs, {          /* RELATIVE on purpose: /virtualcoffee/api/ping in prod,
+                                            localhost:4321/api/ping in dev, same line of code */
+        method: 'GET',
+        credentials: 'omit',             /* nothing of the visitor's travels with it */
+        cache: 'no-store',
+        signal: ctl ? ctl.signal : undefined
+      })
+      .then(function(r){ return r && r.ok ? r.json() : null; })
+      .then(function(d){
+        if (!isLoad) return;                       /* interaction pings never honour the answer */
+        if (d && d.open === false) markClosed();   /* STRICTLY false. Everything else is open. */
+      })
+      .catch(function(){})                         /* offline, aborted, 502, bad JSON → open */
+      .then(function(){ if (timer) clearTimeout(timer); });
+    } catch (_) { /* fetch threw synchronously, blocked by an extension, … → open */ }
+  }
+
+  /* The load ping — the only one whose answer means anything. */
+  send('open', true);
+
+  /* The text résumé is the one thing reachable in every state of this
+     page, so its pill earns a count of its own. The VC shell registered
+     its own click listener first, so aria-expanded here already reflects
+     the new state: we count openings, not closings. */
+  try {
+    var cvBtn = document.getElementById('cvBtn');
+    if (cvBtn) cvBtn.addEventListener('click', function(){
+      if (cvBtn.getAttribute('aria-expanded') === 'true') send('cv', false);
+    });
+  } catch (_) {}
+
+  return {
+    /* The scene registers here. Fires at most once, and only on a clear
+       {"open":false} — never on a timeout, a 502 or an adblocker. */
+    whenClosed: function(fn){
+      if (closed) { try { fn(); } catch (e) { console.error(e); } }
+      else closedFns.push(fn);
+    },
+    /* Fire-and-forget. Deliberately ignores the reply: a visitor already
+       seated is not thrown out because Simon flipped the sign. */
+    tap: function(event){ send(event, false); }
   };
 })();
 </script>
@@ -462,7 +594,21 @@ const DATA={
    languages:`French is my mother tongue. English, fluent, clearly, since I've been talking your ear off. And Dutch, intermediate, which in Brussels is basically a survival skill and a daily act of courage.`,
    contact:`So, if any of this resonated, the easiest way to reach me is email: goffin dot simon at gmail dot com. I'm here in Brussels. And look, the virtual coffee was nice, but I'm always up for a real one. Just say the word.`,
    about:`Ah, you want to explore the personal stuff? Then this isn't really a virtual coffee anymore. Hang on, let me order us a couple of beers, one for you, one for me. There we go. Much better. So, off the clock, I'm a builder, and I mean that literally. I bought a place in Brussels and I've spent the last year and a half renovating it with my own hands, the woodwork, the electricity, all of it. I said "a weekend project" out loud once. The house heard me and laughed. I own two of the four floors, and I'm also the syndic for the building, which is a fancy way of saying I volunteered to manage everyone's problems, including my own. The other thing I can't leave alone is AI. Honestly, this whole place you're sitting in? I built it just to play with the tech, because I really believe if you're not learning to work with AI right now, you'll be outdated by Tuesday. I'd rather be early than obsolete. Beyond that, I'm a people person, I get my energy from a full room. And I run, a few challenge races a year that I actually train for, mostly so the finish line stays a goal and not a medical event.`,
-   outro:`Well, that's about everything I can tell you about myself. You've reached the end. And look, I'm aware this has been a bit of a one-way street, me talking, you listening, which is not really my style, I promise. In real life I'm much more fun, mostly because you get to talk back. So if any of this landed with you, don't be a stranger. Drop me a message on LinkedIn and let's turn this virtual coffee into a real one. I'd genuinely love the actual conversation. See you on the other side.`}
+   outro:`Well, that's about everything I can tell you about myself. You've reached the end. And look, I'm aware this has been a bit of a one-way street, me talking, you listening, which is not really my style, I promise. In real life I'm much more fun, mostly because you get to talk back. So if any of this landed with you, don't be a stranger. Drop me a message on LinkedIn and let's turn this virtual coffee into a real one. I'd genuinely love the actual conversation. See you on the other side.`},
+  /* ── Closed café ─────────────────────────────────────────────────
+     Every word the closed state puts on screen lives here, beside the
+     open copy, for one reason: applyLang() repaints the sign, the
+     prompt, the chalkboard and the how-to card from DATA/HOWTO on every
+     EN↔FR click. Text written straight into the DOM instead survives
+     exactly until someone taps FR, and then silently reverts. */
+  closed:{
+   sign:["Virtual Coffee","closed — back tomorrow"],
+   prompt:"Bar closed — the résumé stayed open, up there ↗",
+   board:{title:"CLOSED",
+          lines:["Machine off, lights down.",
+                 "Back tomorrow.",
+                 "The résumé is still on the counter."],
+          hand:"— Simon"}}
  },
  fr:{
   sign:["Café Virtuel","discussion avec Simon"],
@@ -487,7 +633,15 @@ const DATA={
    languages:`Le français est ma langue maternelle. L'anglais, courant. Et le néerlandais, intermédiaire — ce qui à Bruxelles est à la fois une compétence de survie et un acte de courage quotidien.`,
    contact:`Si tout ça vous a parlé, le plus simple pour me joindre, c'est l'e-mail : goffin point simon arobase gmail point com. Je suis à Bruxelles. Et franchement, le café virtuel c'était sympa, mais je suis toujours partant pour un vrai. Faites signe.`,
    about:`Ah, vous voulez le côté perso ? Alors ce n'est plus vraiment un café virtuel. Attendez, je nous commande deux bières — une pour vous, une pour moi. Voilà. C'est mieux. En dehors du boulot, je suis un bâtisseur, au sens propre : j'ai acheté un immeuble à Bruxelles et je passe depuis un an et demi à le rénover de mes propres mains — la menuiserie, l'électricité, tout. Un jour j'ai dit « un projet de week-end » à voix haute. La maison m'a entendu, et elle a ri. Je possède deux des quatre étages, et je suis aussi le syndic de l'immeuble — une façon élégante de dire que je me suis porté volontaire pour gérer les problèmes de tout le monde, y compris les miens. L'autre chose que je ne peux pas lâcher, c'est l'IA. Honnêtement, tout cet endroit où vous êtes assis ? Je l'ai construit juste pour jouer avec la techno, parce que je suis convaincu que si on n'apprend pas à travailler avec l'IA maintenant, on sera dépassé d'ici mardi. Je préfère être en avance qu'obsolète. À côté de ça, je suis un people person — je tire mon énergie d'une pièce pleine. Et je cours : quelques courses à défi par an, pour lesquelles je m'entraîne vraiment, surtout pour que la ligne d'arrivée reste un objectif, et pas un événement médical.`,
-   outro:`Voilà, c'est à peu près tout ce que je peux vous raconter sur moi. Vous êtes arrivé au bout. Et je sais, c'était un peu à sens unique — moi qui parle, vous qui écoutez — ce n'est pas vraiment mon style, promis. Dans la vraie vie, je suis beaucoup plus drôle, surtout parce que vous pouvez me répondre. Alors si quelque chose vous a parlé, ne restez pas un inconnu : envoyez-moi un message sur LinkedIn et transformons ce café virtuel en vrai café. C'est la vraie conversation qui m'intéresse. À bientôt de l'autre côté.`}
+   outro:`Voilà, c'est à peu près tout ce que je peux vous raconter sur moi. Vous êtes arrivé au bout. Et je sais, c'était un peu à sens unique — moi qui parle, vous qui écoutez — ce n'est pas vraiment mon style, promis. Dans la vraie vie, je suis beaucoup plus drôle, surtout parce que vous pouvez me répondre. Alors si quelque chose vous a parlé, ne restez pas un inconnu : envoyez-moi un message sur LinkedIn et transformons ce café virtuel en vrai café. C'est la vraie conversation qui m'intéresse. À bientôt de l'autre côté.`},
+  closed:{
+   sign:["Café Virtuel","fermé — repassez demain"],
+   prompt:"Bar fermé — le CV, lui, est resté ouvert, là-haut ↗",
+   board:{title:"FERMÉ",
+          lines:["Machine éteinte, lumières baissées.",
+                 "Repassez demain.",
+                 "Le CV est toujours sur le comptoir."],
+          hand:"— Simon"}}
  }
 };
 /* Simon's real voice (EN). Missing keys (e.g. skills, all FR) fall back to browser TTS. */
@@ -506,11 +660,22 @@ const AUDIO={
  fr:{}
 };
 
+/* The ping lives in a separate <script> on purpose (see its header). If that
+   block never ran, the café simply goes uncounted and always open — it must
+   not be able to throw in here. */
+const PING=window.VCPing||{tap(){},whenClosed(){}};
+
 let lang=VC.lang, current=null, hoverKey=null, speaking=false, audioEl=null, queue=[];
 const RM=matchMedia("(prefers-reduced-motion: reduce)").matches;
 const TOUCH=matchMedia("(pointer: coarse)").matches;
 var paperLifted=false;      /* touch: sheet stays up until you tap away */
 var stagingReady=false;
+/* Set once, by closeCafe(), if the ping came back {"open":false}. Read by
+   drawMenu(), applyLang(), renderHowto() and the animation loop, all of
+   which have to paint the closed room instead of the open one. Declared
+   here because drawMenu() runs long before closeCafe() is defined. */
+var cafeClosed=false;
+var closedLamp=null;        /* the one light nobody switches off */
 
 /* ---------------- RENDERER / SCENE / CAMERA ---------------- */
 const app=document.getElementById("app");
@@ -643,14 +808,11 @@ const viewTex=ctex(512,512,(x,w,h)=>{
     x.beginPath();x.moveTo(b[0]-8,b[1]+5);x.quadraticCurveTo(b[0],b[1]-3,b[0]+8,b[1]+5);x.stroke();
   });
 });
-/* chalkboard menu */
+/* chalkboard menu — the same slate is the CLOSED board when the bar is
+   shut, so the closed state costs no new asset and no new material: it is
+   the board a café actually flips over at closing time. */
 let menuTex;
-function drawMenu(){
-  const c=menuTex?menuTex.image:Object.assign(document.createElement("canvas"),{width:1024,height:400});
-  const x=c.getContext("2d");
-  x.fillStyle="#22303a";x.fillRect(0,0,1024,400);
-  speckle(x,1024,400,900,.05);
-  x.textAlign="center";
+function drawCarte(x){
   x.fillStyle="#f4b740";x.font="700 56px 'Caveat',cursive";
   x.fillText("Virtual Coffee — La Carte",512,68);
   x.strokeStyle="rgba(244,183,64,.8)";x.lineWidth=3;
@@ -672,7 +834,33 @@ function drawMenu(){
     x.fillStyle="#e9eef2";x.textAlign="left";x.fillText(it[0],552,152+k*58);
     x.fillStyle="#f4b740";x.textAlign="right";x.fillText(it[1],988,152+k*58);
   });
-  /* small cup doodle by the title */
+}
+function drawClosedBoard(x){
+  const b=DATA[lang].closed.board;
+  /* Half-wiped slate: the chalk was rubbed out at closing, not erased. */
+  for(let i=0;i<9;i++){
+    const g=x.createRadialGradient(120+i*100,190,10,120+i*100,190,150);
+    g.addColorStop(0,"rgba(233,238,242,.05)");g.addColorStop(1,"rgba(233,238,242,0)");
+    x.fillStyle=g;x.fillRect(0,0,1024,400);
+  }
+  x.fillStyle="#f4b740";x.font="700 110px 'Caveat',cursive";
+  x.fillText(b.title,512,132);
+  x.strokeStyle="rgba(244,183,64,.75)";x.lineWidth=4;
+  x.beginPath();x.moveTo(300,158);x.quadraticCurveTo(512,176,724,158);x.stroke();
+  x.font="600 36px 'Caveat',cursive";x.fillStyle="#e9eef2";
+  b.lines.forEach((l,k)=>x.fillText(l,512,222+k*46));
+  x.font="600 30px 'Caveat',cursive";x.fillStyle="rgba(244,183,64,.85)";
+  x.fillText(b.hand,512,378);
+}
+function drawMenu(){
+  const c=menuTex?menuTex.image:Object.assign(document.createElement("canvas"),{width:1024,height:400});
+  const x=c.getContext("2d");
+  x.fillStyle="#22303a";x.fillRect(0,0,1024,400);
+  speckle(x,1024,400,900,.05);
+  x.textAlign="center";
+  if(cafeClosed)drawClosedBoard(x);else drawCarte(x);
+  /* small cup doodle in the corner — it stays on both boards; nobody
+     wipes the doodle off. */
   x.strokeStyle="#e9eef2";x.lineWidth=3;
   x.strokeRect(920,36,40,28);
   x.beginPath();x.arc(960,50,10,-1.3,1.3);x.stroke();
@@ -722,7 +910,8 @@ const shaftTex=ctex(256,256,(x)=>{
 });
 
 /* ---------------- LIGHTS ---------------- */
-scene.add(new THREE.HemisphereLight(0xffe4c0,0x241a12,.5));
+const hemi=new THREE.HemisphereLight(0xffe4c0,0x241a12,.5);
+scene.add(hemi);
 const keySpot=new THREE.SpotLight(0xffd9a0,1.5,10,.72,.55,1.5);
 keySpot.position.set(0,2.62,-.3);
 keySpot.target.position.set(0,.8,-.3);
@@ -740,6 +929,9 @@ winDir.shadow.camera.top=4;winDir.shadow.camera.bottom=-2;
 winDir.shadow.bias=-.0005;
 scene.add(winDir,winDir.target);
 const lampPts=[];
+/* Kept individually so closeCafe() can put two of the three out and leave
+   the third burning. The fixtures themselves never move. */
+const pendants=[];
 function pendant(x,z,withPoint){
   const g=new THREE.Group();
   const cord=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.95),
@@ -754,11 +946,13 @@ function pendant(x,z,withPoint){
   const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xffca5f,
     blending:THREE.AdditiveBlending,depthWrite:false,opacity:.85}));
   spr.scale.set(.7,.7,1);spr.position.y=2.37;g.add(spr);
+  let p=null;
   if(withPoint){
-    const p=new THREE.PointLight(0xffb64f,.85,6.5,2);
+    p=new THREE.PointLight(0xffb64f,.85,6.5,2);
     p.position.y=2.32;g.add(p);lampPts.push(p);
   }
   g.position.set(x,0,z);scene.add(g);
+  pendants.push({g,bulb,glow:spr,point:p});
 }
 pendant(0,-.25,false);          /* key spot already lights this one */
 pendant(-2.6,-2.4,true);
@@ -802,6 +996,7 @@ const wfM=new THREE.MeshStandardMaterial({color:0x1c262c,roughness:.6});
 const sill=new THREE.Mesh(new THREE.BoxGeometry(.18,.06,2.7),wfM);
 sill.position.set(-4.9,1.2,-1.2);scene.add(sill);
 /* light shafts + dust */
+const shafts=[];   /* daylight through the window — gone when the bar shuts */
 if(!RM){
   for(let i=0;i<2;i++){
     const shaft=new THREE.Mesh(new THREE.PlaneGeometry(2.6,3.4),
@@ -809,7 +1004,7 @@ if(!RM){
         blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
     shaft.position.set(-3.3+i*.5,1.75,-1.2+i*.4);
     shaft.rotation.set(0,Math.PI/2,.5);
-    scene.add(shaft);
+    scene.add(shaft);shafts.push(shaft);
   }
 }
 const DUST_N=140;
@@ -1167,11 +1362,12 @@ pen.rotation.z=Math.PI/2;pen.rotation.y=.5;pen.position.set(-.5,.816,-.35);scene
 const plate=new THREE.Mesh(new THREE.CylinderGeometry(.11,.095,.014,20),
   new THREE.MeshStandardMaterial({color:0xe9e2d4,roughness:.5}));
 plate.position.set(-.45,.81,-.62);plate.castShadow=true;scene.add(plate);
+const croissant=[];
 for(let i=0;i<3;i++){
   const seg=new THREE.Mesh(new THREE.SphereGeometry(.036-.007*Math.abs(i-1),10,8),
     new THREE.MeshStandardMaterial({color:0xc98a3e,roughness:.7}));
   seg.position.set(-.45+(i-1)*.045,.845,-.62+(Math.abs(i-1))*.012);
-  seg.scale.set(1,.75,.8);seg.castShadow=true;scene.add(seg);
+  seg.scale.set(1,.75,.8);seg.castShadow=true;scene.add(seg);croissant.push(seg);
 }
 
 /* ---------------- RÉSUMÉ SHEET ---------------- */
@@ -1303,12 +1499,14 @@ function selectSection(key){
   if(beerMode)setBeerMode(false);
   current=key;drawResume();
   promptEl.style.display="none";
+  PING.tap(key);
   speak(DATA[lang].speech[key],key);
 }
 function selectAbout(){
   setBeerMode(true);
   current=null;hoverKey=null;drawResume();
   promptEl.style.display="none";
+  PING.tap("about");
   speak(DATA[lang].speech.about,"about");
 }
 function bestVoice(code){
@@ -1359,12 +1557,17 @@ function stopSpeaking(){queue=[];speaking=false;
    VC owns the EN/FR toggle, the <html lang> attribute and the text
    résumé, because those have to keep working without a scene. The café
    is just one more subscriber. */
+function paintSign(){
+  const s=cafeClosed?DATA[lang].closed.sign:DATA[lang].sign;
+  document.getElementById("sign").innerHTML=s[0]+"<small>"+s[1]+"</small>";
+}
 function applyLang(l){
   if(l===lang)return;stopSpeaking();lang=l;
   const d=DATA[lang];
-  document.getElementById("sign").innerHTML=d.sign[0]+"<small>"+d.sign[1]+"</small>";
-  promptEl.textContent=TOUCH?d.promptTouch:d.prompt;
+  paintSign();
+  promptEl.textContent=cafeClosed?d.closed.prompt:(TOUCH?d.promptTouch:d.prompt);
   drawResume();
+  if(cafeClosed)drawMenu();   /* the CLOSED board is bilingual too */
   renderHowto();
 }
 VC.onLang(applyLang);
@@ -1387,6 +1590,16 @@ const HOWTO={
             "🇬🇧 EN / FR toggle at the top right",
             "📄 In a hurry? “Text résumé” gives you the flat version"],
      btn:"Take a seat",
+     /* Same card, other state. No new markup: #howto is already the
+        full-screen thing that explains the café, so when there is no café
+        it is the thing that says so. */
+     closed:{title:"The café is closed\u00A0🌙",
+             steps:["🌙 Lights down, room empty — Simon has gone home for the night",
+                    "📄 The résumé did not close with it: the full text version is one tap away",
+                    "🇬🇧 EN / FR toggle at the top right, as always",
+                    "☕ Come back another day and I'll talk you through it out loud, in my own voice",
+                    "🚪 Tap outside this card if you'd rather sit in the dark a minute"],
+             btn:"Read the text résumé"},
      welcome:`Hey, welcome, grab a seat. Here's how this works: the resume is sitting right there on the table. Hover over it and it lifts up, which is already fancier than my actual desk. Tap any section that catches your eye and I'll tell you about it, in my own words, like we're having a real coffee, except I do all the talking. There's no right order, start wherever you're curious. And if you'd rather hear this in French, there's a switch for that. So, where do we begin?`},
  fr:{title:"Bienvenue dans mon café virtuel\u00A0☕",
      steps:["🪑 Vous êtes assis en face de moi, dans un petit café",
@@ -1402,23 +1615,115 @@ const HOWTO={
             "🇫🇷 Bouton EN / FR en haut à droite",
             "📄 Pressé ? « CV en texte » donne la version à plat"],
      btn:"Prendre place",
+     closed:{title:"Le café est fermé\u00A0🌙",
+             steps:["🌙 Lumières baissées, salle vide — Simon est rentré",
+                    "📄 Le CV, lui, n'a pas fermé : la version texte est à un clic",
+                    "🇫🇷 Bouton EN / FR en haut à droite, comme toujours",
+                    "☕ Repassez un autre jour : je vous raconterai tout ça à voix haute",
+                    "🚪 Touchez à côté de cette carte pour rester un peu dans le noir"],
+             btn:"Lire le CV en texte"},
      welcome:`Hé, bienvenue, installez-vous. Voilà comment ça marche : le CV est posé juste là, sur la table. Survolez-le, il se soulève — déjà plus chic que mon vrai bureau. Touchez la section qui vous intrigue et je vous la raconte, avec mes mots, comme autour d'un vrai café — sauf que c'est moi qui fais toute la conversation. Pas d'ordre imposé : commencez où vous êtes curieux. Alors, on commence où ?`}
 };
 function renderHowto(){
-  const h=HOWTO[lang],el=document.getElementById("howto");
+  const el=document.getElementById("howto");
+  const h=cafeClosed?HOWTO[lang].closed:HOWTO[lang];
+  const steps=(TOUCH&&h.stepsTouch)?h.stepsTouch:h.steps;
   el.querySelector("h2").textContent=h.title;
-  el.querySelector(".hsteps").innerHTML=(TOUCH?h.stepsTouch:h.steps).map(x=>"<li>"+x+"</li>").join("");
+  el.querySelector(".hsteps").innerHTML=steps.map(x=>"<li>"+x+"</li>").join("");
   document.getElementById("enterBtn").textContent=h.btn;
 }
 renderHowto();
 promptEl.textContent=TOUCH?DATA[lang].promptTouch:DATA[lang].prompt;
-document.getElementById("enterBtn").addEventListener("click",()=>{
-  entered=true;
+function dismissHowto(){
   const el=document.getElementById("howto");
   el.classList.add("hide");
   setTimeout(()=>el.style.display="none",450);
+}
+document.getElementById("enterBtn").addEventListener("click",()=>{
+  if(cafeClosed){VC.openCV();return;}   /* closed: the button is the way to the CV, not a seat */
+  entered=true;
+  dismissHowto();
+  PING.tap("enter");
   speak(HOWTO[lang].welcome,"welcome");
 });
+/* Closed only: tapping the backdrop puts the card away so you can look at
+   the dark room. Nothing else is behind it — the pill and the sign carry
+   the message from then on. Deliberately not wired when the café is open:
+   there, the card is the instructions and dropping it by accident loses
+   them. */
+document.getElementById("howto").addEventListener("click",e=>{
+  if(cafeClosed&&e.target===e.currentTarget)dismissHowto();
+});
+
+/* ---------------- CLOSED CAFÉ ----------------
+   "Le bar est fermé." Nothing new is loaded and nothing new is modelled:
+   the closed room IS the open room, with the people gone, two of the three
+   pendants out, the daylight off and the chalkboard flipped over. That is
+   the whole trick, and it is why the closed state costs one function and
+   no asset.
+
+   What it must never do is hide the text résumé — the CV is the point of
+   the page. The pill stays, the panel stays, and the card's only button
+   goes straight to it. VC.textOnly() looks like the obvious tool here and
+   is the wrong one: it HIDES the pill and force-opens the panel, which is
+   the no-WebGL path, not this one. */
+function closeCafe(){
+  if(cafeClosed)return;
+  if(entered)return;      /* already seated — nobody gets thrown out mid-sentence */
+  cafeClosed=true;
+
+  /* Everyone has gone home, and so have Simon, his coffee, his croissant
+     and his sheet of paper. Chairs, tables, rug and plants stay exactly
+     where they were: that is what makes the room read as closed rather
+     than as unfinished. */
+  [simon,simonHead,simonBox,barista.g,sitter.g,reader.g,sitCup,
+   paper,cup,saucer,pen,plate,beers].forEach(o=>{o.visible=false;});
+  walkers.forEach(w=>{w.P.g.visible=false;});
+  steam.forEach(s=>{s.visible=false;});
+  croissant.forEach(s=>{s.visible=false;});
+
+  /* Lights down to the one warm lamp above the counter that nobody ever
+     switches off. The key spot and the two other pendants go dark — and
+     the animation loop has to stop driving them, or the next frame turns
+     them straight back on (see below). */
+  keySpot.intensity=0;
+  winDir.intensity=.04;
+  hemi.intensity=.07;
+  pendants.forEach((p,i)=>{
+    const keep=i===2;                          /* the one over the counter */
+    p.bulb.visible=keep;p.glow.visible=keep;
+    if(p.point)p.point.intensity=keep?.34:0;
+  });
+  closedLamp=pendants[2].point;
+  /* Two shadow maps for a room lit by a single 0.34 point light is pure
+     cost — at this exposure the shadows are below the noise floor. */
+  keySpot.castShadow=false;winDir.castShadow=false;
+  shafts.forEach(s=>{s.visible=false;});       /* no daylight: it is night out */
+  win.material.color.setHex(0x1b2331);         /* and the view dims with it */
+
+  /* Darker, tighter, and the dust keeps drifting through it — the only
+     thing still moving in the room. (RM already freezes it.) */
+  scene.fog.near=3.4;scene.fog.far=12;
+  scene.background.setHex(0x0c0a0a);
+  dust.material.opacity=.22;
+
+  drawMenu();                                  /* same slate, CLOSED side up */
+  paintSign();
+  promptEl.textContent=DATA[lang].closed.prompt;
+  promptEl.style.display="";
+  renderHowto();
+
+  /* The card has to be recovered from BOTH of the enter handler's hiding
+     places: .hide kills opacity and pointer-events, the 450 ms timer sets
+     display:none. Clearing one and not the other leaves a card that is
+     technically on screen and completely invisible. */
+  const el=document.getElementById("howto");
+  el.style.display="";el.classList.remove("hide");
+}
+/* Fires at most once, and only on an explicit {"open":false}. Registering
+   after the scene is fully built matters: if the answer beat three.js the
+   call is synchronous and runs right here. */
+PING.whenClosed(closeCafe);
 
 /* ---------------- ANIMATION LOOP ---------------- */
 const clock=new THREE.Clock();
@@ -1505,8 +1810,14 @@ function animate(){
   paper.position.lerpVectors(paperRest.pos,paperUp.pos,paperT);
   paper.rotation.x=paperRest.rot+(paperUp.rot-paperRest.rot)*paperT;
 
-  keySpot.intensity=1.5+Math.sin(t*9)*.03;
-  lampPts.forEach((p,i)=>p.intensity=.85+Math.sin(t*7+i*2)*.04);
+  if(cafeClosed){
+    /* One lamp, breathing very slightly. Left perfectly steady under
+       prefers-reduced-motion, like everything else here. */
+    if(closedLamp)closedLamp.intensity=RM?.34:.34+Math.sin(t*1.6)*.035;
+  }else{
+    keySpot.intensity=1.5+Math.sin(t*9)*.03;
+    lampPts.forEach((p,i)=>p.intensity=.85+Math.sin(t*7+i*2)*.04);
+  }
 
   if(!RM&&!TOUCH){
     camera.position.x+= (camBase.x+pointer.x*.10-camera.position.x)*.04;
