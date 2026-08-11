@@ -489,10 +489,12 @@ window.VCPing = (function(){
 <script>
 /* =====================================================================
    VIRTUAL COFFEE 3D — max-quality pass
-   Soft shadows · ACES filmic tone mapping · procedural textures
-   (parquet, brick, chalkboard menu, rug, window view, wall art)
+   The café itself is a real model (cafe.obj, ~29k tris, preprocessed
+   into world coordinates) dressed with the procedural textures
+   (parquet, plaster, marble, chalkboard menu, rug, window view, art)
    light shafts + floating dust · camera parallax · curly-hair Simon
-   living café: 2 walkers, barista, sipping customer, reading customer
+   living café: barista, laptop guy at the counter, two window-bar
+   customers, a standing trio, an episodic visitor
 
    Wrapped in an IIFE purely so the guards below can `return` — the body
    keeps its original flat indentation on purpose, so a diff against the
@@ -584,7 +586,7 @@ scene.background=new THREE.Color(0x11151a);
    The colour matches the grade's cool shadow tint. */
 scene.fog=new THREE.FogExp2(0x1a2228,.055);
 const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,.1,25);
-const camBase=new THREE.Vector3(0,1.34,1.6);
+const camBase=new THREE.Vector3(0,1.42,2.6);
 camera.position.copy(camBase);
 /* A WebGL probe passing does not guarantee a context: blocklisted drivers,
    too many live contexts, or a GPU process that just died all throw here. */
@@ -1000,39 +1002,7 @@ const floorTex=ctex(1024,1024,(x,w,h)=>{
   speckle(x,w,h,2600,.05);
 });
 floorTex.wrapS=floorTex.wrapT=THREE.RepeatWrapping;floorTex.repeat.set(4.5,4.5);
-/* brick back wall — ratio fixed for the 6x2.6 repeat (bricks were
-   stretched 2x horizontally), recessed joints, chips, dirt at the base:
-   a café wall is ALWAYS dirtier at the bottom. */
-const brickTex=ctex(512,512,(x,w,h)=>{
-  x.fillStyle="#3a2f28";x.fillRect(0,0,w,h);
-  const bw=w/17.5,bh=h/27;
-  for(let r=0;r*bh<h+bh;r++){
-    const off=(r%2)*bw/2;
-    for(let c=-1;c*bw<w+bw;c++){
-      const v=Math.random()*34-17;
-      const X=c*bw+off,Y=r*bh;
-      x.fillStyle=`rgb(${104+v|0},${72+v*.7|0},${56+v*.5|0})`;
-      x.fillRect(X+1.5,Y+1.5,bw-3,bh-3);
-      x.fillStyle="rgba(255,255,255,.07)";
-      x.fillRect(X+1.5,Y+1.5,bw-3,2);
-      x.fillStyle="rgba(0,0,0,.12)";
-      x.fillRect(X+1.5,Y+bh-3.5,bw-3,2);
-      if(Math.random()<.04){
-        x.fillStyle="rgba(60,44,34,.55)";
-        x.beginPath();
-        x.ellipse(X+Math.random()*bw,Y+Math.random()*bh,3,2.2,Math.random()*3,0,7);
-        x.fill();
-      }
-    }
-  }
-  const dirt=x.createLinearGradient(0,h*.72,0,h);
-  dirt.addColorStop(0,"rgba(0,0,0,0)");
-  dirt.addColorStop(1,"rgba(12,8,5,.42)");
-  x.fillStyle=dirt;x.fillRect(0,0,w,h);
-  speckle(x,w,h,1600,.06);
-});
-brickTex.wrapS=brickTex.wrapT=THREE.RepeatWrapping;brickTex.repeat.set(6,2.6);
-/* plaster side walls */
+/* plaster walls (the model's platre / platre_vert) */
 const plasterTex=ctex(512,512,(x,w,h)=>{
   x.fillStyle="#3c342d";x.fillRect(0,0,w,h);
   for(let i=0;i<26;i++){
@@ -1205,6 +1175,331 @@ const shaftTex=ctex(256,256,(x)=>{
   g.addColorStop(0,"rgba(255,236,190,.9)");g.addColorStop(1,"rgba(255,236,190,0)");
   x.fillStyle=g;x.fillRect(0,0,256,256);
 });
+/* marble — the model's counter top and table tops (usemtl marbre) */
+const marbleTex=ctex(512,512,(x,w,h)=>{
+  x.fillStyle="#cfc6b6";x.fillRect(0,0,w,h);
+  for(let i=0;i<9;i++){
+    const g=x.createRadialGradient(Math.random()*w,Math.random()*h,10,
+      Math.random()*w,Math.random()*h,180);
+    g.addColorStop(0,"rgba(255,252,244,.16)");g.addColorStop(1,"rgba(0,0,0,0)");
+    x.fillStyle=g;x.fillRect(0,0,w,h);
+  }
+  for(let i=0;i<14;i++){                       /* grey veins, one gold */
+    const gold=i===0;
+    x.strokeStyle=gold?"rgba(164,138,86,.35)":`rgba(96,100,110,${.10+Math.random()*.16})`;
+    x.lineWidth=gold?2.2:.8+Math.random()*1.8;
+    x.beginPath();
+    let vx=Math.random()*w,vy=-10;
+    x.moveTo(vx,vy);
+    while(vy<h+10){
+      vy+=14+Math.random()*26;
+      vx+=(Math.random()-.5)*46;
+      x.lineTo(vx,vy);
+    }
+    x.stroke();
+  }
+  speckle(x,w,h,900,.04);
+});
+/* the model's two sign faces (usemtl enseigne_porte) share one canvas.
+   Both quads read left-to-right in -z screen space, which mirrors the
+   canvas — so the text is painted mirrored once and both come out
+   readable from their natural side. */
+const signTex=ctex(512,96,(x,w,h)=>{
+  x.fillStyle="#1d1712";x.fillRect(0,0,w,h);
+  x.save();x.translate(w,0);x.scale(-1,1);
+  x.fillStyle="#f4b740";x.font="700 44px 'Space Grotesk',sans-serif";
+  x.textAlign="center";x.textBaseline="middle";
+  x.fillText("VIRTUAL COFFEE",w/2,h/2+2);
+  x.restore();
+});
+
+/* ---------------- CAFÉ MODEL ----------------
+   The room, the bar and every prop now come from cafe.obj — a real 3D
+   model of the café, preprocessed offline into FINAL WORLD coordinates
+   (Simon's table at the origin, tabletop at y=.8025: every anchor the
+   scene already uses). No OBJLoader in the r134 UMD build, and none
+   needed: the file is our own output, so the parser below only has to
+   read what the preprocessor writes (v/vt/vn, triangulated f, one
+   usemtl per o). Faces are merged into ONE mesh per material — ~30
+   draw calls instead of ~420 objects — except the few objects the
+   scene must drive individually (the three pendant bulbs, the mat). */
+const CAFE={meshes:new Map(),floor:null,backWall:null,bulbs:[],ready:false};
+/* Shared by the café and the NPC body parts: group an OBJ's triangles by
+   keyFor(objectName, usemtl). The preprocessors write v/vt/vn for textured
+   materials and v//vn for the rest — uv presence is read off the face. */
+function parseOBJGroups(text,keyFor){
+  const v=[],vt=[],vn=[],groups=new Map();
+  let key=null,name="";
+  const lines=text.split("\n");
+  for(let li=0;li<lines.length;li++){
+    const L=lines[li];
+    if(L.length<3||L.charCodeAt(0)===35)continue;   /* # comment */
+    const t=L.split(" ");
+    switch(t[0]){
+      case "v": v.push(+t[1],+t[2],+t[3]);break;
+      case "vt":vt.push(+t[1],+t[2]);break;
+      case "vn":vn.push(+t[1],+t[2],+t[3]);break;
+      case "o": name=t[1];break;
+      case "usemtl":
+        key=keyFor(name,t[1]);
+        if(!groups.has(key))groups.set(key,{mat:t[1],pos:[],nrm:[],uv:[]});
+        break;
+      case "f":{
+        const g=groups.get(key);
+        for(let i=1;i<=3;i++){
+          const a=t[i].split("/");
+          let vi=(+a[0]-1)*3;
+          g.pos.push(v[vi],v[vi+1],v[vi+2]);
+          vi=(+a[2]-1)*3;
+          g.nrm.push(vn[vi],vn[vi+1],vn[vi+2]);
+          if(a[1]){vi=(+a[1]-1)*2;g.uv.push(vt[vi],vt[vi+1]);}
+        }
+        break;}
+    }
+  }
+  return groups;
+}
+function groupGeometry(g){
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute("position",new THREE.BufferAttribute(new Float32Array(g.pos),3));
+  geo.setAttribute("normal",new THREE.BufferAttribute(new Float32Array(g.nrm),3));
+  if(g.uv.length*3===g.pos.length*2)
+    geo.setAttribute("uv",new THREE.BufferAttribute(new Float32Array(g.uv),2));
+  return geo;
+}
+(function loadCafe(){
+  /* material table, keyed by the model's usemtl names */
+  function phys(o){return new THREE.MeshPhysicalMaterial(o);}
+  function std(o){return new THREE.MeshStandardMaterial(o);}
+  const MATS={
+    chene_sol:  std({map:floorTex,roughness:.62,envMapIntensity:.7}),
+    platre:     std({map:plasterTex,roughness:.96,envMapIntensity:.3}),
+    /* the back wall is the backdrop of the whole shot: plain sage green
+       (the dark plaster map multiplied to near-black), relief comes from
+       the idle-time normal map alone */
+    platre_vert:std({color:0x4e5f52,roughness:.95,envMapIntensity:.3}),
+    creme:      std({color:0xe6dccb,roughness:.55,envMapIntensity:.5}),
+    noyer:      std({map:tableTex,color:0x9a7a5c,roughness:.62,envMapIntensity:.5}),
+    noyer_clair:std({map:tableTex,color:0xcbb59b,roughness:.68,envMapIntensity:.5}),
+    marbre:     phys({map:marbleTex,roughness:.4,clearcoat:.3,clearcoatRoughness:.3,envMapIntensity:.55}),
+    laiton:     std({color:0xc9a25a,metalness:.9,roughness:.32,envMapIntensity:1.4}),
+    laiton_face:std({color:0xc9a25a,metalness:.85,roughness:.4,envMapIntensity:1.2,side:THREE.DoubleSide}),
+    metal_noir: std({color:0x23242a,metalness:.78,roughness:.38,envMapIntensity:1.2}),
+    verre:      phys({color:0xbfd4d8,transparent:true,opacity:.16,roughness:.06,envMapIntensity:1.5,depthWrite:false}),
+    ampoule:    std({color:0x1a1208,emissive:0xffd9a0,emissiveIntensity:4.2,roughness:1}),
+    carte:      new THREE.MeshBasicMaterial({map:menuTex}),
+    ardoise:    std({color:0x10141a,emissive:0x9fe8b0,emissiveIntensity:.55,roughness:.6}),
+    tapis:      std({map:rugTex,roughness:1}),
+    terre_cuite:std({color:0xb0603c,roughness:.8}),
+    verdure:    std({color:0x3f7a4c,roughness:.85}),
+    pain:       std({color:0xd0913f,roughness:.7}),
+    garniture:  std({color:0x86a04c,roughness:.8}),
+    emballage:  std({color:0xe8e3da,roughness:.35,transparent:true,opacity:.5,depthWrite:false}),
+    soda_rouge: std({color:0xb33a31,metalness:.25,roughness:.3,envMapIntensity:1.1}),
+    soda_vert:  std({color:0x2f9e57,metalness:.25,roughness:.3,envMapIntensity:1.1}),
+    soda_bleu:  std({color:0x2f6fae,metalness:.25,roughness:.3,envMapIntensity:1.1}),
+    soda_jaune: std({color:0xd8ac2b,metalness:.25,roughness:.3,envMapIntensity:1.1}),
+    enseigne_porte:new THREE.MeshBasicMaterial({map:signTex}),
+    vitrophanie:new THREE.MeshBasicMaterial({color:0xe9eef2,transparent:true,opacity:.45,depthWrite:false}),
+    paillasson: std({color:0x4a3428,roughness:1})
+  };
+  /* structure never casts (the window light must get in, the floor has
+     nothing below); glass and film neither. Everything else does. */
+  const NO_CAST=new Set(["chene_sol","platre","platre_vert","verre","emballage",
+    "vitrophanie","enseigne_porte","carte","tapis","ampoule","paillasson"]);
+  const NO_RECEIVE=new Set(["verre","emballage","vitrophanie","enseigne_porte","ampoule"]);
+  /* objects the scene drives one by one — everything else merges by material */
+  const SPECIAL=new Set(["ampoule.0","ampoule.1","ampoule.2","paillasson.0"]);
+
+  function parseCafe(text){
+    const groups=parseOBJGroups(text,function(name,mat){
+      return SPECIAL.has(name)?name:"m:"+mat;
+    });
+    groups.forEach((g,k)=>{
+      const geo=groupGeometry(g);
+      /* pendant bulbs get their own material instance: closeCafe() puts
+         two of the three out */
+      const m=new THREE.Mesh(geo,k.indexOf("ampoule")===0?MATS.ampoule.clone():MATS[g.mat]);
+      m.castShadow=!NO_CAST.has(g.mat);
+      m.receiveShadow=!NO_RECEIVE.has(g.mat);
+      if(g.mat==="verre")m.renderOrder=3;
+      else if(g.mat==="emballage"||g.mat==="vitrophanie")m.renderOrder=2;
+      CAFE.meshes.set(k,m);
+      scene.add(m);
+    });
+    CAFE.floor=CAFE.meshes.get("m:chene_sol")||null;
+    CAFE.backWall=CAFE.meshes.get("m:platre_vert")||null;
+    CAFE.bulbs=[CAFE.meshes.get("ampoule.0"),CAFE.meshes.get("ampoule.1"),
+                CAFE.meshes.get("ampoule.2")];
+    CAFE.ready=true;
+    /* late links: pendant records exist since parse time, their bulb
+       meshes only now — and the café may already be closed */
+    for(let i=0;i<pendants.length;i++){
+      pendants[i].bulb=CAFE.bulbs[i]||null;
+      applyPendant(pendants[i]);
+    }
+    /* normal maps for the big surfaces, off the critical path */
+    (window.requestIdleCallback||function(fn){setTimeout(fn,300);})(function(){
+      try{
+        const floorNrm=normalFromCanvas(floorTex.userData.canvas,2,2);
+        floorNrm.repeat.copy(floorTex.repeat);
+        CAFE.floor.material.normalMap=floorNrm;
+        CAFE.floor.material.normalScale.set(.8,.8);
+        CAFE.floor.material.needsUpdate=true;
+        const plasterNrm=normalFromCanvas(plasterTex.userData.canvas,2.2,2);
+        plasterNrm.repeat.copy(plasterTex.repeat);
+        CAFE.backWall.material.normalMap=plasterNrm;
+        CAFE.backWall.material.normalScale.set(.7,.7);
+        CAFE.backWall.material.needsUpdate=true;
+        const woodNrm=normalFromCanvas(tableTex.userData.canvas,1.8,2);
+        MATS.noyer.normalMap=woodNrm;
+        MATS.noyer.normalScale.set(.45,.45);
+        MATS.noyer.needsUpdate=true;
+      }catch(e){console.warn("[vc] model normal maps skipped —",e);}
+    });
+  }
+  fetch("cafe.obj").then(r=>{
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    return r.text();
+  }).then(parseCafe).catch(err=>{
+    /* no model, no room — but the table, Simon and the sheet are all
+       procedural, so the CV conversation itself still works. Give it a
+       bare floor rather than a void and say so. */
+    console.warn("[vc] cafe.obj failed to load —",err);
+    const em=new THREE.Mesh(new THREE.PlaneGeometry(24,24),
+      new THREE.MeshStandardMaterial({map:floorTex,roughness:.62}));
+    em.rotation.x=-Math.PI/2;em.receiveShadow=true;scene.add(em);
+    CAFE.floor=em;
+  });
+})();
+
+/* ---------------- NPC BODIES ----------------
+   The customers are no longer capsule people: person.obj carries a real
+   base mesh (FinalBaseMesh, decimated to ~10k tris) cut offline into
+   fifteen rig-local segments — one per joint of the EXISTING skeleton.
+   Swapping meshes under the same joints keeps every behaviour written
+   for the capsules: gaze, gestures, walk cycle, reskin. The drinker
+   rides the same mesh a size down; Simon stays bespoke. If the fetch
+   fails, nobody notices: the capsules are still built first. */
+const PERSON={parts:new Map(),ready:false};
+const HUMANS=new Set(["standA","standB","standC","barista","worker","reader",
+  "visitor","drinker"]);
+/* Anatomy of person.obj, printed by the preprocessor. v1 forced the mesh
+   into the capsule rig's stylised segment lengths (legs stretched 1.6x,
+   torso squashed) — deformed. v2 keeps the mesh's own proportions and
+   moves the rig's REST offsets instead: rotations are length-independent,
+   so every behaviour still works on the new skeleton. The mesh's hip line
+   (.855) happens to sit where the rig's pelvis already was (.86), so
+   seated heights need no retune. */
+const HUMAN={pelvisY:.855,hipX:.1308,kneeY:-.3976,ankleY:-.3824,
+  spineY:.114,chestY:.186,neckY:.395,headY:.135,
+  shX:.2548,shY:.2258,elbowY:-.3622,wristY:-.2389,
+  eyeX:.034,eyeY:-.025,eyeZ:.116,mouthY:-.082,mouthZ:.105};
+const HUMAN_PARTS=[
+  ["pelvis","pelvis","pants",1.05,1.06],["chest","torso","shirt",1.06,1.08],
+  ["head","head","skin",1,1],
+  ["hipL","thighL","pants",1.06,1.06],["hipR","thighR","pants",1.06,1.06],
+  ["kneeL","shinL","pants",1.06,1.06],["kneeR","shinR","pants",1.06,1.06],
+  ["ankleL","footL","shoe",1.12,1.08],["ankleR","footR","shoe",1.12,1.08],
+  ["shoulderL","upperL","shirt",1.1,1.1],["shoulderR","upperR","shirt",1.1,1.1],
+  ["elbowL","foreL","shirt",1.08,1.08],["elbowR","foreR","shirt",1.08,1.08],
+  ["wristL","handL","skin",1,1],["wristR","handR","skin",1,1]
+];
+function humanizeRig(rig){
+  if(!PERSON.ready||rig.human)return;
+  rig.human=true;
+  const o=rig.opts;
+  const mats={shirt:stdMat(o.shirt,.9,0,.25),pants:stdMat(o.pants,.92,0,.22),
+    skin:stdMat(o.skin,.55,0,.5),shoe:stdMat(0x1d1d22,.7,0,.35)};
+  /* rest offsets follow the mesh's anatomy */
+  const J=rig.J;
+  J.pelvis.position.y=HUMAN.pelvisY;
+  J.spine.position.y=HUMAN.spineY;
+  J.chest.position.y=HUMAN.chestY;
+  J.neck.position.y=HUMAN.neckY;
+  J.head.position.y=HUMAN.headY;
+  for(const s of["L","R"]){
+    const sg=s==="L"?-1:1;
+    J["hip"+s].position.set(sg*HUMAN.hipX,0,0);
+    J["knee"+s].position.y=HUMAN.kneeY;
+    J["ankle"+s].position.y=HUMAN.ankleY;
+    J["shoulder"+s].position.set(sg*HUMAN.shX,HUMAN.shY,0);
+    J["elbow"+s].position.y=HUMAN.elbowY;
+    J["wrist"+s].position.y=HUMAN.wristY;
+  }
+  function strip(g,pred){
+    for(let i=g.children.length-1;i>=0;i--){
+      const c=g.children[i];
+      if(c.isMesh&&pred(c))g.remove(c);
+    }
+  }
+  strip(J.chest,c=>c.userData.slot==="shirt");       /* torso + shoulder pad */
+  strip(J.neck,c=>c.userData.slot==="skin");
+  /* the skull sphere goes; hair, mouth and the eye groups are refitted to
+     the sculpted head below */
+  strip(J.head,c=>c.userData.slot==="skin"&&!c.userData.acc);
+  for(const s of["L","R"]){
+    strip(J["hip"+s],c=>c.userData.slot==="pants");
+    strip(J["knee"+s],c=>c.userData.slot==="pants");
+    strip(J["ankle"+s],c=>true);                     /* the shoe box */
+    strip(J["shoulder"+s],c=>c.userData.slot==="shirt");
+    strip(J["elbow"+s],c=>c.userData.slot==="shirt");
+    strip(J["wrist"+s],c=>c.userData.slot==="skin");
+  }
+  for(let i=0;i<HUMAN_PARTS.length;i++){
+    const jn=HUMAN_PARTS[i][0],pn=HUMAN_PARTS[i][1],slot=HUMAN_PARTS[i][2];
+    const geo=PERSON.parts.get(pn);
+    if(!geo)continue;
+    const m=new THREE.Mesh(geo,mats[slot]);
+    /* a light radial inflate on the clothed parts: cloth over a body,
+       not paint on one */
+    m.scale.set(HUMAN_PARTS[i][3],1,HUMAN_PARTS[i][4]);
+    m.castShadow=true;
+    if(slot!=="shoe")m.userData.slot=slot;           /* reskin() keeps working */
+    rig.J[jn].add(m);
+  }
+  /* refit the face furniture to the sculpted head: eyes into the sockets,
+     mouth onto the lips, hair cap shrunk to the real skull. Then scale
+     the whole head JOINT up 12% — geometry, eyes, mouth and hair follow
+     in one move, and the slight bighead keeps them legible next to
+     Simon in the wide shot. */
+  for(let i=0;i<rig.eyes.length;i++){
+    const eg=rig.eyes[i].eg;
+    eg.position.set((i===0?-1:1)*HUMAN.eyeX,HUMAN.eyeY,HUMAN.eyeZ);
+    eg.scale.setScalar(.8);
+  }
+  rig.root.traverse(c=>{
+    if(!c.userData)return;
+    if(c.userData.acc==="mouth"){
+      c.position.set(0,HUMAN.mouthY,HUMAN.mouthZ);
+      c.scale.set(.75,.75,.75);
+    }else if(c.userData.acc==="apron"){
+      c.position.z=.13;
+    }else if(c.userData.slot==="hair"&&c.parent===J.head){
+      c.scale.set(.6,.42,.68);
+      c.position.set(0,.058,-.008);
+    }
+  });
+  J.head.scale.setScalar(1.12);
+}
+fetch("person.obj").then(r=>{
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  return r.text();
+}).then(function(text){
+  parseOBJGroups(text,function(name){return name;}).forEach(function(g,k){
+    PERSON.parts.set(k,groupGeometry(g));
+  });
+  PERSON.ready=true;
+  for(let i=0;i<agents.length;i++){
+    const a=agents[i];
+    if(!HUMANS.has(a.id))continue;
+    humanizeRig(a.rig);
+    /* same base mesh for the drinker, taken in a size down */
+    if(a.id==="drinker")a.rig.root.scale.set(.93,.99,.93);
+  }
+}).catch(function(err){
+  console.warn("[vc] person.obj failed — capsule people it is:",err);
+});
 
 /* ---------------- LIGHTS ----------------
    The fill is COOL (it is the sky through the window); the only warm
@@ -1238,36 +1533,31 @@ winDir.shadow.normalBias=.02;
 winDir.shadow.bias=-.0002;
 scene.add(winDir,winDir.target);
 const lampPts=[];
-/* Kept individually so closeCafe() can put two of the three out and leave
-   the third burning. The fixtures themselves never move. */
+/* The three pendants over the counter are model geometry now (rail,
+   cable, shade, bulb). The scene keeps their LIGHT: one glow sprite and
+   an optional point per fixture, built eagerly at the model's known bulb
+   positions so closeCafe() works even while cafe.obj is still in flight.
+   Each record's bulb mesh joins it when the model lands. */
 const pendants=[];
-function pendant(x,z,withPoint){
-  const g=new THREE.Group();
-  const cord=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.95),
-    new THREE.MeshStandardMaterial({color:0x11161a}));
-  cord.position.y=2.9;g.add(cord);
-  const shade=new THREE.Mesh(new THREE.CylinderGeometry(.1,.25,.22,24,1,true),
-    new THREE.MeshStandardMaterial({color:0x1f2a32,side:THREE.DoubleSide,roughness:.6}));
-  shade.position.y=2.44;g.add(shade);
-  /* emissiveIntensity > 1 pushes the bulb past the bloom threshold */
-  const bulb=new THREE.Mesh(new THREE.SphereGeometry(.045,12,12),
-    new THREE.MeshStandardMaterial({color:0x1a1208,emissive:0xffd9a0,
-      emissiveIntensity:4.2,roughness:1}));
-  bulb.position.y=2.37;g.add(bulb);
+function applyPendant(p){
+  if(p.bulb)p.bulb.visible=p.lit;
+  p.glow.visible=p.lit;
+  if(p.point)p.point.intensity=p.lit?(p.dim?.34:.85):0;
+}
+function pendant(x,y,z,withPoint){
   const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xffca5f,
     blending:THREE.AdditiveBlending,depthWrite:false,opacity:.85}));
-  spr.scale.set(.7,.7,1);spr.position.y=2.37;g.add(spr);
+  spr.scale.set(.7,.7,1);spr.position.set(x,y,z);scene.add(spr);
   let p=null;
   if(withPoint){
     p=new THREE.PointLight(0xffb64f,.85,6.5,2);
-    p.position.y=2.32;g.add(p);lampPts.push(p);
+    p.position.set(x,y-.05,z);scene.add(p);lampPts.push(p);
   }
-  g.position.set(x,0,z);scene.add(g);
-  pendants.push({g,bulb,glow:spr,point:p});
+  pendants.push({bulb:null,glow:spr,point:p,lit:true,dim:false});
 }
-pendant(0,-.25,false);          /* key spot already lights this one */
-pendant(-2.6,-2.4,true);
-pendant(2.6,-2.8,true);
+pendant(-.90,2.045,-3.477,true);   /* the two counter ends carry points; */
+pendant(.371,2.045,-3.477,false);  /* the middle one glows on bloom alone */
+pendant(1.642,2.045,-3.477,true);
 
 /* ---------------- ENVIRONMENT (IBL) ----------------
    scene.environment feeds the specular term of every PBR material —
@@ -1291,10 +1581,10 @@ pendant(2.6,-2.8,true);
     m.position.set(x,y,z);
     envScene.add(m);tmp.push(geo,mat);
   }
-  emitter(7,.2,7,0,3.25,-1,0xffcf8e,2.4);
-  emitter(.2,3.2,4.5,-5.6,2.1,-1.2,0xbcd8ff,3.8);
-  emitter(3,.16,.6,2.7,2,-3.6,0xffe0b0,1.3);
-  emitter(9,.1,9,0,-.1,-1,0x6b4a32,.55);
+  emitter(7,.2,7,1.8,3.5,-1,0xffcf8e,2.4);
+  emitter(.2,3.2,4.5,-3.9,1.75,-.5,0xbcd8ff,3.8);
+  emitter(3,.16,.6,-2.3,3,-4.6,0xffe0b0,1.3);
+  emitter(9,.1,9,1.8,-.1,-.5,0x6b4a32,.55);
   const pmrem=new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
   const rt=pmrem.fromScene(envScene,.04);
@@ -1304,13 +1594,15 @@ pendant(2.6,-2.8,true);
   tmp.forEach(o=>o.dispose());
 })();
 
-/* ---------------- NEON over the counter ---------------- */
+/* ---------------- NEON, left end of the back wall ----------------
+   The chalkboard owns the right of the wall now — the neon balances it
+   over the framed print on the left. */
 const neonTube=new THREE.Mesh(
   new THREE.CylinderGeometry(.028,.028,2.2,12,1,false),
   new THREE.MeshStandardMaterial({color:0x2a1c10,emissive:0xff9d4a,
     emissiveIntensity:5.5,roughness:1}));
 neonTube.rotation.z=Math.PI/2;
-neonTube.position.set(2.7,1.98,-3.55);
+neonTube.position.set(-2.3,2.98,-4.62);
 scene.add(neonTube);
 const neonGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,
   color:0xff9d4a,blending:THREE.AdditiveBlending,depthWrite:false,opacity:.4}));
@@ -1318,47 +1610,29 @@ neonGlow.scale.set(3.2,.9,1);
 neonGlow.position.copy(neonTube.position);
 scene.add(neonGlow);
 const neonPt=new THREE.PointLight(0xff9d4a,.35,4,2);
-neonPt.position.set(2.7,1.9,-3.4);
+neonPt.position.set(-2.3,2.9,-4.45);
 scene.add(neonPt);
 
-/* ---------------- ROOM ---------------- */
-const floor=new THREE.Mesh(new THREE.PlaneGeometry(22,22),
-  new THREE.MeshStandardMaterial({map:floorTex,roughness:.62,envMapIntensity:.7}));
-floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+/* ---------------- ROOM ----------------
+   Floor, walls, storefront and window all come from cafe.obj (walls top
+   out at y=3.44, back wall face z=-4.75, window wall face x=-3.25).
+   The scene keeps what the model has none of: a ceiling with beams, the
+   city backdrop behind the window glass, the light shafts, the dust and
+   two framed prints on the back wall. */
 const ceil=new THREE.Mesh(new THREE.PlaneGeometry(22,22),
   new THREE.MeshStandardMaterial({color:0x231b15,roughness:1,envMapIntensity:.2}));
-ceil.rotation.x=Math.PI/2;ceil.position.y=3.4;scene.add(ceil);
-/* 9.9 m: the old 12 m beams ran straight through both walls */
+ceil.rotation.x=Math.PI/2;ceil.position.set(1.8,3.42,-.5);scene.add(ceil);
 const beamMat=new THREE.MeshStandardMaterial({color:0x3a2a1c,roughness:.85,envMapIntensity:.35});
 for(let i=0;i<5;i++){
   const beam=new THREE.Mesh(new THREE.BoxGeometry(.2,.16,9.9),beamMat);
-  beam.position.set(-4+i*2,3.3,-.05);scene.add(beam);
+  beam.position.set(-2.8+i*2,3.34,-.47);scene.add(beam);
 }
-const backWall=new THREE.Mesh(new THREE.PlaneGeometry(22,4.6),
-  new THREE.MeshStandardMaterial({map:brickTex,roughness:.94,envMapIntensity:.35}));
-backWall.position.set(0,2.3,-5);backWall.receiveShadow=true;scene.add(backWall);
-const sideMat=new THREE.MeshStandardMaterial({map:plasterTex,roughness:.96,envMapIntensity:.3});
-const leftWall=new THREE.Mesh(new THREE.PlaneGeometry(12,4.6),sideMat);
-leftWall.rotation.y=Math.PI/2;leftWall.position.set(-5,2.3,-1);leftWall.receiveShadow=true;scene.add(leftWall);
-const rightWall=new THREE.Mesh(new THREE.PlaneGeometry(12,4.6),sideMat);
-rightWall.rotation.y=-Math.PI/2;rightWall.position.set(5,2.3,-1);rightWall.receiveShadow=true;scene.add(rightWall);
-/* skirting */
-[[0,-4.99,22,0],[ -4.99,-1,12,Math.PI/2],[4.99,-1,12,-Math.PI/2]].forEach(p=>{
-  const sk=new THREE.Mesh(new THREE.BoxGeometry(p[2],.14,.03),
-    new THREE.MeshStandardMaterial({color:0x241a12}));
-  sk.position.set(p[0],.07,p[1]);sk.rotation.y=p[3];scene.add(sk);
-});
-/* window */
-const win=new THREE.Mesh(new THREE.PlaneGeometry(2.4,1.7),
+/* city view, hung outside the model's window bay. Taller than the bay
+   on purpose: eye height then lands on the texture's warm middle band,
+   not on its dark rooftops. */
+const win=new THREE.Mesh(new THREE.PlaneGeometry(5.7,2.2),
   new THREE.MeshBasicMaterial({map:viewTex}));
-win.rotation.y=Math.PI/2;win.position.set(-4.97,2.1,-1.2);scene.add(win);
-const wfM=new THREE.MeshStandardMaterial({color:0x1c262c,roughness:.42,metalness:.15,envMapIntensity:1});
-[[.06,1.85,.1,2.1],[.06,.1,2.55,2.1],[.06,.1,2.55,2.98],[.06,.1,2.55,1.22]].forEach((p,i)=>{
-  const f=new THREE.Mesh(new THREE.BoxGeometry(p[0],p[1],p[2]),wfM);
-  f.position.set(-4.96,p[3],-1.2);scene.add(f);
-});
-const sill=new THREE.Mesh(new THREE.BoxGeometry(.18,.06,2.7),wfM);
-sill.position.set(-4.9,1.2,-1.2);scene.add(sill);
+win.rotation.y=Math.PI/2;win.position.set(-3.9,2,-.47);scene.add(win);
 /* light shafts + dust */
 const shafts=[];   /* daylight through the window — gone when the bar shuts */
 if(!RM){
@@ -1366,7 +1640,7 @@ if(!RM){
     const shaft=new THREE.Mesh(new THREE.PlaneGeometry(2.6,3.4),
       new THREE.MeshBasicMaterial({map:shaftTex,transparent:true,opacity:.10,
         blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
-    shaft.position.set(-3.3+i*.5,1.75,-1.2+i*.4);
+    shaft.position.set(-2.6+i*.5,1.7,-1.6+i*.4);
     shaft.rotation.set(0,Math.PI/2,.5);
     scene.add(shaft);shafts.push(shaft);
   }
@@ -1374,7 +1648,7 @@ if(!RM){
 const DUST_N=140;
 const dustArr=new Float32Array(DUST_N*3);
 for(let i=0;i<DUST_N;i++){
-  dustArr[i*3]=-4.6+Math.random()*3.4;
+  dustArr[i*3]=-2.9+Math.random()*3.4;
   dustArr[i*3+1]=.4+Math.random()*2.4;
   dustArr[i*3+2]=-3+Math.random()*3.4;
 }
@@ -1383,116 +1657,17 @@ dustGeo.setAttribute("position",new THREE.BufferAttribute(dustArr,3));
 const dust=new THREE.Points(dustGeo,new THREE.PointsMaterial({color:0xffe9c0,size:.022,
   transparent:true,opacity:.26,depthWrite:false,blending:THREE.AdditiveBlending}));
 scene.add(dust);
-/* wall art */
-[[ -1.7,2.35,-4.98,0,0],[1.3,2.5,-4.98,0,1],[4.97,2.2,-2.6,-Math.PI/2,2]].forEach(p=>{
+/* wall art — left of the chalkboard, and above the fridge */
+[[-2.3,2.35,-4.72,0,0],[4.03,2.9,-4.72,0,1]].forEach(p=>{
   const a=new THREE.Mesh(new THREE.PlaneGeometry(.66,.82),
     new THREE.MeshStandardMaterial({map:artTex(p[4]),roughness:.85}));
   a.position.set(p[0],p[1],p[2]);a.rotation.y=p[3];scene.add(a);
 });
 
-/* ---------------- COUNTER ZONE ---------------- */
-const woodMid=new THREE.MeshStandardMaterial({color:0x6b4a32,roughness:.75,envMapIntensity:.5});
-const woodDark=new THREE.MeshStandardMaterial({color:0x4a3527,roughness:.85,envMapIntensity:.5});
-const counter=new THREE.Mesh(new THREE.BoxGeometry(3.2,1.05,.75),
-  new THREE.MeshStandardMaterial({color:0x5d4029,roughness:.7,envMapIntensity:.6}));
-counter.position.set(2.7,.525,-3.6);counter.castShadow=true;counter.receiveShadow=true;scene.add(counter);
-/* polished stone, not metal */
-const counterTop=new THREE.Mesh(new THREE.BoxGeometry(3.35,.07,.9),
-  new THREE.MeshStandardMaterial({color:0x2a2a30,roughness:.28,metalness:.05,envMapIntensity:1}));
-counterTop.position.set(2.7,1.09,-3.6);counterTop.castShadow=true;counterTop.receiveShadow=true;scene.add(counterTop);
-const board=new THREE.Mesh(new THREE.PlaneGeometry(3.1,1.2),
-  new THREE.MeshBasicMaterial({map:menuTex}));
-/* The frame is a BOX 0.04 deep, so centring it at -4.99 pushes its front
-   face to -4.97 — in front of the menu plane, which hid the whole board.
-   Keep the plane ahead of that face. */
-board.position.set(2.7,2.42,-4.96);scene.add(board);
-const boardFrame=new THREE.Mesh(new THREE.BoxGeometry(3.18,1.36,.04),woodDark);
-boardFrame.position.set(2.7,2.42,-4.99);scene.add(boardFrame);
-/* stainless steel at last — with the IBL it finally has something to
-   reflect instead of rendering as a grey concrete block */
-const machine=new THREE.Mesh(new THREE.BoxGeometry(.55,.42,.4),
-  new THREE.MeshStandardMaterial({color:0x9ea2a8,roughness:.22,metalness:.92,envMapIntensity:1.4}));
-machine.position.set(3.5,1.34,-3.65);machine.castShadow=true;scene.add(machine);
-const machTop=new THREE.Mesh(new THREE.BoxGeometry(.45,.06,.3),
-  new THREE.MeshStandardMaterial({color:0x2a2a30,metalness:.8,roughness:.35,envMapIntensity:1.2}));
-machTop.position.set(3.5,1.58,-3.65);scene.add(machTop);
-for(let i=0;i<3;i++){
-  const mug=new THREE.Mesh(new THREE.CylinderGeometry(.035,.03,.07,14),
-    new THREE.MeshStandardMaterial({color:[0xf0e8dc,0x4fd1c5,0xf4b740][i],
-      roughness:.18,envMapIntensity:1.2}));
-  mug.position.set(2.05+i*.22,1.16,-3.45);mug.castShadow=true;scene.add(mug);
-}
-function stool(x,z){
-  const g=new THREE.Group();
-  const seat=new THREE.Mesh(new THREE.CylinderGeometry(.17,.17,.05,18),woodMid);
-  seat.position.y=.62;seat.castShadow=true;g.add(seat);
-  for(let i=0;i<4;i++){
-    const a=i/4*Math.PI*2+.4;
-    const leg=new THREE.Mesh(new THREE.CylinderGeometry(.016,.016,.62),
-      new THREE.MeshStandardMaterial({color:0x1c1c22,metalness:.6,roughness:.4}));
-    leg.position.set(Math.cos(a)*.13,.31,Math.sin(a)*.13);
-    leg.rotation.z=Math.cos(a)*.12;leg.rotation.x=-Math.sin(a)*.12;
-    g.add(leg);
-  }
-  g.position.set(x,0,z);scene.add(g);
-}
-stool(2.1,-2.95);stool(3.1,-2.95);
-
-/* ---------------- TABLES / CHAIRS / RUG ---------------- */
-/* varnished wood: the clearcoat is what separates a real table from a
-   textured slab — and this top is 40% of the screen. Shared material so
-   the idle-time normal map lands on all three tables at once. */
-const tableMat=new THREE.MeshPhysicalMaterial({map:tableTex,roughness:.45,
-  metalness:0,clearcoat:1,clearcoatRoughness:.16,envMapIntensity:.9});
-const pedMat=new THREE.MeshStandardMaterial({color:0x23232a,metalness:.85,roughness:.3,envMapIntensity:1.3});
-function cafeTable(x,z,r){
-  const g=new THREE.Group();
-  const ped=new THREE.Mesh(new THREE.CylinderGeometry(.07,.17,.74,16),pedMat);
-  ped.position.y=.37;ped.castShadow=true;g.add(ped);
-  const top=new THREE.Mesh(new THREE.CylinderGeometry(r,r,.055,40),tableMat);
-  top.position.y=.775;top.castShadow=true;top.receiveShadow=true;g.add(top);
-  const rim=new THREE.Mesh(new THREE.TorusGeometry(r,.022,10,44),woodDark);
-  rim.rotation.x=Math.PI/2;rim.position.y=.775;g.add(rim);
-  g.position.set(x,0,z);scene.add(g);return g;
-}
-function chair(x,z,ry){
-  const g=new THREE.Group();
-  const m=woodMid;
-  const seat=new THREE.Mesh(new THREE.BoxGeometry(.42,.05,.42),m);
-  seat.position.y=.45;seat.castShadow=true;g.add(seat);
-  const back=new THREE.Mesh(new THREE.BoxGeometry(.42,.5,.05),m);
-  back.position.set(0,.72,-.19);back.castShadow=true;g.add(back);
-  for(const dx of[-.17,.17])for(const dz of[-.17,.17]){
-    const leg=new THREE.Mesh(new THREE.CylinderGeometry(.02,.02,.45),woodDark);
-    leg.position.set(dx,.225,dz);g.add(leg);
-  }
-  g.position.set(x,0,z);g.rotation.y=ry;scene.add(g);return g;
-}
-const rug=new THREE.Mesh(new THREE.CircleGeometry(1.7,48),
-  new THREE.MeshStandardMaterial({map:rugTex,roughness:1}));
-rug.rotation.x=-Math.PI/2;rug.position.set(0,.004,-.4);rug.receiveShadow=true;scene.add(rug);
-cafeTable(0,-.15,.95);
-chair(0,-1.08,0);
-cafeTable(-2.7,-2.4,.7);chair(-2.7,-3.1,0);chair(-3.5,-2.4,Math.PI/2);
-cafeTable(2.3,-1.6,.6);chair(3.0,-1.6,-Math.PI/2);
-
-/* plants */
-function plant(x,z,s){
-  const g=new THREE.Group();
-  const pot=new THREE.Mesh(new THREE.CylinderGeometry(.14,.11,.22,14),
-    new THREE.MeshStandardMaterial({color:0xb0603c,roughness:.8}));
-  pot.position.y=.11;pot.castShadow=true;g.add(pot);
-  for(let i=0;i<7;i++){
-    const a=i/7*Math.PI*2;
-    const leaf=new THREE.Mesh(new THREE.ConeGeometry(.05,.5+Math.random()*.25,8),
-      new THREE.MeshStandardMaterial({color:0x3f7a4c,roughness:.8}));
-    leaf.position.set(Math.cos(a)*.07,.42,Math.sin(a)*.07);
-    leaf.rotation.z=Math.cos(a)*.5;leaf.rotation.x=-Math.sin(a)*.5;
-    leaf.castShadow=true;g.add(leaf);
-  }
-  g.scale.setScalar(s);g.position.set(x,0,z);scene.add(g);
-}
-plant(-4.2,-2.9,1.5);plant(4.4,-4.3,1.2);plant(1.35,-3.42,.55);
+/* COUNTER ZONE, TABLES, CHAIRS, RUG, PLANTS: all cafe.obj now — counter
+   with espresso machine, register and pastry case at z≈-3.7, four bar
+   stools in front of it, a high table with six stools along the window,
+   the round rug under Simon's table, the plant in the left corner. */
 
 /* ---------------- CONTACT SHADOWS (blobs) ----------------
    90% of the perceived SSAO in a static scene, for 20 lines: a radial
@@ -1518,10 +1693,19 @@ function contactShadow(x,z,radius,y){
   scene.add(m);
   return m;
 }
-contactShadow(0,-.15,1.05);contactShadow(-2.7,-2.4,.8);contactShadow(2.3,-1.6,.7);
-contactShadow(0,-1.08,.35);contactShadow(-2.7,-3.1,.35);contactShadow(-3.5,-2.4,.35);
-contactShadow(3.0,-1.6,.35);contactShadow(2.1,-2.95,.28);contactShadow(3.1,-2.95,.28);
-contactShadow(-4.2,-2.9,.34);contactShadow(4.4,-4.3,.28);contactShadow(1.35,-3.42,.16);
+/* Simon's table, his chair and the spare chair sit ON the rug (top at
+   y=.013): their blobs need the offset or the rug hides them. */
+contactShadow(0,-.15,.8,.013);contactShadow(0,-1.0,.4,.013);
+contactShadow(.763,-.256,.35,.013);
+/* the four counter stools */
+contactShadow(-.795,-2.735,.3);contactShadow(-.159,-2.735,.3);
+contactShadow(1.324,-2.735,.3);contactShadow(1.96,-2.735,.3);
+/* the six window-bar stools */
+contactShadow(-1.706,-2.809,.3);contactShadow(-1.706,-1.809,.3);
+contactShadow(-1.706,-.809,.3);contactShadow(-1.706,.191,.3);
+contactShadow(-1.706,1.191,.3);contactShadow(-1.706,2.191,.3);
+/* plant in the corner */
+contactShadow(-3.05,-4.6,.4);
 
 /* ---------------- CEILING FAN + WALL CLOCK ----------------
    The fan sweeps moving light over the biggest surface on screen; the
@@ -1544,7 +1728,7 @@ const fan=new THREE.Group();
     blade.castShadow=true;
     fan.add(blade);
   }
-  fan.position.set(0,3.12,-2.4);
+  fan.position.set(0,3.14,-2.4);
   scene.add(fan);
 }
 const clockG=new THREE.Group();
@@ -1563,32 +1747,12 @@ const clockG=new THREE.Group();
   const now=new Date();
   hourHand.rotation.z=-((now.getHours()%12)+now.getMinutes()/60)/12*Math.PI*2;
   minHand.rotation.z=-now.getMinutes()/60*Math.PI*2;
-  clockG.position.set(.9,2.75,-4.96);
+  clockG.position.set(3.38,2.88,-4.71);
   scene.add(clockG);
 }
-
-/* ---------------- IDLE-TIME NORMAL MAPS ----------------
-   1M-pixel Sobel passes freeze a frame if run inline — derive them after
-   the first paint. repeat MUST match the diffuse or relief drifts off
-   the pattern. */
-(window.requestIdleCallback||function(fn){setTimeout(fn,300);})(function(){
-  try{
-    const brickNrm=normalFromCanvas(brickTex.userData.canvas,3.2);
-    brickNrm.repeat.copy(brickTex.repeat);
-    backWall.material.normalMap=brickNrm;
-    backWall.material.normalScale.set(1.4,1.4);
-    backWall.material.needsUpdate=true;
-    const floorNrm=normalFromCanvas(floorTex.userData.canvas,2,2);
-    floorNrm.repeat.copy(floorTex.repeat);
-    floor.material.normalMap=floorNrm;
-    floor.material.normalScale.set(.8,.8);
-    floor.material.needsUpdate=true;
-    const tableNrm=normalFromCanvas(tableTex.userData.canvas,1.8,2);
-    tableMat.normalMap=tableNrm;
-    tableMat.normalScale.set(.55,.55);
-    tableMat.needsUpdate=true;
-  }catch(e){console.warn("[vc] normal maps skipped —",e);}
-});
+/* Idle-time normal maps for the model's floor, back wall and woodwork
+   now live in the cafe.obj loader — they can only run once those meshes
+   exist. */
 
 /* ---------------- PEOPLE : the living background ----------------
    Complete rebuild of the NPCs. The old rigs were sines in open loop:
@@ -1697,6 +1861,7 @@ function buildPerson(opts){
   }
   const mouth=put(head,new THREE.BoxGeometry(.048,.009,.012),
     stdMat(0x8a4a3a,.6),0,-.052,.14,false);
+  mouth.userData.acc="mouth";   /* humanizeRig moves it onto the sculpted lips */
   for(const s of[-1,1]){
     const S=s<0?"L":"R";
     const sh=joint(chest,"shoulder"+S,.225*s,.24,0);
@@ -1903,24 +2068,31 @@ function updateGroups(dtT){
 }
 
 /* --- casting --- */
-/* Standing trio, mid-frame behind Simon's left shoulder: THE background
-   conversation. */
-const G_STAND=makeGroup(-1.85,-3.95,40);
+/* Standing trio in the pocket between the counter's end and the window
+   bar, mid-frame left: THE background conversation. Placed by hand —
+   the pocket is too tight for the generic F-formation radius (counter
+   at x≥-1.74, window wall at x=-3.25, high table down to z=-3.34). */
+const G_STAND=makeGroup(-2.45,-3.84,0);
 const standA=makeAgent("standA","stand",{shirt:0x7d3b3b,pants:0x2e2e38,skin:0xe8b58c,hair:0x1d1d24});
 const standB=makeAgent("standB","stand",{shirt:0x51606e,pants:0x3a3230,skin:0xd9a578,hair:0x4a3524});
 const standC=makeAgent("standC","stand",{shirt:0x46524a,pants:0x2a3038,skin:0xe0af83,hair:0x6b5340});
 G_STAND.members=[standA,standB,standC];
 [standA,standB,standC].forEach(a=>{a.group=G_STAND;});
-placeGroup(G_STAND);
+standA.pos.set(-2.42,0,-4.28);standA.yaw=-.05+(Math.random()-.5)*.2;
+standB.pos.set(-1.98,0,-3.55);standB.yaw=-1.9+(Math.random()-.5)*.2;
+standC.pos.set(-2.95,0,-3.55);standC.yaw=2.1+(Math.random()-.5)*.2;
 standA.talkative=1.8;   /* the raconteur gets extra turns */
 
-/* Barista behind the counter, working a legible 5-beat loop */
+/* Barista behind the counter, working a legible 5-beat loop. The model's
+   aisle (counter back z=-4.18, back cabinet front z=-4.53) is narrow, but
+   the counter top at y=1.22 hides everything below his chest anyway. */
 const barista=makeAgent("barista","barista",{shirt:0x35543f,pants:0x23232b,skin:0xeac39a,hair:0x2c2018});
-barista.pos.set(2.55,0,-4.3);barista.yaw=0;
+barista.pos.set(.42,0,-4.3);barista.yaw=.35;
 {
   const apron=new THREE.Mesh(new THREE.BoxGeometry(.3,.4,.03),
     stdMat(0xd9c9a8,.9,0,.3));
   apron.position.set(0,-.05,.19);
+  apron.userData.acc="apron";   /* humanizeRig pulls it against the new torso */
   barista.rig.J.chest.add(apron);
 }
 /* barista props: grinder + the cup he slides across */
@@ -1932,17 +2104,20 @@ const grinder=new THREE.Group();
   const hopper=new THREE.Mesh(new THREE.ConeGeometry(.055,.09,12),
     stdMat(0x6a6f76,.25,.8,1.3));
   hopper.rotation.x=Math.PI;hopper.position.y=.26;grinder.add(hopper);
-  grinder.position.set(2.05,1.125,-3.72);
+  grinder.position.set(.3,1.218,-3.75);   /* on the marble, left of the machine */
   scene.add(grinder);
 }
 const serveCup=new THREE.Mesh(new THREE.CylinderGeometry(.035,.03,.07,14),
   stdMat(0xf0e8dc,.18,0,1.2));
-serveCup.castShadow=true;serveCup.position.set(3.3,1.16,-3.45);scene.add(serveCup);
+serveCup.castShadow=true;serveCup.position.set(1.62,1.253,-3.3);scene.add(serveCup);
 const BAR={GRIND:0,TAMP:1,PULL:2,SERVE:3,IDLE:4};
 
-/* Laptop worker at the left table — "someone actually working" */
+/* Laptop worker on a counter stool, machine side — "someone actually
+   working", and the barista's serve slides the cup right to him. Bar
+   stool: seat at .795, pelvis lands at .85 — rootY just below zero so
+   the seated base pose still applies (SEAT_POSE gates on rootY<0). */
 const worker=makeAgent("worker","worker",{shirt:0x3f4a63,pants:0x2e2e38,skin:0xc48a5e,hair:0x14100c});
-worker.pos.set(-3.5,0,-2.4);worker.yaw=Math.PI/2;worker.rootY=-.33;
+worker.pos.set(1.324,0,-2.735);worker.yaw=Math.PI-.4;worker.rootY=-.01;
 const laptop=new THREE.Group();
 {
   const base=new THREE.Mesh(new THREE.BoxGeometry(.3,.012,.21),
@@ -1957,16 +2132,15 @@ const laptop=new THREE.Group();
   screen.position.set(0,.1,-.099);screen.rotation.x=-.32;laptop.add(screen);
   const glow=new THREE.PointLight(0xbfd8ff,.3,.9,2);
   glow.position.set(0,.16,.12);laptop.add(glow);
-  laptop.position.set(-3.22,.815,-2.4);
-  laptop.rotation.y=-Math.PI/2;
+  laptop.position.set(1.324,1.225,-3.3);   /* on the counter's client edge */
   scene.add(laptop);
 }
 worker.prop=laptop;
 const WK={TYPE:0,THINK:1,SIP:2,STRETCH:3};
 
-/* Drinker at the left table, real 4-phase sip cycle (no sine) */
+/* Drinker at the window bar, real 4-phase sip cycle (no sine) */
 const drinker=makeAgent("drinker","drinker",{shirt:0x6e4a63,pants:0x2e2e38,skin:0xe0af83,hair:0x14100c});
-drinker.pos.set(-2.7,0,-3.05);drinker.yaw=0;drinker.rootY=-.33;
+drinker.pos.set(-1.706,0,-1.809);drinker.yaw=-Math.PI/2;drinker.rootY=-.01;
 {
   const scarf=new THREE.Mesh(new THREE.TorusGeometry(.09,.035,10,18),
     stdMat(0x2f8f86,.9,0,.3));
@@ -1975,14 +2149,15 @@ drinker.pos.set(-2.7,0,-3.05);drinker.yaw=0;drinker.rootY=-.33;
 }
 const sitCup=new THREE.Mesh(new THREE.CylinderGeometry(.035,.03,.08,12),
   stdMat(0xf0e8dc,.18,0,1.2));
-sitCup.castShadow=true;sitCup.position.set(-2.55,.85,-2.55);scene.add(sitCup);
+sitCup.castShadow=true;sitCup.position.set(-2.3,1.158,-1.809);scene.add(sitCup);
 drinker.cup=sitCup;
-drinker.cupRest=new THREE.Vector3(-2.55,.85,-2.55);
+drinker.cupRest=new THREE.Vector3(-2.3,1.158,-1.809);
 drinker.prop=sitCup;
 
-/* Reader at the right table, page turn every 30-55 s */
+/* Reader one stool over, backlit by the window, page turn every 30-55 s
+   (the model even leaves him a cup on the bar) */
 const reader=makeAgent("reader","reader",{shirt:0xc9973c,pants:0x2e2e38,skin:0xdcae86,hair:0x3a2c1c});
-reader.pos.set(3.02,0,-1.6);reader.yaw=-Math.PI/2;reader.rootY=-.33;
+reader.pos.set(-1.706,0,-.809);reader.yaw=-Math.PI/2;reader.rootY=-.01;
 const bookG=new THREE.Group();
 let bookPages=null;
 {
@@ -1999,10 +2174,11 @@ let bookPages=null;
 reader.prop=bookG;
 reader.pageT=jit(40,.35);
 
-/* Visitors: episodic walk along the back — spawn behind the counter (the
-   back room), stroll to the window, look out, walk back, despawn. No
-   U-turn ever happens in the middle of the frame. */
-const VISIT_PATH=[[4.7,-4.4],[.5,-4],[-3.4,-4.25],[-4.05,-3],[-4.1,-1.6]];
+/* Visitors: episodic — spawn out of frame by the door (x≈6.5), walk in
+   past the tables, stop in front of the pastry case to read the
+   chalkboard, walk back out, despawn. No U-turn ever happens in the
+   middle of the frame: both ends of the path are off-screen. */
+const VISIT_PATH=[[6.5,-1.5],[4.5,-1.62],[2.85,-2.25]];
 const PALETTES={
   shirt:[0x8a5540,0x51606e,0x35543f,0x6e4a63,0xc9973c,0x2c4a6e,0x7d3b3b,0xa86b4a],
   pants:[0x2e2e38,0x3a3230,0x23232b,0x453b33],
@@ -2072,12 +2248,12 @@ function tickBarista(a,dtT){
   const done=a.modeT>=a.modeDur;
   switch(a.mode){
     case BAR.GRIND:
-      a.gazeLock={pos:[2.05,1.35,-3.72]};
+      a.gazeLock={pos:[.3,1.42,-3.75]};
       if(done)setMode(a,BAR.TAMP,jit(2.6,.2));
       break;
     case BAR.TAMP:
       if(a.onModeEnter){
-        a.gazeLock={pos:[2.3,1.1,-3.42]};
+        a.gazeLock={pos:[.6,1.32,-3.55]};
         playShot(a,2.2,(k,buf)=>{     /* two firm presses, with wind-up */
           const kk=k<.45?k/.45:k<.55?0:(k-.55)/.45;
           const press=kk>0?pulse(kk):0;
@@ -2089,7 +2265,7 @@ function tickBarista(a,dtT){
       break;
     case BAR.PULL:
       /* the machine works: he straightens, wipes, looks at the room */
-      if(a.modeT<2)a.gazeLock={pos:[3.5,1.4,-3.65]};
+      if(a.modeT<2)a.gazeLock={pos:[1.27,1.6,-3.8]};
       else{
         a.gazeLock=null;                       /* free gaze over the room */
         a.wipeT=(a.wipeT||0)-dtT;
@@ -2107,13 +2283,13 @@ function tickBarista(a,dtT){
       break;
     case BAR.SERVE:
       if(a.onModeEnter){
-        a.gazeLock={pos:[2.75,1.2,-2.9]};      /* toward the client side */
+        a.gazeLock={pos:[1.5,1.3,-2.85]};      /* toward the client side */
         playShot(a,2.6,(k,buf)=>{
           if(k<.4){const p=easeInOut(k/.4);
             addPose(buf,{chest:{y:-.5*p},shoulderR:{x:-.85*p},elbowR:{x:-.3*p}},1);
           }else if(k<.7){const p=(k-.4)/.3;
             addPose(buf,{chest:{y:-.5},shoulderR:{x:-.85,y:-.5*p},elbowR:{x:-.3}},1);
-            serveCup.position.x=3.3-p*.55;     /* the cup slides across */
+            serveCup.position.x=1.62-p*.55;    /* slides toward the laptop guy */
           }else{const p=1-easeInOut((k-.7)/.3);
             addPose(buf,{chest:{y:-.5*p},shoulderR:{x:-.85*p}},1);
             addPose(buf,{head:{x:.08*pulse((k-.7)/.3)}},1);
@@ -2125,7 +2301,7 @@ function tickBarista(a,dtT){
     case BAR.IDLE:
       if(a.onModeEnter){
         a.gazeLock=null;
-        serveCup.position.set(3.3,1.16,-3.45);
+        serveCup.position.set(1.62,1.253,-3.3);
         if(Math.random()<.5&&a.shots.length===0)
           playShot(a,2.4,(k,buf)=>{            /* stack cups */
             const p=pulse(k);
@@ -2157,7 +2333,7 @@ function tickWorker(a,dtT){
           const p=easeInOut(Math.min(1,k*2));
           addPose(buf,{shoulderR:{x:-1.7*p},elbowR:{x:-1.9*p},head:{z:-.06*p}},1);
         });
-        a.gazeLock={pos:[-4.5,2.4,-3.4]};     /* up and to the left */
+        a.gazeLock={pos:[-3,2.6,-4.2]};       /* up and to the left */
       }
       if(done)setMode(a,WK.TYPE,jit(9,.4));
       break;
@@ -2236,9 +2412,9 @@ function tickVisitor(a,dtT){
     }
     return;
   }
-  if(a.vPauseT>0){                            /* at the window, looking out */
+  if(a.vPauseT>0){                            /* reading the chalkboard */
     a.vPauseT-=dtT;
-    a.gazeLock={pos:[-4.9,2,-1.2]};
+    a.gazeLock={pos:[.37,2.1,-4.67]};
     if(a.vPauseT<=0){a.vDir=-1;a.vLeg=VISIT_PATH.length-2;a.gazeLock=null;}
     return;
   }
@@ -2376,6 +2552,8 @@ window.__groups=()=>groups.map(g=>({members:g.members.length,
   speaker:g.speaker?g.speaker.id:null,
   turn:+g.turnT.toFixed(1)+"/"+g.turnDur.toFixed(1),
   laughing:+g.laughing.toFixed(2)}));
+window.__cafe=()=>({ready:CAFE.ready,groups:Array.from(CAFE.meshes.keys()),
+  bulbs:CAFE.bulbs.map(b=>!!b),pendants:pendants.map(p=>({lit:p.lit,pt:!!p.point}))});
 
 /* ---------------- SIMON ---------------- */
 const simon=new THREE.Group();simon.position.set(0,0,-1.08);scene.add(simon);
@@ -2886,9 +3064,9 @@ function closeCafe(){
   winDir.intensity=.04;
   hemi.intensity=.07;
   pendants.forEach((p,i)=>{
-    const keep=i===2;                          /* the one over the counter */
-    p.bulb.visible=keep;p.glow.visible=keep;
-    if(p.point)p.point.intensity=keep?.34:0;
+    p.lit=i===2;p.dim=true;                    /* the one over the machine */
+    applyPendant(p);   /* records are eager; the bulb mesh itself may still
+                          be in flight — the loader re-applies on arrival */
   });
   closedLamp=pendants[2].point;
   /* Two shadow maps for a room lit by a single 0.34 point light is pure
@@ -2934,7 +3112,10 @@ const camTarget=new THREE.Vector3(0,1.08,-.95);
    on Simon — no coverage cuts, no zoom changes. Letterbox and subtitles
    still mark the spoken moments. */
 const SHOTS={
-  gameplay: {pos:[.42,1.3,1.62], look:[0,1.06,-.95], fov:47,focus:2.6, range:1.4, roll:.006, shake:1}
+  /* Pulled back from the table (z 1.62 → 2.6, fov 47 → 52): the café —
+     counter, register, chalkboard, window bar — is part of the shot now,
+     not a backdrop glimpsed behind Simon's shoulders. */
+  gameplay: {pos:[.42,1.42,2.6], look:[0,1.12,-.95], fov:52,focus:3.5, range:1.75, roll:.006, shake:1}
 };
 let shot=SHOTS.gameplay,shotName="gameplay",hardCut=false;
 const camPos=new THREE.Vector3().fromArray(SHOTS.gameplay.pos);
@@ -2988,19 +3169,19 @@ function updateCamera(dt,t){
   /* rack focus: the sheet pulls focus when hovered — the DOF says where
      to click */
   let fT=shot.focus,rT=shot.range;
-  if(paperHover||paperLifted){fT=.95;rT=.25;}
+  if(paperHover||paperLifted){fT=1.6;rT=.4;}
   dofMat.uniforms.uFocus.value=damp(dofMat.uniforms.uFocus.value,fT,.038,dt);
   dofMat.uniforms.uRange.value=damp(dofMat.uniforms.uRange.value,rT,.038,dt);
 }
 function applyStaging(){
   const portrait=camera.aspect<0.75;
-  camBase.set(0,portrait?1.38:1.34,portrait?1.72:1.6);
-  camTarget.set(0,portrait?1.02:1.08,-.95);
+  camBase.set(0,portrait?1.46:1.42,portrait?2.5:2.6);
+  camTarget.set(0,portrait?1.06:1.12,-.95);
   /* the gameplay shot follows the staging; portrait recenters (a 0.42 m
      offset would push Simon out of a narrow frame) */
   SHOTS.gameplay.pos=[portrait?0:.42,camBase.y,camBase.z];
   SHOTS.gameplay.look=[camTarget.x,camTarget.y,camTarget.z];
-  SHOTS.gameplay.fov=portrait?64:47;
+  SHOTS.gameplay.fov=portrait?66:52;
   if(shotName==="gameplay"){
     camPos.fromArray(SHOTS.gameplay.pos);
     camLook.fromArray(SHOTS.gameplay.look);
@@ -3008,7 +3189,9 @@ function applyStaging(){
     camera.fov=camFov;camera.updateProjectionMatrix();
   }
   paperRest.pos.set(0,.802,portrait?.20:.24);
-  paperUp.pos.set(0,portrait?1.06:1.0,portrait?.66:.5);
+  /* the camera sits ~1 m further back: the lifted sheet meets it halfway
+     up the table, or it would drop to postage-stamp size */
+  paperUp.pos.set(0,portrait?1.16:1.08,portrait?1.3:.95);
   paperUp.rot=portrait?-.98:-.85;
 }
 stagingReady=true;applyStaging();

@@ -55,7 +55,9 @@ copy under `/var/www/virtualcoffee/` drifts the moment you stop deploying to it.
 ## Layout
 
 ```
-index.html          Everything: markup, CSS, the VC shell, the 3D café
+index.html          Everything: markup, CSS, the VC shell, the scene code
+cafe.obj            The café itself — real 3D model, ~29k tris (~1.35 MB)
+person.obj          Male NPC body — base mesh cut into 15 rig segments (~550 KB)
 fonts.css           @font-face for the three self-hosted families
 fonts/*.woff2       Space Grotesk · Inter · Caveat (latin + latin-ext)
 three.min.js        three.js r134, vendored
@@ -64,6 +66,32 @@ og.jpg              1200×630 share card, rendered from the scene itself
 favicon.svg
 .nojekyll           skip the Jekyll build on Pages
 ```
+
+`cafe.obj` is preprocessed offline into **final world coordinates** (Simon's
+table at the origin, tabletop at y=.8025 — the height every scene anchor
+assumes), quantized and deduped, one `usemtl` per object. The scene has its own
+~60-line parser: no `OBJLoader` exists in the r134 UMD build, and none is
+needed for a file this repo itself produces. Faces merge into one mesh per
+material (~30 draw calls); materials are assigned by the model's French
+`usemtl` names (`chene_sol`, `laiton`, `marbre`, …) and dressed with the same
+procedural canvas textures as before — the chalkboard still repaints through
+`drawMenu()`, closed side included. If the fetch fails, the room is gone but
+the table, Simon and the résumé are all procedural: the conversation survives
+on a bare parquet.
+
+`person.obj` upgrades the NPCs from capsule figures to a real body. It is a
+decimated base mesh cut offline into fifteen segments, each exported **in the
+local space of the rig joint that carries it** — so the swap is just "remove
+the cylinder under this joint, add this mesh under the same joint", and every
+behaviour written for the capsules (gaze, turn-taking, sip, walk, `reskin()`)
+drives the new bodies untouched. The segments keep the mesh's own proportions;
+it is the rig's REST offsets that move to match (rotations are
+length-independent, and the mesh's hip line happens to sit where the rig's
+pelvis already was, so seated heights hold). Segments are coloured by the same
+shirt/pants/skin slots, lightly inflated so they read as clothes; eyes, mouth
+and hair cap are refitted onto the sculpted head, which is scaled up 12% to
+stay legible next to Simon. The drinker rides the same mesh a size down, Simon
+stays bespoke, and if the fetch fails the capsules simply remain.
 
 No build step, no bundler, no dependencies to install. Open `index.html` or:
 
