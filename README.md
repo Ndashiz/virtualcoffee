@@ -3,7 +3,8 @@
 An interactive 3D résumé. You sit across a café table from Simon, his CV is
 lying on the table, and tapping a section makes him tell you about it out loud —
 in his own recorded voice. Tap Simon himself and he orders a round of beers for
-the off-the-record version. Bilingual EN / FR.
+the off-the-record version. English only (the FR mode was retired in favour of
+the recorded voice).
 
 **Live** : <https://ndashiz.be/virtualcoffee/>
 
@@ -223,10 +224,9 @@ Three rules held it together, and they are easy to break by accident:
   straight to it. `VC.textOnly()` looks like the obvious tool and is the wrong
   one — it *hides* the pill and force-opens the panel, which is the no-WebGL
   path, not this one.
-- **All closed copy lives in `DATA[lang].closed` and `HOWTO[lang].closed`.**
-  `applyLang()` repaints the sign, the prompt, the chalkboard and the how-to card
-  from those objects on every EN↔FR click. Text written straight into the DOM
-  survives exactly until someone taps FR, and then silently reverts.
+- **All closed copy lives in `DATA.en.closed` and `HOWTO.en.closed`**, beside
+  the open copy — `closeCafe()` repaints the sign, the prompt, the chalkboard
+  and the how-to card from those objects.
 - **Reusing `#howto` as the closed card means undoing both of its hiding
   places.** The enter handler adds `.hide` *and* sets `display:none` on a 450 ms
   timer; clearing one and not the other leaves a card that is present and
@@ -281,18 +281,18 @@ use, and the scene repaints both textures once it settles.
 
 ### `VC` is deliberately outside the 3D script
 
-`index.html` has three scripts. The first builds `window.VC` — the EN/FR toggle,
-the `<html lang>` attribute, the text résumé panel, the WebGL probe. The second
-is [the ping](#where-the-ping-lives-and-why-it-is-its-own-script). The third is
+`index.html` has three scripts. The first builds `window.VC` — the text résumé
+panel and the WebGL probe. The second is
+[the ping](#where-the-ping-lives-and-why-it-is-its-own-script). The third is
 the café.
 
 The split exists because **the shell has to survive the scene failing**. No
 WebGL, a blocklisted driver, a dead GPU process, `three.min.js` not loading —
 in every one of those cases the text résumé becomes the whole page, and its
-language toggle still has to work. If the toggle lived in the scene's script it
-would die with it.
+open/close pill still has to work. If it lived in the scene's script it would
+die with it.
 
-The scene subscribes with `VC.onLang(fn)` and bails out early:
+The scene bails out early:
 
 ```js
 if(!VC.hasWebGL) return;                 // VC already swapped in the text résumé
@@ -306,21 +306,20 @@ readable.
 ### The text résumé is not a fallback, it is the second half of the site
 
 It is what a screen reader reads, what a keyboard user gets, what a crawler
-indexes, what a visitor without WebGL sees, and — since the recordings removed
-the subtitles — the only way to *read* any of this. Both languages ship as
-**static markup** rather than being generated from the `DATA` object, so a bot
-that never runs the 3D still reads the whole CV.
+indexes, and what a visitor without WebGL sees. It ships as **static markup**
+rather than being generated from the `DATA` object, so a bot that never runs
+the 3D still reads the whole CV.
 
 The cost is two copies of the content. **When the CV changes, update both** —
-`DATA` (drawn on the 3D sheet, and spoken) and the `[data-cvlang]` blocks.
+`DATA` (drawn on the 3D sheet, and spoken) and the static block in `#cv-text`.
 
 ### Stacking order
 
 `overlays 12 · sign 20 · bubble 25 · how-to 50 · text résumé 60 · tools 70`
 
-The tools cluster is on top of everything on purpose: the language toggle has to
-be reachable from inside the text résumé and from the welcome card, both of
-which cover the screen.
+The tools cluster is on top of everything on purpose: the résumé pill has to be
+reachable from inside the text résumé and from the welcome card, both of which
+cover the screen.
 
 ### The speech bubble is clamped, not free-floating
 
@@ -331,30 +330,27 @@ the café sign fades out while a bubble is up.
 
 ## Voice
 
-`AUDIO[lang][section]` maps a section to a recording. English is fully recorded
-in Simon's own voice (`audio/en/*.mp3`); **French has no recordings yet**, so
-every FR section falls back to the browser's `SpeechSynthesis`, which picks the
-best available `fr-FR` voice and sounds noticeably more robotic. `skills` has no
-mp3 in either language and always falls back.
+`AUDIO.en[section]` maps a section to a recording, in Simon's own voice
+(`audio/en/*.mp3`). `skills` has no mp3 and falls back to the browser's
+`SpeechSynthesis`.
 
 To record more, drop the file in and add the key:
 
 ```js
-AUDIO.fr.experience = "audio/fr/experience.mp3";
+AUDIO.en.skills = "audio/en/skills.mp3";
 ```
 
 A missing key falls back to TTS, and so does a file that fails to load
 (`audioEl.onerror`), so a broken path degrades rather than going silent.
 
-### There are no subtitles
+### Subtitles
 
-The recordings replaced the on-screen speech bubble the prototype used to have.
-Anyone with sound off, in a quiet office, or hard of hearing now gets nothing
-from the spoken sections — which is precisely why the **text résumé** matters,
-and why it carries the "Off the clock" content too. It is not a full transcript
-of what Simon says, though: the spoken sections are longer and more personal
-than the CV. A real transcript panel is the obvious next step if that gap
-matters.
+Spoken sections are captioned, GTA-style: white text, no box, hard shadow,
+bottom-centred. The mp3s carry no cue track, so sentences are spread pro-rata
+by character count over `audioEl.duration` (±0.4 s — fine for captions); the
+TTS fallback captions per uttered sentence. That closes the gap the recordings
+had opened for anyone with sound off or hard of hearing — the **text résumé**
+remains the full readable version, and carries the "Off the clock" content too.
 
 ## Credits
 

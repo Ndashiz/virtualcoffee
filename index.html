@@ -9,7 +9,7 @@
      This page is a résumé, so it gets found before it gets rendered.
      The 3D café is invisible to crawlers and link-preview bots, hence
      the meta block below plus the semantic #cv-text panel in <body>. -->
-<meta name="description" content="Take a virtual coffee with Simon Goffin — Product Manager in private banking (Degroof Petercam), Brussels. An interactive 3D café where the résumé on the table talks back, in his own voice. EN / FR."/>
+<meta name="description" content="Take a virtual coffee with Simon Goffin — Product Manager in private banking (Degroof Petercam), Brussels. An interactive 3D café where the résumé on the table talks back, in his own voice."/>
 <meta name="author" content="Simon Goffin"/>
 <meta name="keywords" content="Simon Goffin, Product Manager, Product Owner, PSPO, Degroof Petercam, Brussels, CLM, onboarding, MiFID, AML, résumé, CV"/>
 <link rel="canonical" href="https://ndashiz.be/virtualcoffee/"/>
@@ -22,13 +22,12 @@
 <meta property="og:site_name" content="Virtual Coffee"/>
 <meta property="og:url" content="https://ndashiz.be/virtualcoffee/"/>
 <meta property="og:title" content="Virtual Coffee — Simon Goffin, Product Manager"/>
-<meta property="og:description" content="Pull up a chair. An interactive 3D café where my résumé sits on the table — tap a section and I'll tell you about it out loud, in my own voice. EN / FR."/>
+<meta property="og:description" content="Pull up a chair. An interactive 3D café where my résumé sits on the table — tap a section and I'll tell you about it out loud, in my own voice."/>
 <meta property="og:image" content="https://ndashiz.be/virtualcoffee/og.jpg"/>
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
 <meta property="og:image:alt" content="A warm 3D café: Simon sits at a table with a coffee and his résumé."/>
 <meta property="og:locale" content="en_GB"/>
-<meta property="og:locale:alternate" content="fr_BE"/>
 
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="Virtual Coffee — Simon Goffin, Product Manager"/>
@@ -50,11 +49,23 @@
   #app{position:fixed;inset:0;}
   canvas{display:block;touch-action:none;}
 
-  /* cinematic overlays */
-  .vig{position:fixed;inset:0;z-index:12;pointer-events:none;
-    background:radial-gradient(115% 95% at 50% 42%,transparent 55%,rgba(0,0,0,.42) 100%);}
-  .grade{position:fixed;inset:0;z-index:12;pointer-events:none;mix-blend-mode:soft-light;
-    background:linear-gradient(180deg,rgba(255,190,110,.20),rgba(20,30,50,.25));}
+  /* cinematic letterbox — driven by body.cine while Simon speaks */
+  .bars{position:fixed;left:0;right:0;height:9vh;background:#000;z-index:22;
+    pointer-events:none;transition:transform .5s cubic-bezier(.16,1,.3,1);}
+  .bars.t{top:0;transform:translateY(-101%);}
+  .bars.b{bottom:0;transform:translateY(101%);}
+  body.cine .bars{transform:translateY(0);}
+  body.cine .sign,body.cine .prompt{opacity:0;transition:opacity .3s;}
+  @media(prefers-reduced-motion:reduce){ .bars{transition:none;} }
+
+  /* GTA-style subtitles: white, no box, hard shadow */
+  .subs{position:fixed;left:50%;bottom:calc(9vh + 22px);transform:translateX(-50%);
+    z-index:24;max-width:min(70ch,86vw);text-align:center;
+    font:500 20px/1.35 "Space Grotesk",sans-serif;
+    color:#fff;text-shadow:1px 1px 0 #000,2px 2px 0 rgba(0,0,0,.6);
+    pointer-events:none;opacity:0;transition:opacity .16s;padding:0 12px;}
+  .subs.on{opacity:1;}
+  @media(max-width:640px){ .subs{font-size:16px;bottom:calc(9vh + 14px);} }
 
   .sign{position:fixed;top:calc(14px + env(safe-area-inset-top));left:50%;transform:translateX(-50%) rotate(-1.6deg);z-index:20;
     font-family:"Caveat",cursive;font-weight:700;font-size:30px;color:var(--gold);
@@ -65,19 +76,13 @@
 
   /* Stacking, bottom to top: overlays 12 · sign 20 · prompt 20 ·
      how-to 50 · text résumé 60 · tools 70.
-     The tools sit on top of everything on purpose — the language toggle
+     The tools sit on top of everything on purpose — the résumé pill
      must stay reachable from inside the text résumé (for a visitor with
-     no WebGL that panel IS the site) and from the welcome card, which
-     tells people the toggle is up there. */
+     no WebGL that panel IS the site) and from the welcome card. */
   .tools{position:fixed;top:calc(16px + env(safe-area-inset-top));
     right:calc(16px + env(safe-area-inset-right));z-index:70;
     display:flex;gap:8px;align-items:center;}
-  .lang{display:inline-flex;border:1px solid #3a4d56;
-    border-radius:999px;overflow:hidden;background:rgba(22,28,33,.88);backdrop-filter:blur(3px);}
-  .lang button{background:transparent;color:#9fb4bc;border:0;padding:8px 15px;cursor:pointer;
-    font-family:"Space Grotesk",sans-serif;font-size:13px;transition:.18s;}
-  .lang button.active{background:var(--gold);color:#20303a;}
-  .lang button:focus-visible,.pill:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+  .pill:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
 
   .pill{border:1px solid #3a4d56;border-radius:999px;background:rgba(22,28,33,.88);
     backdrop-filter:blur(3px);color:#9fb4bc;padding:8px 15px;cursor:pointer;
@@ -139,7 +144,7 @@
     .sign{left:12px;transform:rotate(-1.6deg);font-size:21px;padding:5px 14px 7px;}
     .sign small{font-size:8.5px;letter-spacing:1.8px;}
     .tools{gap:6px;}
-    .lang button,.pill{padding:7px 12px;font-size:12px;}
+    .pill{padding:7px 12px;font-size:12px;}
     .prompt{font-size:16px;white-space:normal;width:min(92vw,340px);text-align:center;line-height:1.3;}
     .hcard{padding:20px 18px 18px;}
     .hcard h2{font-size:30px;}
@@ -157,17 +162,14 @@
 <h1 class="visually-hidden">Simon Goffin — Product Manager, Brussels. Virtual Coffee, an interactive 3D résumé.</h1>
 
 <div id="app"></div>
-<div class="vig"></div><div class="grade"></div>
+<div class="bars t"></div><div class="bars b"></div>
+<div class="subs" id="subs"></div>
 <div class="howto" id="howto">
   <div class="hcard"><h2></h2><ul class="hsteps"></ul><button id="enterBtn"></button></div>
 </div>
 <div class="sign" id="sign">Virtual Coffee<small>discussion with Simon</small></div>
 <div class="tools">
   <button class="pill" id="cvBtn" aria-expanded="false" aria-controls="cv-text">Text résumé</button>
-  <div class="lang">
-    <button id="lang-en" class="active" lang="en">EN</button>
-    <button id="lang-fr" lang="fr">FR</button>
-  </div>
 </div>
 <div class="prompt" id="prompt">Hover the résumé on the table &amp; tap a section&nbsp;☕</div>
 
@@ -242,64 +244,6 @@
       <p class="cvnote"><strong>Privacy.</strong> This page keeps a headcount on my own server, and nothing else: which section was opened, whether you read it in EN or FR, and whether you arrived from LinkedIn, GitHub, a search engine or straight here. Counters only — no cookie, no third party, no analytics service, no access log, so no IP address is written down and nothing here can identify you. If your browser sends Global Privacy Control or Do Not Track, the visit is counted once and neither the language nor the referrer is sent at all.</p>
     </div>
 
-    <div data-cvlang="fr" hidden>
-      <header>
-        <h1>Simon Goffin</h1>
-        <p class="role">Product Manager · Digital</p>
-        <p class="lede">Celui qui parle business et IT sans avoir besoin d'un traducteur dans la pièce. Je prends des processus lourds et compliqués et je les transforme en parcours digitaux qu'on a vraiment plaisir à utiliser.</p>
-      </header>
-
-      <h2>Expérience</h2>
-      <h3>Product Manager — Degroof Petercam</h3>
-      <p class="meta">2024 – aujourd'hui · Client Lifecycle Management &amp; Onboarding · Bruxelles</p>
-      <ul>
-        <li>Product owner de deux produits digitaux : le CRM de la banque, et la plateforme client derrière ses mandats execution-only et discrétionnaires.</li>
-        <li>Deux squads transverses, plus de 10 personnes entre business, IT et compliance.</li>
-        <li>Livré un onboarding 100 % digital — contrôles anti-blanchiment, MiFID, identité digitale, signature électronique — un seul flux sans papier qui ouvre un compte en moins de 15 minutes.</li>
-        <li>Lancé le self-service : les clients mettent à jour leurs données eux-mêmes, et le back office arrête de se noyer dans la paperasse.</li>
-      </ul>
-      <h3>Consultant Finance — EY</h3>
-      <p class="meta">2021 – 2024 · conseil auprès de banques privées</p>
-      <h3>Data Analyst AML — Degroof Petercam</h3>
-      <p class="meta">2020 · là où j'ai appris quels problèmes valaient la peine d'être résolus</p>
-
-      <h2>Formation</h2>
-      <h3>Master en Sciences de Gestion — Solvay Business School</h3>
-      <p class="meta">Majeure économétrie</p>
-      <h3>Bachelier en Économie — Solvay Business School</h3>
-      <h3>Bootcamp full-stack — Le Wagon, Amsterdam</h3>
-      <p class="meta">Neuf semaines, Ruby on Rails / JavaScript / PostgreSQL. Pas pour devenir développeur — pour comprendre exactement comment tout se construit, et pouvoir suivre la conversation avec les ingénieurs.</p>
-
-      <h2>Compétences</h2>
-      <ul class="tags">
-        <li>Jira</li><li>Confluence</li><li>Monday</li><li>Figma</li>
-        <li>BPMN (Visio, Lucidchart)</li><li>Power BI</li>
-        <li>SQL</li><li>Ruby on Rails</li><li>JavaScript</li>
-        <li>Codex</li><li>Claude Code</li>
-      </ul>
-
-      <h2>Certifications</h2>
-      <ul class="tags">
-        <li>Professional Scrum Product Owner I</li><li>Professional Scrum Master I</li>
-        <li>Microsoft Dynamics 365</li><li>Microsoft Azure</li>
-      </ul>
-
-      <h2>Langues</h2>
-      <ul><li>Français — langue maternelle</li><li>Anglais — courant</li><li>Néerlandais — intermédiaire</li></ul>
-
-      <h2>En dehors du boulot</h2>
-      <p>Je suis un bâtisseur, au sens propre : j'ai acheté un immeuble à Bruxelles et je passe depuis un an et demi à le rénover de mes propres mains — la menuiserie, l'électricité, tout. Un jour j'ai dit « un projet de week-end » à voix haute ; la maison m'a entendu, et elle a ri. Je possède deux des quatre étages, et je suis aussi le syndic de l'immeuble — une façon élégante de dire que je me suis porté volontaire pour gérer les problèmes de tout le monde, y compris les miens.</p>
-      <p>L'autre chose que je ne peux pas lâcher, c'est l'IA. Tout cet endroit où vous êtes a été construit pour jouer avec la techno : si on n'apprend pas à travailler avec l'IA maintenant, on sera dépassé d'ici mardi. Je préfère être en avance qu'obsolète.</p>
-      <p>À côté de ça : un people person qui tire son énergie d'une pièce pleine, et un coureur — quelques courses à défi par an, pour lesquelles je m'entraîne vraiment, surtout pour que la ligne d'arrivée reste un objectif et pas un événement médical.</p>
-
-      <h2>Contact</h2>
-      <ul>
-        <li><a href="mailto:goffin.simon@gmail.com">goffin.simon@gmail.com</a></li>
-        <li>Bruxelles, Belgique</li>
-      </ul>
-      <p class="cvnote">Ceci est la version à plat du café. Dans la version 3D, je vous raconte tout ça à voix haute, avec ma vraie voix — prenez un café et repassez.</p>
-      <p class="cvnote"><strong>Vie privée.</strong> Cette page tient un simple comptage sur mon propre serveur, et rien d'autre : quelle section a été ouverte, si vous lisez en EN ou en FR, et si vous arrivez de LinkedIn, de GitHub, d'un moteur de recherche ou directement. Des compteurs, point — aucun cookie, aucun tiers, aucun service d'analytics, aucun journal d'accès, donc aucune adresse IP écrite nulle part et rien qui puisse vous identifier. Si votre navigateur envoie Global Privacy Control ou Do Not Track, la visite est comptée une fois et ni la langue ni la provenance ne sont transmises.</p>
-    </div>
   </div>
 </main>
 
@@ -316,11 +260,9 @@
    The scene subscribes with VC.onLang(fn) and reads VC.fontsReady.
    ===================================================================== */
 window.VC = (function(){
-  const htmlEl = document.documentElement;
   const panel  = document.getElementById('cv-text');
   const cvBtn  = document.getElementById('cvBtn');
   const subs   = [];
-  let lang = 'en';
 
   /* ── WebGL probe ────────────────────────────────────────────────
      Cheap and non-destructive: build a throwaway canvas and ask for a
@@ -350,33 +292,15 @@ window.VC = (function(){
     : Promise.resolve();
 
   /* ── Language ───────────────────────────────────────────────────
-     One owner for the current language: the <html lang> attribute, the
-     two toggle buttons, the text panel, and whoever subscribed. */
-  const LABELS = { en:{ open:'Text résumé', close:'Close ✕'  },
-                   fr:{ open:'CV en texte', close:'Fermer ✕' } };
-
+     English only, by request. The plumbing stayed one-language deep:
+     the getter and onLang survive so nothing downstream throws. */
   function relabel(){
-    cvBtn.textContent = panel.hidden ? LABELS[lang].open : LABELS[lang].close;
+    cvBtn.textContent = panel.hidden ? 'Text résumé' : 'Close ✕';
   }
-
-  function setLang(l){
-    if (l !== 'en' && l !== 'fr') return;
-    lang = l;
-    htmlEl.setAttribute('lang', l);
-    document.getElementById('lang-en').classList.toggle('active', l === 'en');
-    document.getElementById('lang-fr').classList.toggle('active', l === 'fr');
-    panel.querySelectorAll('[data-cvlang]').forEach(sec => {
-      sec.hidden = sec.getAttribute('data-cvlang') !== l;
-    });
-    relabel();
-    subs.forEach(fn => { try { fn(l); } catch (e) { console.error(e); } });
-  }
-  document.getElementById('lang-en').addEventListener('click', () => setLang('en'));
-  document.getElementById('lang-fr').addEventListener('click', () => setLang('fr'));
 
   /* ── Text résumé panel ──────────────────────────────────────────
      One pill drives it both ways, so there is no second close button
-     to collide with the language toggle on a narrow screen. */
+     to collide with anything on a narrow screen. */
   let onOpen = null;                       // the scene hangs "stop talking" here
   function openCV(){
     panel.hidden = false;
@@ -412,8 +336,8 @@ window.VC = (function(){
   if (!hasWebGL) textOnly('no WebGL context');
 
   return {
-    hasWebGL, fontsReady, setLang, openCV,
-    get lang(){ return lang; },
+    hasWebGL, fontsReady, openCV,
+    get lang(){ return 'en'; },
     onLang(fn){ subs.push(fn); },
     set onOpenCV(fn){ onOpen = fn; },
     textOnly,
@@ -618,39 +542,6 @@ const DATA={
                  "Back tomorrow.",
                  "The résumé is still on the counter."],
           hand:"— Simon"}}
- },
- fr:{
-  sign:["Café Virtuel","discussion avec Simon"],
-  prompt:"Survolez le CV sur la table & touchez une section\u00A0☕",
-  promptTouch:"Touchez le CV pour le soulever, puis touchez une section\u00A0☕",
-  labels:{intro:"À PROPOS",experience:"EXPÉRIENCE",education:"FORMATION",
-          skills:"COMPÉTENCES",certifications:"CERTIFICATIONS",languages:"LANGUES",contact:"CONTACT"},
-  body:{
-   intro:["Product Manager : des processus","complexes aux parcours digitaux simples."],
-   experience:["Product Manager — Degroof Petercam","2024–auj. · CLM & Onboarding","· 2 équipes transverses, 10+ experts","· Onboarding, MiFID, AML, e-signature","· Onboarding digital < 15 minutes","Consultant Finance — EY · 2021–2024","Data Analyst AML — Degroof · 2020"],
-   education:["Master Sciences de Gestion — Solvay","Bachelier Économie — Solvay","Bootcamp full-stack Le Wagon","Amsterdam · Rails, JS, PostgreSQL"],
-   skills:["Jira · Confluence · Monday","Figma · Power BI · BPMN","Codex & Claude Code"],
-   certifications:["PSPO I · PSM I","Dynamics 365 · Azure"],
-   languages:["FR natif · EN courant","NL intermédiaire"],
-   contact:["goffin.simon@gmail.com","Bruxelles, Belgique"]},
-  speech:{
-   intro:`Salut, merci de prendre un café avec moi. Je suis Simon, product manager dans la banque privée, à Bruxelles. Mon vrai métier : être celui qui parle business et IT sans avoir besoin d'un traducteur dans la pièce. Je prends des processus lourds et compliqués et je les transforme en parcours digitaux qu'on a vraiment plaisir à utiliser. Et visiblement je ne m'arrête pas à dix-sept heures, puisque vous êtes assis dans un café que j'ai construit pour le fun. Touchez une section, on y va.`,
-   experience:`Aujourd'hui, je suis product owner de deux produits digitaux chez Degroof Petercam : le CRM de la banque, et la plateforme client derrière nos mandats execution-only et discrétionnaires. Deux squads transverses, plus de dix personnes entre business, IT et compliance, et moi au milieu pour que tout le monde parle la même langue. Ma plus grande fierté : un onboarding cent pour cent digital — contrôles anti-blanchiment, MiFID, identité digitale, signature électronique — un seul flux sans papier qui ouvre un compte en moins de quinze minutes. Ensuite on a lancé le self-service : les clients mettent à jour leurs données eux-mêmes, et le back office arrête de se noyer dans la paperasse. Avant tout ça, trois ans chez EY à conseiller des banques privées, et j'ai commencé ma carrière comme analyste anti-blanchiment — c'est là que j'ai appris quels problèmes valaient vraiment la peine d'être résolus.`,
-   skills:`Bon, la boîte à outils. Côté produit, je vis dans Jira, Confluence et Monday. Design et process : Figma, plus du BPMN dans Visio et Lucidchart. Je construis mes propres dashboards dans Power BI. Et côté technique, je mets vraiment les mains dedans : SQL, Ruby on Rails, JavaScript, un peu de tout — plus les outils d'IA comme Codex et Claude Code, c'est d'ailleurs comme ça que ce café existe. L'important, ce n'est pas que je fasse tout moi-même : c'est que quand un ingénieur m'explique une contrainte, je la comprends vraiment.`,
-   education:`J'ai fait la Solvay Business School, sciences de gestion avec une majeure en économétrie. Une base solide, mais à la fin il me manquait quelque chose : comprendre vraiment le côté IT. Pas pour devenir développeur — ça n'a jamais été le but — mais pour mettre un vrai pied dans le digital avant qu'il ne me laisse derrière. Et j'avais envie de partir un peu à l'étranger après mes études. Donc direction Amsterdam : Le Wagon, un bootcamp full-stack de neuf semaines, et six mois sur place au total avant de commencer à travailler. Soyons honnêtes : neuf semaines ne font pas de vous un génie du code. Mais ça m'a apporté plus utile : comprendre exactement comment tout se construit, étape par étape. Et c'est pour ça qu'aujourd'hui je peux m'asseoir avec des ingénieurs et vraiment suivre la conversation.`,
-   certifications:`Sur le papier : certifié Scrum Product Owner et Scrum Master, plus des certifications Microsoft en Dynamics 365 et Azure. En clair, ça veut dire que je peux tenir ma place face à une équipe d'ingénieurs et face à un comité de direction le même après-midi, sans que personne n'ait l'impression que je bluffe.`,
-   languages:`Le français est ma langue maternelle. L'anglais, courant. Et le néerlandais, intermédiaire — ce qui à Bruxelles est à la fois une compétence de survie et un acte de courage quotidien.`,
-   contact:`Si tout ça vous a parlé, le plus simple pour me joindre, c'est l'e-mail : goffin point simon arobase gmail point com. Je suis à Bruxelles. Et franchement, le café virtuel c'était sympa, mais je suis toujours partant pour un vrai. Faites signe.`,
-   about:`Ah, vous voulez le côté perso ? Alors ce n'est plus vraiment un café virtuel. Attendez, je nous commande deux bières — une pour vous, une pour moi. Voilà. C'est mieux. En dehors du boulot, je suis un bâtisseur, au sens propre : j'ai acheté un immeuble à Bruxelles et je passe depuis un an et demi à le rénover de mes propres mains — la menuiserie, l'électricité, tout. Un jour j'ai dit « un projet de week-end » à voix haute. La maison m'a entendu, et elle a ri. Je possède deux des quatre étages, et je suis aussi le syndic de l'immeuble — une façon élégante de dire que je me suis porté volontaire pour gérer les problèmes de tout le monde, y compris les miens. L'autre chose que je ne peux pas lâcher, c'est l'IA. Honnêtement, tout cet endroit où vous êtes assis ? Je l'ai construit juste pour jouer avec la techno, parce que je suis convaincu que si on n'apprend pas à travailler avec l'IA maintenant, on sera dépassé d'ici mardi. Je préfère être en avance qu'obsolète. À côté de ça, je suis un people person — je tire mon énergie d'une pièce pleine. Et je cours : quelques courses à défi par an, pour lesquelles je m'entraîne vraiment, surtout pour que la ligne d'arrivée reste un objectif, et pas un événement médical.`,
-   outro:`Voilà, c'est à peu près tout ce que je peux vous raconter sur moi. Vous êtes arrivé au bout. Et je sais, c'était un peu à sens unique — moi qui parle, vous qui écoutez — ce n'est pas vraiment mon style, promis. Dans la vraie vie, je suis beaucoup plus drôle, surtout parce que vous pouvez me répondre. Alors si quelque chose vous a parlé, ne restez pas un inconnu : envoyez-moi un message sur LinkedIn et transformons ce café virtuel en vrai café. C'est la vraie conversation qui m'intéresse. À bientôt de l'autre côté.`},
-  closed:{
-   sign:["Café Virtuel","fermé — repassez demain"],
-   prompt:"Bar fermé — le CV, lui, est resté ouvert, là-haut ↗",
-   board:{title:"FERMÉ",
-          lines:["Machine éteinte, lumières baissées.",
-                 "Repassez demain.",
-                 "Le CV est toujours sur le comptoir."],
-          hand:"— Simon"}}
  }
 };
 /* Simon's real voice (EN). Missing keys (e.g. skills, all FR) fall back to browser TTS. */
@@ -665,8 +556,7 @@ const AUDIO={
   languages:"audio/en/languages.mp3",
   contact:"audio/en/contact.mp3",
   outro:"audio/en/outro.mp3"
- },
- fr:{}
+}
 };
 
 /* The ping lives in a separate <script> on purpose (see its header). If that
@@ -689,9 +579,11 @@ var closedLamp=null;        /* the one light nobody switches off */
 /* ---------------- RENDERER / SCENE / CAMERA ---------------- */
 const app=document.getElementById("app");
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x151011);
-scene.fog=new THREE.Fog(0x151011,7.5,16);
-const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,.1,40);
+scene.background=new THREE.Color(0x11151a);
+/* FogExp2: linear fog with near=7.5 in a 10 m room never triggered.
+   The colour matches the grade's cool shadow tint. */
+scene.fog=new THREE.FogExp2(0x1a2228,.055);
+const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,.1,25);
 const camBase=new THREE.Vector3(0,1.34,1.6);
 camera.position.copy(camBase);
 /* A WebGL probe passing does not guarantee a context: blocklisted drivers,
@@ -704,13 +596,324 @@ renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputEncoding=THREE.sRGBEncoding;
-renderer.toneMapping=THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure=1.18;
+/* ACES moved into the composite shader: the renderer must output raw HDR,
+   or the bloom bright-pass has no >1 values left to catch. */
+renderer.toneMapping=THREE.NoToneMapping;
 app.appendChild(renderer.domElement);
 const maxAniso=renderer.capabilities.getMaxAnisotropy();
+
+/* ---------------- POST-PROCESSING : socle ---------------- */
+const IS_GL2=renderer.capabilities.isWebGL2;
+const _gl=renderer.getContext();
+const CAN_HALF=IS_GL2?!!_gl.getExtension("EXT_color_buffer_float")
+                     :(!!_gl.getExtension("OES_texture_half_float")&&!!_gl.getExtension("OES_texture_half_float_linear"));
+const CAN_DEPTH_TEX=IS_GL2||!!_gl.getExtension("WEBGL_depth_texture");
+const HDR_TYPE=CAN_HALF?THREE.HalfFloatType:THREE.UnsignedByteType;
+
+const QUALITY=(function(){
+  const small=Math.min(innerWidth,innerHeight)<700;
+  if(TOUCH||small||!CAN_DEPTH_TEX)
+    return {name:"low",bloom:2,dof:false,fxaa:true};
+  return {name:"high",bloom:4,dof:true,fxaa:true};
+})();
+
+function makeRT(w,h,opts){
+  return new THREE.WebGLRenderTarget(Math.max(1,w|0),Math.max(1,h|0),Object.assign({
+    minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,
+    format:THREE.RGBAFormat,type:HDR_TYPE,encoding:THREE.LinearEncoding,
+    depthBuffer:false,stencilBuffer:false},opts||{}));
+}
+const fsScene=new THREE.Scene();
+const fsCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+const fsQuad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),null);
+fsQuad.frustumCulled=false;fsScene.add(fsQuad);
+function blit(material,target,additive){
+  fsQuad.material=material;
+  renderer.setRenderTarget(target||null);
+  if(!additive)renderer.clear();
+  renderer.render(fsScene,fsCam);
+}
+const QUAD_VS=`
+varying vec2 vUv;
+void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`;
+const whiteTex=(function(){
+  const d=new Uint8Array([255,255,255,255]);
+  const t=new THREE.DataTexture(d,1,1,THREE.RGBAFormat);
+  t.needsUpdate=true;return t;
+})();
+
+const brightMat=new THREE.ShaderMaterial({
+  uniforms:{tSrc:{value:null},uThreshold:{value:1.05},uKnee:{value:.45}},
+  vertexShader:QUAD_VS,
+  fragmentShader:`
+    uniform sampler2D tSrc; uniform float uThreshold,uKnee; varying vec2 vUv;
+    void main(){
+      vec3 c=texture2D(tSrc,vUv).rgb;
+      float br=max(c.r,max(c.g,c.b));
+      float soft=clamp(br-uThreshold+uKnee,0.0,2.0*uKnee);
+      soft=soft*soft/(4.0*uKnee+1e-4);
+      float k=max(soft,br-uThreshold)/max(br,1e-4);
+      gl_FragColor=vec4(c*k,1.0);
+    }`,
+  depthTest:false,depthWrite:false});
+const downMat=new THREE.ShaderMaterial({
+  uniforms:{tSrc:{value:null},uTexel:{value:new THREE.Vector2()}},
+  vertexShader:QUAD_VS,
+  fragmentShader:`
+    uniform sampler2D tSrc; uniform vec2 uTexel; varying vec2 vUv;
+    void main(){
+      vec3 s=texture2D(tSrc,vUv+uTexel*vec2(-1.,-1.)).rgb
+            +texture2D(tSrc,vUv+uTexel*vec2( 1.,-1.)).rgb
+            +texture2D(tSrc,vUv+uTexel*vec2(-1., 1.)).rgb
+            +texture2D(tSrc,vUv+uTexel*vec2( 1., 1.)).rgb;
+      gl_FragColor=vec4(s*.25,1.0);
+    }`,
+  depthTest:false,depthWrite:false});
+const upMat=new THREE.ShaderMaterial({
+  uniforms:{tSrc:{value:null},uTexel:{value:new THREE.Vector2()},uRadius:{value:1}},
+  vertexShader:QUAD_VS,
+  fragmentShader:`
+    uniform sampler2D tSrc; uniform vec2 uTexel; uniform float uRadius; varying vec2 vUv;
+    void main(){
+      vec2 o=uTexel*uRadius;
+      vec3 s=texture2D(tSrc,vUv+vec2(-o.x,-o.y)).rgb
+            +texture2D(tSrc,vUv+vec2( 0.,-o.y)).rgb*2.
+            +texture2D(tSrc,vUv+vec2( o.x,-o.y)).rgb
+            +texture2D(tSrc,vUv+vec2(-o.x, 0.)).rgb*2.
+            +texture2D(tSrc,vUv).rgb*4.
+            +texture2D(tSrc,vUv+vec2( o.x, 0.)).rgb*2.
+            +texture2D(tSrc,vUv+vec2(-o.x, o.y)).rgb
+            +texture2D(tSrc,vUv+vec2( 0., o.y)).rgb*2.
+            +texture2D(tSrc,vUv+vec2( o.x, o.y)).rgb;
+      gl_FragColor=vec4(s/16.,1.0);
+    }`,
+  blending:THREE.AdditiveBlending,transparent:true,depthTest:false,depthWrite:false});
+const dofMat=new THREE.ShaderMaterial({
+  uniforms:{tSrc:{value:null},tDepth:{value:null},uTexel:{value:new THREE.Vector2()},
+    uFocus:{value:2.6},uRange:{value:1.4},uMaxCoC:{value:13},
+    cameraNear:{value:.1},cameraFar:{value:25}},
+  vertexShader:QUAD_VS,
+  fragmentShader:`
+    #include <packing>
+    uniform sampler2D tSrc,tDepth;
+    uniform vec2 uTexel; uniform float uFocus,uRange,uMaxCoC,cameraNear,cameraFar;
+    varying vec2 vUv;
+    float viewDist(vec2 uv){
+      float d=texture2D(tDepth,uv).x;
+      return -perspectiveDepthToViewZ(d,cameraNear,cameraFar);
+    }
+    float coc(vec2 uv){
+      float z=viewDist(uv);
+      return clamp((abs(z-uFocus)-uRange)/max(uRange,1e-3),0.0,1.0);
+    }
+    void main(){
+      float c=coc(vUv);
+      vec3 sum=texture2D(tSrc,vUv).rgb;
+      float wsum=1.0;
+      float r=c*uMaxCoC;
+      for(int ring=1;ring<=2;ring++){
+        float rr=r*float(ring)*.5;
+        for(int i=0;i<6;i++){
+          float a=float(i)/6.*6.2831853+float(ring)*.5236;
+          vec2 off=vec2(cos(a),sin(a))*rr*uTexel;
+          float cs=coc(vUv+off);
+          float w=step(c*.75,cs)*step(.011,c);
+          sum+=texture2D(tSrc,vUv+off).rgb*w;
+          wsum+=w;
+        }
+      }
+      gl_FragColor=vec4(sum/wsum,c);
+    }`,
+  depthTest:false,depthWrite:false});
+const fxaaMat=new THREE.ShaderMaterial({
+  uniforms:{tSrc:{value:null},uRes:{value:new THREE.Vector2()}},
+  vertexShader:QUAD_VS,
+  fragmentShader:`
+    uniform sampler2D tSrc; uniform vec2 uRes; varying vec2 vUv;
+    float luma(vec3 c){ return dot(c,vec3(.299,.587,.114)); }
+    void main(){
+      vec2 t=1.0/uRes;
+      vec3 rgbNW=texture2D(tSrc,vUv+vec2(-t.x,-t.y)).rgb;
+      vec3 rgbNE=texture2D(tSrc,vUv+vec2( t.x,-t.y)).rgb;
+      vec3 rgbSW=texture2D(tSrc,vUv+vec2(-t.x, t.y)).rgb;
+      vec3 rgbSE=texture2D(tSrc,vUv+vec2( t.x, t.y)).rgb;
+      vec3 rgbM =texture2D(tSrc,vUv).rgb;
+      float lNW=luma(rgbNW),lNE=luma(rgbNE),lSW=luma(rgbSW),lSE=luma(rgbSE),lM=luma(rgbM);
+      float lMin=min(lM,min(min(lNW,lNE),min(lSW,lSE)));
+      float lMax=max(lM,max(max(lNW,lNE),max(lSW,lSE)));
+      vec2 dir=vec2(-((lNW+lNE)-(lSW+lSE)),((lNW+lSW)-(lNE+lSE)));
+      float reduce=max((lNW+lNE+lSW+lSE)*.03125,.0078125);
+      float rcp=1.0/(min(abs(dir.x),abs(dir.y))+reduce);
+      dir=clamp(dir*rcp,vec2(-8.),vec2(8.))*t;
+      vec3 rgbA=.5*(texture2D(tSrc,vUv+dir*(1./3.-.5)).rgb+
+                    texture2D(tSrc,vUv+dir*(2./3.-.5)).rgb);
+      vec3 rgbB=rgbA*.5+.25*(texture2D(tSrc,vUv-dir*.5).rgb+
+                             texture2D(tSrc,vUv+dir*.5).rgb);
+      float lB=luma(rgbB);
+      gl_FragColor=vec4((lB<lMin||lB>lMax)?rgbA:rgbB,1.0);
+    }`,
+  depthTest:false,depthWrite:false});
+const compMat=new THREE.ShaderMaterial({
+  uniforms:{tSrc:{value:null},tBloom:{value:null},tAO:{value:null},
+    uRes:{value:new THREE.Vector2()},uTime:{value:0},
+    uExposure:{value:1.15},uBloom:{value:.32},uCA:{value:.85},uGrain:{value:.055},
+    uVig:{value:.55},uSharp:{value:.35},uBarrel:{value:.02},
+    uSlope:{value:new THREE.Vector3(1.06,1.015,.935)},
+    uOffset:{value:new THREE.Vector3(-.01,.002,.022)},
+    uPower:{value:new THREE.Vector3(1,.975,1.03)},
+    uSat:{value:.86},uContrast:{value:1.14},uPivot:{value:.42},uDebug:{value:0}},
+  vertexShader:QUAD_VS,
+  fragmentShader:`
+    uniform sampler2D tSrc,tBloom,tAO;
+    uniform vec2 uRes; uniform float uTime,uExposure,uBloom,uCA,uGrain,uVig,uSharp,uBarrel;
+    uniform vec3 uSlope,uOffset,uPower; uniform float uSat,uContrast,uPivot;
+    uniform int uDebug;
+    varying vec2 vUv;
+    float luma(vec3 c){ return dot(c,vec3(.2126,.7152,.0722)); }
+    float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123); }
+    float bayer4(vec2 p){
+      vec2 f=floor(mod(p,4.0));
+      float i=f.y*4.0+f.x;
+      if(i< 1.) return  0./16.; if(i< 2.) return  8./16.;
+      if(i< 3.) return  2./16.; if(i< 4.) return 10./16.;
+      if(i< 5.) return 12./16.; if(i< 6.) return  4./16.;
+      if(i< 7.) return 14./16.; if(i< 8.) return  6./16.;
+      if(i< 9.) return  3./16.; if(i<10.) return 11./16.;
+      if(i<11.) return  1./16.; if(i<12.) return  9./16.;
+      if(i<13.) return 15./16.; if(i<14.) return  7./16.;
+      if(i<15.) return 13./16.; return  5./16.;
+    }
+    vec3 aces(vec3 x){
+      const float a=2.51,b=.03,c=2.43,d=.59,e=.14;
+      return clamp((x*(a*x+b))/(x*(c*x+d)+e),0.0,1.0);
+    }
+    vec3 cdl(vec3 c){ return pow(max(c*uSlope+uOffset,0.0),uPower); }
+    vec3 toSRGB(vec3 c){
+      vec3 lo=c*12.92;
+      vec3 hi=1.055*pow(max(c,vec3(0.)),vec3(1./2.4))-.055;
+      return mix(hi,lo,step(c,vec3(.0031308)));
+    }
+    void main(){
+      vec2 texel=1.0/uRes;
+      vec2 d=vUv-.5;
+      float r2=dot(d,d);
+      vec2 uv=vUv+d*r2*uBarrel;
+      vec2 ca=d*r2*uCA*texel*6.0;
+      vec3 col=vec3(
+        texture2D(tSrc,uv+ca).r,
+        texture2D(tSrc,uv).g,
+        texture2D(tSrc,uv-ca).b);
+      vec3 base=col;
+      col*=texture2D(tAO,uv).r;
+      col+=texture2D(tBloom,uv).rgb*uBloom;
+      col=aces(col*uExposure);
+      col=cdl(col);
+      col=mix(vec3(luma(col)),col,uSat);
+      col=clamp((col-uPivot)*uContrast+uPivot,0.0,1.0);
+      float v=smoothstep(.98,.28,length(d*vec2(uRes.x/uRes.y,1.0)));
+      col*=mix(1.0,v,uVig);
+      float g=hash(vUv*uRes+fract(uTime*.717)*419.7)-.5;
+      col+=g*uGrain*(1.0-smoothstep(0.0,.65,luma(col)));
+      vec3 blur=(
+        texture2D(tSrc,uv+vec2( texel.x,0.)).rgb+
+        texture2D(tSrc,uv+vec2(-texel.x,0.)).rgb+
+        texture2D(tSrc,uv+vec2(0., texel.y)).rgb+
+        texture2D(tSrc,uv+vec2(0.,-texel.y)).rgb)*.25;
+      col+=(aces(base*uExposure)-aces(blur*uExposure))*uSharp;
+      col+=(bayer4(gl_FragCoord.xy)-.5)/255.0;
+      vec3 outc=toSRGB(clamp(col,0.0,1.0));
+      if(uDebug==1)outc=toSRGB(clamp(base,0.0,1.0));
+      if(uDebug==2)outc=toSRGB(clamp(texture2D(tBloom,uv).rgb,0.0,1.0));
+      if(uDebug==3)outc=vec3(texture2D(tAO,uv).r);
+      if(uDebug==4)outc=vec3(texture2D(tSrc,uv).a);
+      gl_FragColor=vec4(outc,1.0);
+    }`,
+  depthTest:false,depthWrite:false});
+
+const GRADES={
+  neutral:{slope:[1,1,1],offset:[0,0,0],power:[1,1,1],sat:1,contrast:1,pivot:.42,
+           exposure:1.18,bloom:0,vig:0,grain:0,ca:0,barrel:0},
+  losSantosDay:{slope:[1.06,1.015,.935],offset:[-.01,.002,.022],power:[1,.975,1.03],
+           sat:.86,contrast:1.2,pivot:.38,exposure:.98,bloom:.32,vig:.55,grain:.055,ca:.85,barrel:.02},
+  vinewoodNight:{slope:[.965,.985,1.09],offset:[-.014,-.004,.03],power:[1.04,1,.96],
+           sat:.94,contrast:1.22,pivot:.36,exposure:1.05,bloom:.48,vig:.7,grain:.075,ca:1.1,barrel:.024}
+};
+function applyGrade(name){
+  const g=GRADES[name]||GRADES.losSantosDay;
+  const u=compMat.uniforms;
+  u.uSlope.value.fromArray(g.slope);
+  u.uOffset.value.fromArray(g.offset);
+  u.uPower.value.fromArray(g.power);
+  u.uSat.value=g.sat;u.uContrast.value=g.contrast;u.uPivot.value=g.pivot;
+  u.uExposure.value=g.exposure;u.uBloom.value=g.bloom;
+  u.uVig.value=g.vig;u.uGrain.value=g.grain;
+  u.uCA.value=g.ca;u.uBarrel.value=g.barrel;
+}
+applyGrade("losSantosDay");
+
+let RT_HDR=null,RT_BRIGHT=null,RT_DOF=null,RT_LDR=null,MIPS=[];
+const BLOOM_MIPS=4;
+function disposeTargets(){
+  [RT_HDR,RT_BRIGHT,RT_DOF,RT_LDR].forEach(rt=>{
+    if(!rt)return;
+    if(rt.depthTexture)rt.depthTexture.dispose();
+    rt.dispose();
+  });
+  MIPS.forEach(rt=>rt.dispose());MIPS=[];
+}
+function allocTargets(){
+  disposeTargets();
+  const size=renderer.getDrawingBufferSize(new THREE.Vector2());
+  const w=size.x,h=size.y;
+  RT_HDR=makeRT(w,h,{depthBuffer:true});
+  if(CAN_DEPTH_TEX){
+    const dtx=new THREE.DepthTexture(w,h);
+    dtx.type=IS_GL2?THREE.UnsignedIntType:THREE.UnsignedShortType;
+    dtx.minFilter=dtx.magFilter=THREE.NearestFilter;
+    RT_HDR.depthTexture=dtx;
+  }
+  RT_BRIGHT=makeRT(w/2,h/2);
+  RT_DOF=makeRT(w,h);
+  RT_LDR=makeRT(w,h,{type:THREE.UnsignedByteType});
+  for(let i=0;i<BLOOM_MIPS;i++)MIPS.push(makeRT(w/(4<<i),h/(4<<i)));
+  compMat.uniforms.uRes.value.set(w,h);
+  fxaaMat.uniforms.uRes.value.set(w,h);
+  dofMat.uniforms.uTexel.value.set(1/w,1/h);
+}
+allocTargets();
+let postReady=true;
+function renderBloom(mips){
+  brightMat.uniforms.tSrc.value=RT_HDR.texture;
+  blit(brightMat,RT_BRIGHT);
+  let src=RT_BRIGHT;
+  for(let i=0;i<mips;i++){
+    downMat.uniforms.tSrc.value=src.texture;
+    downMat.uniforms.uTexel.value.set(1/src.width,1/src.height);
+    blit(downMat,MIPS[i]);src=MIPS[i];
+  }
+  for(let i=mips-1;i>0;i--){
+    upMat.uniforms.tSrc.value=MIPS[i].texture;
+    upMat.uniforms.uTexel.value.set(1/MIPS[i].width,1/MIPS[i].height);
+    upMat.uniforms.uRadius.value=1+i*.6;
+    blit(upMat,MIPS[i-1],true);
+  }
+}
+const DEBUG_VIEWS={"":0,"#raw":1,"#bloom":2,"#ao":3,"#coc":4};
+function syncDebug(){compMat.uniforms.uDebug.value=DEBUG_VIEWS[location.hash]||0;}
+addEventListener("hashchange",syncDebug);syncDebug();
+
+/* framerate-independent exponential smoothing + non-periodic noise */
+function damp(cur,target,k,dt){return cur+(target-cur)*(1-Math.pow(1-k,dt*60));}
+function fbm1(t,s,seed){
+  return Math.sin(t*s+seed)*.6
+       +Math.sin(t*s*2.17+seed*1.7+1.3)*.3
+       +Math.sin(t*s*4.31+seed*2.9+2.7)*.1;
+}
+function jit(base,spread){return base*(1+(Math.random()*2-1)*spread);}
 function onResize(){
   camera.aspect=innerWidth/innerHeight;
   renderer.setSize(innerWidth,innerHeight);
+  if(postReady)allocTargets();
   if(stagingReady)applyStaging();
   else{camera.fov=camera.aspect<0.75?64:50;camera.updateProjectionMatrix();}
 }
@@ -722,6 +925,45 @@ function ctex(w,h,draw){
   draw(c.getContext("2d"),w,h);
   const t=new THREE.CanvasTexture(c);
   t.encoding=THREE.sRGBEncoding;t.anisotropy=maxAniso;
+  t.userData.canvas=c;               /* kept so normal maps can be derived */
+  return t;
+}
+/* height -> normal by Sobel on luminance. NEVER sRGB: a normal map left
+   in sRGB inverts bumps and skews the light direction. */
+function normalFromCanvas(srcCanvas,strength,downscale){
+  const ds=downscale||1;
+  const w=Math.max(4,Math.floor(srcCanvas.width/ds));
+  const h=Math.max(4,Math.floor(srcCanvas.height/ds));
+  const tmp=document.createElement("canvas");tmp.width=w;tmp.height=h;
+  const tc=tmp.getContext("2d");
+  tc.drawImage(srcCanvas,0,0,w,h);
+  const s=tc.getImageData(0,0,w,h).data;
+  const out=document.createElement("canvas");out.width=w;out.height=h;
+  const oc=out.getContext("2d");
+  const img=oc.createImageData(w,h),o=img.data;
+  function L(x,y){
+    x=(x+w)%w;y=(y+h)%h;                 /* toric wrap: no seam */
+    const i=(y*w+x)*4;
+    return (s[i]*.299+s[i+1]*.587+s[i+2]*.114)/255;
+  }
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const tl=L(x-1,y-1),tm=L(x,y-1),tr=L(x+1,y-1);
+    const ml=L(x-1,y),mr=L(x+1,y);
+    const bl=L(x-1,y+1),bm=L(x,y+1),br=L(x+1,y+1);
+    const dx=((tr+2*mr+br)-(tl+2*ml+bl))*strength;
+    const dy=((bl+2*bm+br)-(tl+2*tm+tr))*strength;
+    const len=Math.sqrt(dx*dx+dy*dy+1);
+    const i=(y*w+x)*4;
+    o[i]=((-dx/len)*.5+.5)*255;
+    o[i+1]=((-dy/len)*.5+.5)*255;
+    o[i+2]=((1/len)*.5+.5)*255;
+    o[i+3]=255;
+  }
+  oc.putImageData(img,0,0);
+  const t=new THREE.CanvasTexture(out);
+  t.encoding=THREE.LinearEncoding;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.anisotropy=maxAniso;
   return t;
 }
 function speckle(x,w,h,n,a){
@@ -758,20 +1000,35 @@ const floorTex=ctex(1024,1024,(x,w,h)=>{
   speckle(x,w,h,2600,.05);
 });
 floorTex.wrapS=floorTex.wrapT=THREE.RepeatWrapping;floorTex.repeat.set(4.5,4.5);
-/* brick back wall */
+/* brick back wall — ratio fixed for the 6x2.6 repeat (bricks were
+   stretched 2x horizontally), recessed joints, chips, dirt at the base:
+   a café wall is ALWAYS dirtier at the bottom. */
 const brickTex=ctex(512,512,(x,w,h)=>{
-  x.fillStyle="#43382f";x.fillRect(0,0,w,h);
-  const bh=44,bw=104;
+  x.fillStyle="#3a2f28";x.fillRect(0,0,w,h);
+  const bw=w/17.5,bh=h/27;
   for(let r=0;r*bh<h+bh;r++){
     const off=(r%2)*bw/2;
     for(let c=-1;c*bw<w+bw;c++){
-      const v=Math.random()*22-11;
-      x.fillStyle=`rgb(${104+v},${72+v*.7},${56+v*.5})`;
-      x.fillRect(c*bw+off+3,r*bh+3,bw-6,bh-6);
-      x.fillStyle="rgba(255,255,255,.045)";
-      x.fillRect(c*bw+off+3,r*bh+3,bw-6,5);
+      const v=Math.random()*34-17;
+      const X=c*bw+off,Y=r*bh;
+      x.fillStyle=`rgb(${104+v|0},${72+v*.7|0},${56+v*.5|0})`;
+      x.fillRect(X+1.5,Y+1.5,bw-3,bh-3);
+      x.fillStyle="rgba(255,255,255,.07)";
+      x.fillRect(X+1.5,Y+1.5,bw-3,2);
+      x.fillStyle="rgba(0,0,0,.12)";
+      x.fillRect(X+1.5,Y+bh-3.5,bw-3,2);
+      if(Math.random()<.04){
+        x.fillStyle="rgba(60,44,34,.55)";
+        x.beginPath();
+        x.ellipse(X+Math.random()*bw,Y+Math.random()*bh,3,2.2,Math.random()*3,0,7);
+        x.fill();
+      }
     }
   }
+  const dirt=x.createLinearGradient(0,h*.72,0,h);
+  dirt.addColorStop(0,"rgba(0,0,0,0)");
+  dirt.addColorStop(1,"rgba(12,8,5,.42)");
+  x.fillStyle=dirt;x.fillRect(0,0,w,h);
   speckle(x,w,h,1600,.06);
 });
 brickTex.wrapS=brickTex.wrapT=THREE.RepeatWrapping;brickTex.repeat.set(6,2.6);
@@ -786,15 +1043,46 @@ const plasterTex=ctex(512,512,(x,w,h)=>{
   speckle(x,w,h,2000,.05);
 });
 plasterTex.wrapS=plasterTex.wrapT=THREE.RepeatWrapping;plasterTex.repeat.set(3,1.4);
-/* table wood */
-const tableTex=ctex(512,512,(x,w,h)=>{
-  x.fillStyle="#7a5638";x.fillRect(0,0,w,h);
-  x.strokeStyle="rgba(60,35,16,.5)";
-  for(let i=0;i<26;i++){
-    x.lineWidth=1+Math.random()*1.4;
-    x.beginPath();x.ellipse(w/2,h/2,30+i*9+Math.random()*5,22+i*7+Math.random()*5,.15,0,7);x.stroke();
+/* table wood — PLANKS, not growth rings: concentric rings stretched over
+   a 1.9 m top read as a blurry dartboard. */
+const tableTex=ctex(1024,1024,(x,w,h)=>{
+  const plank=w/9;
+  for(let i=0;i<9;i++){
+    const X=i*plank;
+    const base=118+Math.random()*26;
+    x.fillStyle=`rgb(${base},${base*.66|0},${base*.44|0})`;
+    x.fillRect(X,0,plank,h);
+    for(let g=0;g<18;g++){
+      const gx=X+6+Math.random()*(plank-12);
+      x.strokeStyle=`rgba(${60+Math.random()*30|0},${34+Math.random()*18|0},14,${.18+Math.random()*.22})`;
+      x.lineWidth=.8+Math.random()*2.2;
+      x.beginPath();x.moveTo(gx,-10);
+      for(let y=0;y<h+20;y+=64){
+        x.lineTo(gx+Math.sin(y*.004+i)*5+(Math.random()-.5)*3,y);
+      }
+      x.stroke();
+    }
+    if(Math.random()<.55){
+      const kx=X+plank*(0.25+Math.random()*.5),ky=Math.random()*h;
+      for(let r=8;r>0;r--){
+        x.strokeStyle=`rgba(48,26,10,${.08+r*.03})`;
+        x.lineWidth=1.4;
+        x.beginPath();x.ellipse(kx,ky,r*2.6,r*4.1,.2,0,7);x.stroke();
+      }
+    }
+    x.fillStyle="rgba(26,14,6,.85)";x.fillRect(X,0,3,h);
   }
-  speckle(x,w,h,1200,.05);
+  /* worn centre (elbows and cups), cup rings, lightened edge */
+  const g=x.createRadialGradient(w/2,h/2,w*.05,w/2,h/2,w*.45);
+  g.addColorStop(0,"rgba(255,238,205,.10)");g.addColorStop(1,"rgba(255,238,205,0)");
+  x.fillStyle=g;x.fillRect(0,0,w,h);
+  for(let i=0;i<6;i++){
+    x.strokeStyle="rgba(48,28,12,.13)";x.lineWidth=4+Math.random()*3;
+    x.beginPath();x.arc(w*.2+Math.random()*w*.6,h*.2+Math.random()*h*.6,42+Math.random()*14,0,7);x.stroke();
+  }
+  x.strokeStyle="rgba(225,200,165,.16)";x.lineWidth=14;
+  x.strokeRect(7,7,w-14,h-14);
+  speckle(x,w,h,2200,.04);
 });
 /* window view */
 const viewTex=ctex(512,512,(x,w,h)=>{
@@ -918,24 +1206,36 @@ const shaftTex=ctex(256,256,(x)=>{
   x.fillStyle=g;x.fillRect(0,0,256,256);
 });
 
-/* ---------------- LIGHTS ---------------- */
-const hemi=new THREE.HemisphereLight(0xffe4c0,0x241a12,.5);
+/* ---------------- LIGHTS ----------------
+   The fill is COOL (it is the sky through the window); the only warm
+   thing left is the practicals. Warm/cool separation is what the grade
+   then exploits — grading warm-on-warm just makes mud. */
+const hemi=new THREE.HemisphereLight(0x9fc4e8,0x1a1410,.42);
 scene.add(hemi);
-const keySpot=new THREE.SpotLight(0xffd9a0,1.5,10,.72,.55,1.5);
+const keySpot=new THREE.SpotLight(0xffb867,1.75,9,.68,.6,1.6);
 keySpot.position.set(0,2.62,-.3);
 keySpot.target.position.set(0,.8,-.3);
 keySpot.castShadow=true;
-keySpot.shadow.mapSize.set(1024,1024);
-keySpot.shadow.bias=-.0006;
+keySpot.shadow.mapSize.set(2048,2048);
+keySpot.shadow.camera.near=.5;
+keySpot.shadow.camera.far=6;
+keySpot.shadow.normalBias=.02;
+keySpot.shadow.bias=-.0002;
+keySpot.shadow.radius=3;
 scene.add(keySpot,keySpot.target);
-const winDir=new THREE.DirectionalLight(0xcfe0e6,.45);
+const winDir=new THREE.DirectionalLight(0xa8ccf0,.85);
 winDir.position.set(-5,3.2,-.8);
 winDir.target.position.set(0,.6,-1.2);
 winDir.castShadow=true;
-winDir.shadow.mapSize.set(1024,1024);
-winDir.shadow.camera.left=-5;winDir.shadow.camera.right=5;
-winDir.shadow.camera.top=4;winDir.shadow.camera.bottom=-2;
-winDir.shadow.bias=-.0005;
+winDir.shadow.mapSize.set(2048,2048);
+/* The playable area fits in ~3x3 m: a tight shadow camera buys ~3x
+   sharper shadows for the same GPU cost. */
+winDir.shadow.camera.left=-3.5;winDir.shadow.camera.right=3.5;
+winDir.shadow.camera.top=3;winDir.shadow.camera.bottom=-.5;
+winDir.shadow.camera.near=.5;
+winDir.shadow.camera.far=14;
+winDir.shadow.normalBias=.02;
+winDir.shadow.bias=-.0002;
 scene.add(winDir,winDir.target);
 const lampPts=[];
 /* Kept individually so closeCafe() can put two of the three out and leave
@@ -949,8 +1249,10 @@ function pendant(x,z,withPoint){
   const shade=new THREE.Mesh(new THREE.CylinderGeometry(.1,.25,.22,24,1,true),
     new THREE.MeshStandardMaterial({color:0x1f2a32,side:THREE.DoubleSide,roughness:.6}));
   shade.position.y=2.44;g.add(shade);
+  /* emissiveIntensity > 1 pushes the bulb past the bloom threshold */
   const bulb=new THREE.Mesh(new THREE.SphereGeometry(.045,12,12),
-    new THREE.MeshBasicMaterial({color:0xffe2a8}));
+    new THREE.MeshStandardMaterial({color:0x1a1208,emissive:0xffd9a0,
+      emissiveIntensity:4.2,roughness:1}));
   bulb.position.y=2.37;g.add(bulb);
   const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xffca5f,
     blending:THREE.AdditiveBlending,depthWrite:false,opacity:.85}));
@@ -967,22 +1269,75 @@ pendant(0,-.25,false);          /* key spot already lights this one */
 pendant(-2.6,-2.4,true);
 pendant(2.6,-2.8,true);
 
+/* ---------------- ENVIRONMENT (IBL) ----------------
+   scene.environment feeds the specular term of every PBR material —
+   without it, metals render as dead grey chalk. Hand-built emitter room
+   (RoomEnvironment lives in examples/jsm, unavailable in this build).
+   Emitters mirror the real fixtures: warm ceiling, cool window at
+   x=-5, counter neon, floor bounce. */
+(function buildEnvironment(){
+  const envScene=new THREE.Scene();
+  envScene.background=new THREE.Color(0x14161c);
+  const tmp=[];
+  const shellGeo=new THREE.BoxGeometry(12,7,12);
+  const shellMat=new THREE.MeshBasicMaterial({color:0x2b2620,side:THREE.BackSide});
+  const shell=new THREE.Mesh(shellGeo,shellMat);
+  envScene.add(shell);
+  function emitter(w,h,d,x,y,z,hex,power){
+    const mat=new THREE.MeshBasicMaterial({color:hex});
+    mat.color.multiplyScalar(power);
+    const geo=new THREE.BoxGeometry(w,h,d);
+    const m=new THREE.Mesh(geo,mat);
+    m.position.set(x,y,z);
+    envScene.add(m);tmp.push(geo,mat);
+  }
+  emitter(7,.2,7,0,3.25,-1,0xffcf8e,2.4);
+  emitter(.2,3.2,4.5,-5.6,2.1,-1.2,0xbcd8ff,3.8);
+  emitter(3,.16,.6,2.7,2,-3.6,0xffe0b0,1.3);
+  emitter(9,.1,9,0,-.1,-1,0x6b4a32,.55);
+  const pmrem=new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  const rt=pmrem.fromScene(envScene,.04);
+  scene.environment=rt.texture;
+  pmrem.dispose();
+  shellGeo.dispose();shellMat.dispose();
+  tmp.forEach(o=>o.dispose());
+})();
+
+/* ---------------- NEON over the counter ---------------- */
+const neonTube=new THREE.Mesh(
+  new THREE.CylinderGeometry(.028,.028,2.2,12,1,false),
+  new THREE.MeshStandardMaterial({color:0x2a1c10,emissive:0xff9d4a,
+    emissiveIntensity:5.5,roughness:1}));
+neonTube.rotation.z=Math.PI/2;
+neonTube.position.set(2.7,1.98,-3.55);
+scene.add(neonTube);
+const neonGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,
+  color:0xff9d4a,blending:THREE.AdditiveBlending,depthWrite:false,opacity:.4}));
+neonGlow.scale.set(3.2,.9,1);
+neonGlow.position.copy(neonTube.position);
+scene.add(neonGlow);
+const neonPt=new THREE.PointLight(0xff9d4a,.35,4,2);
+neonPt.position.set(2.7,1.9,-3.4);
+scene.add(neonPt);
+
 /* ---------------- ROOM ---------------- */
 const floor=new THREE.Mesh(new THREE.PlaneGeometry(22,22),
-  new THREE.MeshStandardMaterial({map:floorTex,roughness:.9}));
+  new THREE.MeshStandardMaterial({map:floorTex,roughness:.62,envMapIntensity:.7}));
 floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
 const ceil=new THREE.Mesh(new THREE.PlaneGeometry(22,22),
-  new THREE.MeshStandardMaterial({color:0x231b15,roughness:1}));
+  new THREE.MeshStandardMaterial({color:0x231b15,roughness:1,envMapIntensity:.2}));
 ceil.rotation.x=Math.PI/2;ceil.position.y=3.4;scene.add(ceil);
+/* 9.9 m: the old 12 m beams ran straight through both walls */
+const beamMat=new THREE.MeshStandardMaterial({color:0x3a2a1c,roughness:.85,envMapIntensity:.35});
 for(let i=0;i<5;i++){
-  const beam=new THREE.Mesh(new THREE.BoxGeometry(.2,.16,12),
-    new THREE.MeshStandardMaterial({color:0x3a2a1c,roughness:.95}));
-  beam.position.set(-4+i*2,3.3,-1);scene.add(beam);
+  const beam=new THREE.Mesh(new THREE.BoxGeometry(.2,.16,9.9),beamMat);
+  beam.position.set(-4+i*2,3.3,-.05);scene.add(beam);
 }
 const backWall=new THREE.Mesh(new THREE.PlaneGeometry(22,4.6),
-  new THREE.MeshStandardMaterial({map:brickTex,roughness:1}));
+  new THREE.MeshStandardMaterial({map:brickTex,roughness:.94,envMapIntensity:.35}));
 backWall.position.set(0,2.3,-5);backWall.receiveShadow=true;scene.add(backWall);
-const sideMat=new THREE.MeshStandardMaterial({map:plasterTex,roughness:1});
+const sideMat=new THREE.MeshStandardMaterial({map:plasterTex,roughness:.96,envMapIntensity:.3});
 const leftWall=new THREE.Mesh(new THREE.PlaneGeometry(12,4.6),sideMat);
 leftWall.rotation.y=Math.PI/2;leftWall.position.set(-5,2.3,-1);leftWall.receiveShadow=true;scene.add(leftWall);
 const rightWall=new THREE.Mesh(new THREE.PlaneGeometry(12,4.6),sideMat);
@@ -997,7 +1352,7 @@ rightWall.rotation.y=-Math.PI/2;rightWall.position.set(5,2.3,-1);rightWall.recei
 const win=new THREE.Mesh(new THREE.PlaneGeometry(2.4,1.7),
   new THREE.MeshBasicMaterial({map:viewTex}));
 win.rotation.y=Math.PI/2;win.position.set(-4.97,2.1,-1.2);scene.add(win);
-const wfM=new THREE.MeshStandardMaterial({color:0x1c262c,roughness:.6});
+const wfM=new THREE.MeshStandardMaterial({color:0x1c262c,roughness:.42,metalness:.15,envMapIntensity:1});
 [[.06,1.85,.1,2.1],[.06,.1,2.55,2.1],[.06,.1,2.55,2.98],[.06,.1,2.55,1.22]].forEach((p,i)=>{
   const f=new THREE.Mesh(new THREE.BoxGeometry(p[0],p[1],p[2]),wfM);
   f.position.set(-4.96,p[3],-1.2);scene.add(f);
@@ -1026,7 +1381,7 @@ for(let i=0;i<DUST_N;i++){
 const dustGeo=new THREE.BufferGeometry();
 dustGeo.setAttribute("position",new THREE.BufferAttribute(dustArr,3));
 const dust=new THREE.Points(dustGeo,new THREE.PointsMaterial({color:0xffe9c0,size:.022,
-  transparent:true,opacity:.4,depthWrite:false,blending:THREE.AdditiveBlending}));
+  transparent:true,opacity:.26,depthWrite:false,blending:THREE.AdditiveBlending}));
 scene.add(dust);
 /* wall art */
 [[ -1.7,2.35,-4.98,0,0],[1.3,2.5,-4.98,0,1],[4.97,2.2,-2.6,-Math.PI/2,2]].forEach(p=>{
@@ -1036,13 +1391,14 @@ scene.add(dust);
 });
 
 /* ---------------- COUNTER ZONE ---------------- */
-const woodMid=new THREE.MeshStandardMaterial({color:0x6b4a32,roughness:.85});
-const woodDark=new THREE.MeshStandardMaterial({color:0x4a3527,roughness:.95});
+const woodMid=new THREE.MeshStandardMaterial({color:0x6b4a32,roughness:.75,envMapIntensity:.5});
+const woodDark=new THREE.MeshStandardMaterial({color:0x4a3527,roughness:.85,envMapIntensity:.5});
 const counter=new THREE.Mesh(new THREE.BoxGeometry(3.2,1.05,.75),
-  new THREE.MeshStandardMaterial({color:0x5d4029,roughness:.9}));
+  new THREE.MeshStandardMaterial({color:0x5d4029,roughness:.7,envMapIntensity:.6}));
 counter.position.set(2.7,.525,-3.6);counter.castShadow=true;counter.receiveShadow=true;scene.add(counter);
+/* polished stone, not metal */
 const counterTop=new THREE.Mesh(new THREE.BoxGeometry(3.35,.07,.9),
-  new THREE.MeshStandardMaterial({color:0x2a2a30,roughness:.35,metalness:.25}));
+  new THREE.MeshStandardMaterial({color:0x2a2a30,roughness:.28,metalness:.05,envMapIntensity:1}));
 counterTop.position.set(2.7,1.09,-3.6);counterTop.castShadow=true;counterTop.receiveShadow=true;scene.add(counterTop);
 const board=new THREE.Mesh(new THREE.PlaneGeometry(3.1,1.2),
   new THREE.MeshBasicMaterial({map:menuTex}));
@@ -1052,15 +1408,18 @@ const board=new THREE.Mesh(new THREE.PlaneGeometry(3.1,1.2),
 board.position.set(2.7,2.42,-4.96);scene.add(board);
 const boardFrame=new THREE.Mesh(new THREE.BoxGeometry(3.18,1.36,.04),woodDark);
 boardFrame.position.set(2.7,2.42,-4.99);scene.add(boardFrame);
+/* stainless steel at last — with the IBL it finally has something to
+   reflect instead of rendering as a grey concrete block */
 const machine=new THREE.Mesh(new THREE.BoxGeometry(.55,.42,.4),
-  new THREE.MeshStandardMaterial({color:0x9ea2a8,roughness:.3,metalness:.65}));
+  new THREE.MeshStandardMaterial({color:0x9ea2a8,roughness:.22,metalness:.92,envMapIntensity:1.4}));
 machine.position.set(3.5,1.34,-3.65);machine.castShadow=true;scene.add(machine);
 const machTop=new THREE.Mesh(new THREE.BoxGeometry(.45,.06,.3),
-  new THREE.MeshStandardMaterial({color:0x2a2a30,metalness:.5,roughness:.4}));
+  new THREE.MeshStandardMaterial({color:0x2a2a30,metalness:.8,roughness:.35,envMapIntensity:1.2}));
 machTop.position.set(3.5,1.58,-3.65);scene.add(machTop);
 for(let i=0;i<3;i++){
   const mug=new THREE.Mesh(new THREE.CylinderGeometry(.035,.03,.07,14),
-    new THREE.MeshStandardMaterial({color:[0xf0e8dc,0x4fd1c5,0xf4b740][i]}));
+    new THREE.MeshStandardMaterial({color:[0xf0e8dc,0x4fd1c5,0xf4b740][i],
+      roughness:.18,envMapIntensity:1.2}));
   mug.position.set(2.05+i*.22,1.16,-3.45);mug.castShadow=true;scene.add(mug);
 }
 function stool(x,z){
@@ -1080,13 +1439,17 @@ function stool(x,z){
 stool(2.1,-2.95);stool(3.1,-2.95);
 
 /* ---------------- TABLES / CHAIRS / RUG ---------------- */
+/* varnished wood: the clearcoat is what separates a real table from a
+   textured slab — and this top is 40% of the screen. Shared material so
+   the idle-time normal map lands on all three tables at once. */
+const tableMat=new THREE.MeshPhysicalMaterial({map:tableTex,roughness:.45,
+  metalness:0,clearcoat:1,clearcoatRoughness:.16,envMapIntensity:.9});
+const pedMat=new THREE.MeshStandardMaterial({color:0x23232a,metalness:.85,roughness:.3,envMapIntensity:1.3});
 function cafeTable(x,z,r){
   const g=new THREE.Group();
-  const ped=new THREE.Mesh(new THREE.CylinderGeometry(.07,.17,.74,16),
-    new THREE.MeshStandardMaterial({color:0x23232a,metalness:.5,roughness:.45}));
+  const ped=new THREE.Mesh(new THREE.CylinderGeometry(.07,.17,.74,16),pedMat);
   ped.position.y=.37;ped.castShadow=true;g.add(ped);
-  const top=new THREE.Mesh(new THREE.CylinderGeometry(r,r,.055,40),
-    new THREE.MeshStandardMaterial({map:tableTex,roughness:.55}));
+  const top=new THREE.Mesh(new THREE.CylinderGeometry(r,r,.055,40),tableMat);
   top.position.y=.775;top.castShadow=true;top.receiveShadow=true;g.add(top);
   const rim=new THREE.Mesh(new THREE.TorusGeometry(r,.022,10,44),woodDark);
   rim.rotation.x=Math.PI/2;rim.position.y=.775;g.add(rim);
@@ -1131,99 +1494,888 @@ function plant(x,z,s){
 }
 plant(-4.2,-2.9,1.5);plant(4.4,-4.3,1.2);plant(1.35,-3.42,.55);
 
-/* ---------------- PEOPLE ---------------- */
-function person(shirt,pants,skin,hairC){
-  const g=new THREE.Group();const P={g};
-  const mS=new THREE.MeshStandardMaterial({color:shirt,roughness:.85});
-  const mP=new THREE.MeshStandardMaterial({color:pants,roughness:.92});
-  const mSk=new THREE.MeshStandardMaterial({color:skin,roughness:.65});
-  const mH=new THREE.MeshStandardMaterial({color:hairC,roughness:.92});
-  for(const s of[-1,1]){
-    const hip=new THREE.Group();hip.position.set(.09*s,.86,0);
-    const leg=new THREE.Mesh(new THREE.CylinderGeometry(.055,.05,.8),mP);
-    leg.position.y=-.4;leg.castShadow=true;hip.add(leg);
-    const foot=new THREE.Mesh(new THREE.BoxGeometry(.09,.05,.17),
-      new THREE.MeshStandardMaterial({color:0x1d1d22,roughness:.7}));
-    foot.position.set(0,-.82,.04);foot.castShadow=true;hip.add(foot);
-    g.add(hip);P[s<0?"lLeg":"rLeg"]=hip;
-  }
-  const body=new THREE.Mesh(new THREE.CylinderGeometry(.165,.205,.52,16),mS);
-  body.position.y=1.12;body.castShadow=true;g.add(body);P.body=body;
-  const shoulders=new THREE.Mesh(new THREE.SphereGeometry(.17,16,12),mS);
-  shoulders.scale.set(1,.55,.9);shoulders.position.y=1.38;shoulders.castShadow=true;g.add(shoulders);
-  for(const s of[-1,1]){
-    const sh=new THREE.Group();sh.position.set(.225*s,1.36,0);
-    const arm=new THREE.Mesh(new THREE.CylinderGeometry(.045,.04,.5),mS);
-    arm.position.y=-.25;arm.castShadow=true;sh.add(arm);
-    const hand=new THREE.Mesh(new THREE.SphereGeometry(.045,10,10),mSk);
-    hand.position.y=-.52;sh.add(hand);
-    g.add(sh);P[s<0?"lArm":"rArm"]=sh;
-  }
-  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.1),mSk);
-  neck.position.y=1.5;g.add(neck);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.15,18,16),mSk);
-  head.position.y=1.64;head.castShadow=true;g.add(head);P.head=head;
-  const mEye=new THREE.MeshStandardMaterial({color:0x23232b});
-  for(const e of[-1,1]){
-    const white=new THREE.Mesh(new THREE.SphereGeometry(.019,10,10),
-      new THREE.MeshStandardMaterial({color:0xf3efe7}));
-    white.position.set(.052*e,.022,.128);head.add(white);
-    const pupil=new THREE.Mesh(new THREE.SphereGeometry(.011,8,8),mEye);
-    pupil.position.set(.052*e,.022,.143);head.add(pupil);
-  }
-  const npcMouth=new THREE.Mesh(new THREE.BoxGeometry(.048,.009,.012),
-    new THREE.MeshStandardMaterial({color:0x8a4a3a}));
-  npcMouth.position.set(0,-.052,.14);head.add(npcMouth);
-  const hair=new THREE.Mesh(new THREE.SphereGeometry(.155,18,14),mH);
-  hair.scale.set(1,.72,1);hair.position.set(0,1.7,-.015);g.add(hair);P.hair=hair;
-  scene.add(g);return P;
+/* ---------------- CONTACT SHADOWS (blobs) ----------------
+   90% of the perceived SSAO in a static scene, for 20 lines: a radial
+   multiply blob under everything that touches the floor. */
+/* MultiplyBlending multiplies by the fragment COLOUR and ignores alpha:
+   the no-shadow area must be WHITE (neutral), never transparent black,
+   or the whole quad darkens as a visible rectangle. */
+const blobTex=ctex(128,128,x=>{
+  x.fillStyle="#ffffff";x.fillRect(0,0,128,128);
+  const g=x.createRadialGradient(64,64,4,64,64,60);
+  g.addColorStop(0,"rgb(96,88,80)");
+  g.addColorStop(.55,"rgb(190,184,178)");
+  g.addColorStop(1,"rgb(255,255,255)");
+  x.fillStyle=g;x.fillRect(0,0,128,128);
+});
+const blobMat=new THREE.MeshBasicMaterial({map:blobTex,
+  depthWrite:false,blending:THREE.MultiplyBlending});
+function contactShadow(x,z,radius,y){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(radius*2,radius*2),blobMat);
+  m.rotation.x=-Math.PI/2;
+  m.position.set(x,(y||0)+.006,z);
+  m.renderOrder=1;
+  scene.add(m);
+  return m;
 }
-function walkerObj(P,path,speed){return{P,path,speed,seg:0,t:0,dir:1,phase:Math.random()*6};}
-const walkers=[
-  walkerObj(person(0x8a5540,0x2e2e38,0xe8b58c,0x1d1d24),
-    [new THREE.Vector3(-3.8,0,-2.6),new THREE.Vector3(-1.8,0,-1.5),
-     new THREE.Vector3(1.4,0,-1.9),new THREE.Vector3(3.4,0,-2.8)],.55),
-  walkerObj(person(0x51606e,0x3a3230,0xd9a578,0x4a3524),
-    [new THREE.Vector3(3.8,0,-4.35),new THREE.Vector3(.5,0,-3.95),
-     new THREE.Vector3(-3.4,0,-4.25)],.42)
-];
-/* beanie for walker 2 */
+contactShadow(0,-.15,1.05);contactShadow(-2.7,-2.4,.8);contactShadow(2.3,-1.6,.7);
+contactShadow(0,-1.08,.35);contactShadow(-2.7,-3.1,.35);contactShadow(-3.5,-2.4,.35);
+contactShadow(3.0,-1.6,.35);contactShadow(2.1,-2.95,.28);contactShadow(3.1,-2.95,.28);
+contactShadow(-4.2,-2.9,.34);contactShadow(4.4,-4.3,.28);contactShadow(1.35,-3.42,.16);
+
+/* ---------------- CEILING FAN + WALL CLOCK ----------------
+   The fan sweeps moving light over the biggest surface on screen; the
+   clock shows the real time — nobody notices consciously, everybody
+   feels it. */
+const fan=new THREE.Group();
 {
-  const bean=new THREE.Mesh(new THREE.CylinderGeometry(.15,.16,.12,16),
-    new THREE.MeshStandardMaterial({color:0xc9973c,roughness:.9}));
-  bean.position.y=1.76;walkers[1].P.g.add(bean);
+  const hub=new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,.12,12),
+    new THREE.MeshStandardMaterial({color:0x2a2118,roughness:.6,envMapIntensity:.6}));
+  fan.add(hub);
+  const rod=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.3,8),
+    new THREE.MeshStandardMaterial({color:0x1c1c22,metalness:.6,roughness:.4}));
+  rod.position.y=.2;fan.add(rod);
+  const bladeMat=new THREE.MeshStandardMaterial({color:0x5a4028,roughness:.8,envMapIntensity:.5});
+  for(let i=0;i<4;i++){
+    const blade=new THREE.Mesh(new THREE.BoxGeometry(.62,.014,.13),bladeMat);
+    blade.position.set(Math.cos(i*Math.PI/2)*.38,-.02,Math.sin(i*Math.PI/2)*.38);
+    blade.rotation.y=-i*Math.PI/2;
+    blade.rotation.x=.09;
+    blade.castShadow=true;
+    fan.add(blade);
+  }
+  fan.position.set(0,3.12,-2.4);
+  scene.add(fan);
 }
-const barista=person(0x35543f,0x23232b,0xeac39a,0x2c2018);
-barista.g.position.set(2.55,0,-4.3);
+const clockG=new THREE.Group();
+{
+  const face=new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,.03,28),
+    new THREE.MeshStandardMaterial({color:0xf0ead8,roughness:.4,envMapIntensity:.8}));
+  face.rotation.x=Math.PI/2;clockG.add(face);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.16,.014,10,28),
+    new THREE.MeshStandardMaterial({color:0x1c1c22,metalness:.7,roughness:.35,envMapIntensity:1.2}));
+  clockG.add(ring);
+  const handMat=new THREE.MeshStandardMaterial({color:0x14263d});
+  const hourHand=new THREE.Mesh(new THREE.BoxGeometry(.014,.08,.008),handMat);
+  hourHand.geometry.translate(0,.04,0);hourHand.position.z=.02;clockG.add(hourHand);
+  const minHand=new THREE.Mesh(new THREE.BoxGeometry(.01,.12,.008),handMat);
+  minHand.geometry.translate(0,.06,0);minHand.position.z=.025;clockG.add(minHand);
+  const now=new Date();
+  hourHand.rotation.z=-((now.getHours()%12)+now.getMinutes()/60)/12*Math.PI*2;
+  minHand.rotation.z=-now.getMinutes()/60*Math.PI*2;
+  clockG.position.set(.9,2.75,-4.96);
+  scene.add(clockG);
+}
+
+/* ---------------- IDLE-TIME NORMAL MAPS ----------------
+   1M-pixel Sobel passes freeze a frame if run inline — derive them after
+   the first paint. repeat MUST match the diffuse or relief drifts off
+   the pattern. */
+(window.requestIdleCallback||function(fn){setTimeout(fn,300);})(function(){
+  try{
+    const brickNrm=normalFromCanvas(brickTex.userData.canvas,3.2);
+    brickNrm.repeat.copy(brickTex.repeat);
+    backWall.material.normalMap=brickNrm;
+    backWall.material.normalScale.set(1.4,1.4);
+    backWall.material.needsUpdate=true;
+    const floorNrm=normalFromCanvas(floorTex.userData.canvas,2,2);
+    floorNrm.repeat.copy(floorTex.repeat);
+    floor.material.normalMap=floorNrm;
+    floor.material.normalScale.set(.8,.8);
+    floor.material.needsUpdate=true;
+    const tableNrm=normalFromCanvas(tableTex.userData.canvas,1.8,2);
+    tableMat.normalMap=tableNrm;
+    tableMat.normalScale.set(.55,.55);
+    tableMat.needsUpdate=true;
+  }catch(e){console.warn("[vc] normal maps skipped —",e);}
+});
+
+/* ---------------- PEOPLE : the living background ----------------
+   Complete rebuild of the NPCs. The old rigs were sines in open loop:
+   perfectly periodic, no gaze, no interaction, in-place U-turns — every
+   tell of a dead scene. Rules enforced here:
+   - every agent has its OWN clock (offset + rate) — never the global t
+   - eyes lead, the head follows; blink on fixation change, by eyelid
+     rotation, never by squashing the eyeball
+   - every duration is jittered; gestures have anticipation and recovery
+   - nobody U-turns in place: visitors leave the way people leave */
+const MAT_CACHE=new Map();
+function stdMat(color,rough,metal,envInt){
+  const key=color+"|"+rough+"|"+(metal||0)+"|"+(envInt===undefined?1:envInt);
+  let m=MAT_CACHE.get(key);
+  if(!m){
+    m=new THREE.MeshStandardMaterial({color:color,roughness:rough,
+      metalness:metal||0,envMapIntensity:envInt===undefined?1:envInt});
+    MAT_CACHE.set(key,m);
+  }
+  return m;
+}
+const JOINT_NAMES=["pelvis","spine","chest","neck","head",
+  "hipL","hipR","kneeL","kneeR",
+  "shoulderL","shoulderR","elbowL","elbowR","wristL","wristR"];
+function makePoseBuffer(){
+  const b={};
+  for(let i=0;i<JOINT_NAMES.length;i++)b[JOINT_NAMES[i]]={x:0,y:0,z:0};
+  return b;
+}
+function clearPose(b){
+  for(let i=0;i<JOINT_NAMES.length;i++){
+    const j=b[JOINT_NAMES[i]];j.x=0;j.y=0;j.z=0;
+  }
+}
+function addPose(buf,pose,w){
+  if(w<=0)return;
+  for(const k in pose){
+    const t=buf[k];if(!t)continue;
+    const s=pose[k];
+    if(s.x)t.x+=s.x*w;
+    if(s.y)t.y+=s.y*w;
+    if(s.z)t.z+=s.z*w;
+  }
+}
+function applyPose(rig,buf){
+  for(let i=0;i<JOINT_NAMES.length;i++){
+    const n=JOINT_NAMES[i],j=rig.J[n],v=buf[n];
+    if(j)j.rotation.set(v.x,v.y,v.z);
+  }
+}
+function buildPerson(opts){
+  const o=Object.assign({shirt:0x8a5540,pants:0x2e2e38,skin:0xe8b58c,
+    hair:0x1d1d24,scale:1},opts||{});
+  const root=new THREE.Group();
+  const J={};
+  function joint(parent,name,x,y,z){
+    const g=new THREE.Group();g.name=name;g.position.set(x,y,z);
+    parent.add(g);J[name]=g;return g;
+  }
+  const mS=stdMat(o.shirt,.9,0,.25),mP=stdMat(o.pants,.92,0,.22);
+  const mSk=stdMat(o.skin,.55,0,.5),mH=stdMat(o.hair,.8,0,.45);
+  const mSh=stdMat(0x1d1d22,.7,0,.35);
+  function put(parent,geo,mat,x,y,z,cast,slot){
+    const m=new THREE.Mesh(geo,mat);
+    m.position.set(x,y,z);
+    if(cast)m.castShadow=true;
+    if(slot)m.userData.slot=slot;
+    parent.add(m);return m;
+  }
+  const pelvis=joint(root,"pelvis",0,.86,0);
+  for(const s of[-1,1]){
+    const S=s<0?"L":"R";
+    const hip=joint(pelvis,"hip"+S,.09*s,0,0);
+    put(hip,new THREE.CylinderGeometry(.055,.05,.44,10),mP,0,-.22,0,true,"pants");
+    const knee=joint(hip,"knee"+S,0,-.44,0);
+    put(knee,new THREE.CylinderGeometry(.05,.044,.38,10),mP,0,-.19,0,true,"pants");
+    const ankle=joint(knee,"ankle"+S,0,-.38,0);
+    put(ankle,new THREE.BoxGeometry(.09,.05,.17),mSh,0,-.025,.045,true);
+  }
+  const spine=joint(pelvis,"spine",0,.1,0);
+  const chest=joint(spine,"chest",0,.16,0);
+  const torso=put(chest,new THREE.CylinderGeometry(.165,.205,.52,16),mS,0,0,0,true,"shirt");
+  const pad=put(chest,new THREE.SphereGeometry(.17,16,12),mS,0,.26,0,true,"shirt");
+  pad.scale.set(1,.55,.9);
+  const neck=joint(chest,"neck",0,.28,0);
+  put(neck,new THREE.CylinderGeometry(.05,.05,.1,10),mSk,0,.05,0,false,"skin");
+  const head=joint(neck,"head",0,.24,0);
+  put(head,new THREE.SphereGeometry(.15,18,16),mSk,0,0,0,true,"skin");
+  const hair=put(head,new THREE.SphereGeometry(.155,18,14),mH,0,.06,-.015,false,"hair");
+  hair.scale.set(1,.72,1);
+  const eyes=[];
+  for(const e of[-1,1]){
+    const eg=new THREE.Group();
+    /* .132: the eyeball must break the skull surface (r=.15) to be seen */
+    eg.position.set(.052*e,.022,.132);
+    head.add(eg);
+    put(eg,new THREE.SphereGeometry(.019,10,10),stdMat(0xf3efe7,.35),0,0,0,false);
+    put(eg,new THREE.SphereGeometry(.011,8,8),stdMat(0x23232b,.4),0,0,.013,false);
+    /* the eyelid ROTATES shut — squashing the eyeball reads as a lens
+       collapsing into the face */
+    const lid=new THREE.Mesh(
+      new THREE.SphereGeometry(.0205,10,8,0,Math.PI*2,0,Math.PI*.5),mSk);
+    lid.userData.slot="skin";
+    eg.add(lid);
+    eyes.push({eg:eg,lid:lid});
+  }
+  const mouth=put(head,new THREE.BoxGeometry(.048,.009,.012),
+    stdMat(0x8a4a3a,.6),0,-.052,.14,false);
+  for(const s of[-1,1]){
+    const S=s<0?"L":"R";
+    const sh=joint(chest,"shoulder"+S,.225*s,.24,0);
+    put(sh,new THREE.CylinderGeometry(.045,.04,.28,10),mS,0,-.14,0,true,"shirt");
+    const el=joint(sh,"elbow"+S,0,-.28,0);
+    put(el,new THREE.CylinderGeometry(.04,.036,.24,10),mS,0,-.12,0,true,"shirt");
+    const wr=joint(el,"wrist"+S,0,-.24,0);
+    put(wr,new THREE.SphereGeometry(.045,10,10),mSk,0,0,0,false,"skin");
+  }
+  root.scale.setScalar(o.scale);
+  scene.add(root);
+  return {root:root,J:J,eyes:eyes,mouth:mouth,torso:torso,opts:o};
+}
+
+/* --- anim toolkit: anticipation -> action -> recovery --- */
+function easeInOut(x){return x*x*(3-2*x);}
+function pulse(x){return Math.sin(Math.min(1,Math.max(0,x))*Math.PI);}
+function playShot(a,dur,apply){
+  if(a.shots.length>=2)return;      /* stacked gestures read as noise */
+  a.shots.push({t:0,dur:dur,apply:apply});
+}
+function shotsLayer(a,buf,dt){
+  for(let i=a.shots.length-1;i>=0;i--){
+    const s=a.shots[i];
+    s.t+=dt;
+    const k=Math.min(1,s.t/s.dur);
+    s.apply(k,buf,a);
+    if(k>=1)a.shots.splice(i,1);
+  }
+}
+
+/* --- agents --- */
+const agents=[];
+function makeAgent(id,kind,opts){
+  const rig=buildPerson(opts);
+  const a={
+    id:id,kind:kind,rig:rig,buf:makePoseBuffer(),
+    pos:new THREE.Vector3(),yaw:0,rootY:0,
+    clock:Math.random()*100,rateMul:.9+Math.random()*.2,seed:Math.random()*100,
+    shots:[],
+    gaze:null,gazeLock:null,gazeT:Math.random()*2,
+    eyeY:0,eyeP:0,headY:0,headP:0,chestY:0,
+    blinkT:1+Math.random()*3,blinkPhase:0,blinkQueue:false,
+    nodT:jit(6,.45),postureIdx:(Math.random()*3)|0,postureK:1,postureT:jit(13,.5),
+    gestureT:jit(2.8,.45),selfT:jit(26,.5),
+    group:null,speed:.42+Math.random()*.16,
+    walkPhase:0,walkK:0,
+    mode:0,modeT:0,modeDur:0,onModeEnter:true,
+    blob:contactShadow(0,0,.32)
+  };
+  agents.push(a);
+  return a;
+}
+function setMode(a,m,dur){a.mode=m;a.modeT=0;a.modeDur=dur;a.onModeEnter=true;}
+
+/* --- gaze: eyes lead, head follows, torso beyond 60 deg --- */
+const _gv=new THREE.Vector3(),_gp=new THREE.Vector3();
+const LIM={eyeYaw:.44,eyePitch:.3,headYaw:1.05,headPitch:.44,chestYaw:.7};
+function pickGazeTarget(a){
+  const c=[];
+  if(a.group&&a.group.speaker&&a.group.speaker!==a)
+    c.push({w:6,obj:a.group.speaker.rig.J.head});
+  c.push({w:2.5,obj:simonHead});
+  if(a.prop)c.push({w:2,obj:a.prop});
+  c.push({w:1,pos:[(Math.random()-.5)*6,1+Math.random()*.9,-1-Math.random()*3]});
+  let tot=0;for(let i=0;i<c.length;i++)tot+=c[i].w;
+  let r=Math.random()*tot;
+  for(let i=0;i<c.length;i++){r-=c[i].w;if(r<=0)return c[i];}
+  return c[c.length-1];
+}
+const _ga={yaw:0,pitch:0};
+function gazeAngles(a){
+  const g=a.gazeLock||a.gaze;
+  if(!g){_ga.yaw=0;_ga.pitch=0;return;}
+  if(g.obj)g.obj.getWorldPosition(_gv);
+  else _gv.set(g.pos[0],g.pos[1],g.pos[2]);
+  a.rig.J.head.getWorldPosition(_gp);
+  _gv.sub(_gp);
+  const ry=a.yaw;
+  const cx=Math.cos(-ry)*_gv.x-Math.sin(-ry)*_gv.z;
+  const cz=Math.sin(-ry)*_gv.x+Math.cos(-ry)*_gv.z;
+  _ga.yaw=Math.atan2(cx,cz);
+  _ga.pitch=Math.atan2(_gv.y,Math.hypot(cx,cz));
+}
+function clampN(v,l){return Math.max(-l,Math.min(l,v));}
+function gazeLayer(a,buf,dt,ac){
+  gazeAngles(a);
+  const eyeY=clampN(_ga.yaw,LIM.eyeYaw),eyeP=clampN(_ga.pitch,LIM.eyePitch);
+  const restY=_ga.yaw-eyeY,restP=_ga.pitch-eyeP;
+  const headY=clampN(restY,LIM.headYaw),headP=clampN(restP,LIM.headPitch);
+  const chestY=clampN(restY-headY,LIM.chestYaw);
+  a.eyeY=damp(a.eyeY,eyeY,.55,dt);       /* saccade: near instant */
+  a.eyeP=damp(a.eyeP,eyeP,.55,dt);
+  a.headY=damp(a.headY,headY,.085,dt);   /* the head lags behind */
+  a.headP=damp(a.headP,headP,.085,dt);
+  a.chestY=damp(a.chestY,chestY,.03,dt); /* the torso lags further */
+  addPose(buf,{
+    neck:{y:a.headY*.35,x:-a.headP*.35},
+    head:{y:a.headY*.65+fbm1(ac,1.7,a.seed)*.004,x:-a.headP*.65},
+    chest:{y:a.chestY}
+  },1);
+  for(let i=0;i<a.rig.eyes.length;i++){
+    a.rig.eyes[i].eg.rotation.y=a.eyeY;
+    a.rig.eyes[i].eg.rotation.x=-a.eyeP;
+  }
+}
+function blinkLayer(a,dt){
+  a.blinkT-=dt;
+  if(a.blinkQueue){a.blinkQueue=false;a.blinkT=Math.min(a.blinkT,.06);}
+  if(a.blinkT<=0){
+    a.blinkPhase=1;
+    a.blinkT=Math.random()<.17?.2:jit(4.2,.55);
+  }
+  if(a.blinkPhase>0){
+    a.blinkPhase-=dt*8.5;
+    const k=Math.sin(Math.max(0,a.blinkPhase)*Math.PI);
+    for(let i=0;i<a.rig.eyes.length;i++)
+      a.rig.eyes[i].lid.rotation.x=k*Math.PI*.92;
+  }
+}
+function breathLayer(a,buf,ac){
+  const b=Math.sin(ac*1.55+a.seed);
+  addPose(buf,{chest:{x:b*.012},spine:{x:b*.006}},1);
+  a.rig.torso.scale.set(1+b*.014,1+b*.006,1+b*.014);
+}
+
+/* --- speech gestures (the group's current speaker beats the measure) --- */
+const GESTURES=[
+  {dur:1.4,fn:(k,b)=>{const p=pulse(k);
+    addPose(b,{shoulderR:{x:-.85*p,z:.35*p},elbowR:{x:-.5*p},wristR:{z:.4*p}},1);}},
+  {dur:1.1,fn:(k,b)=>{const p=pulse(k)*Math.abs(Math.sin(k*9.42));
+    addPose(b,{shoulderR:{x:-.95*pulse(k)},elbowR:{x:-.9*pulse(k)+p*.25}},1);}},
+  {dur:1.6,fn:(k,b)=>{const p=pulse(k);
+    addPose(b,{shoulderL:{x:-.7*p,z:-.45*p},shoulderR:{x:-.7*p,z:.45*p},
+      elbowL:{x:-.35*p},elbowR:{x:-.35*p}},1);}},
+  {dur:1.2,fn:(k,b)=>{const p=pulse(k);
+    addPose(b,{shoulderL:{z:-.22*p},shoulderR:{z:.22*p},head:{z:.1*p}},1);}},
+  {dur:1.5,fn:(k,b)=>{const p=pulse(k);
+    addPose(b,{shoulderR:{x:-1.15*p,z:-.3*p},elbowR:{x:-1.45*p}},1);}}
+];
+function queueSpeechGesture(a){
+  let gi=(Math.random()*GESTURES.length)|0;
+  if(gi===a.lastGesture)gi=(gi+1)%GESTURES.length;
+  a.lastGesture=gi;
+  const g=GESTURES[gi];
+  playShot(a,jit(g.dur,.25),(k,buf)=>g.fn(k,buf));
+}
+const LISTEN_POSTURES=[
+  {pelvis:{z:.05},chest:{z:-.04},hipL:{x:.06}},
+  {shoulderL:{x:-.55,z:.55},shoulderR:{x:-.55,z:-.55},
+   elbowL:{x:-1.55},elbowR:{x:-1.55},chest:{x:.03}},
+  {chest:{x:.08},spine:{x:.05},head:{z:.08}}
+];
+function listenerLayer(a,buf,dt){
+  if(!a.group||a.group.speaker===a)return;
+  a.postureK=damp(a.postureK,1,.05,dt);
+  addPose(buf,LISTEN_POSTURES[a.postureIdx],a.postureK);
+}
+function laughLayer(a,buf,ac){
+  const L=a.group?a.group.laughing:0;
+  if(L<=0)return;
+  const lp=Math.max(0,L-(a.seed%.3));   /* offset: never in exact sync */
+  if(lp<=0)return;
+  const sh=Math.sin(ac*14)*lp;
+  addPose(buf,{chest:{x:.1*lp+sh*.02},head:{x:-.14*lp},
+    shoulderL:{z:-.06*lp},shoulderR:{z:.06*lp}},1);
+}
+
+/* --- conversation groups (F-formation + turn-taking) --- */
+const groups=[];
+function makeGroup(cx,cz,rotDeg){
+  const g={center:[cx,cz],rot:rotDeg,members:[],speaker:null,
+    turnT:0,turnDur:0,laughT:jit(28,.6),laughing:0};
+  groups.push(g);return g;
+}
+const FORMATIONS={2:{r:.62,ang:[0,195]},3:{r:.72,ang:[0,125,235]},4:{r:.84,ang:[0,95,180,265]}};
+function placeGroup(g){
+  const f=FORMATIONS[Math.min(4,Math.max(2,g.members.length))];
+  g.members.forEach((a,i)=>{
+    const ang=(f.ang[i%f.ang.length]+g.rot)*Math.PI/180;
+    a.pos.set(g.center[0]+Math.sin(ang)*f.r,0,g.center[1]+Math.cos(ang)*f.r);
+    a.yaw=ang+Math.PI+(Math.random()-.5)*.3;   /* feet roughly to centre */
+  });
+}
+function updateGroups(dtT){
+  for(let gi=0;gi<groups.length;gi++){
+    const g=groups[gi];
+    if(g.members.length<2){g.speaker=null;continue;}
+    g.laughT-=dtT;
+    if(g.laughT<=0){g.laughing=1;g.laughT=jit(32,.55);}
+    if(g.laughing>0)g.laughing=Math.max(0,g.laughing-dtT*.55);
+    g.turnT+=dtT;
+    if(!g.speaker||g.turnT>=g.turnDur){
+      const prev=g.speaker;
+      let next=g.members[(Math.random()*g.members.length)|0],tries=0;
+      while(next===prev&&tries++<6)
+        next=g.members[(Math.random()*g.members.length)|0];
+      g.speaker=next;
+      g.turnT=0;
+      g.turnDur=jit(6,.5);                       /* 3 to 9 s per turn */
+      if(g.speaker)g.speaker.gestureT=.2;        /* the new speaker opens with a beat */
+    }
+  }
+}
+
+/* --- casting --- */
+/* Standing trio, mid-frame behind Simon's left shoulder: THE background
+   conversation. */
+const G_STAND=makeGroup(-1.85,-3.95,40);
+const standA=makeAgent("standA","stand",{shirt:0x7d3b3b,pants:0x2e2e38,skin:0xe8b58c,hair:0x1d1d24});
+const standB=makeAgent("standB","stand",{shirt:0x51606e,pants:0x3a3230,skin:0xd9a578,hair:0x4a3524});
+const standC=makeAgent("standC","stand",{shirt:0x46524a,pants:0x2a3038,skin:0xe0af83,hair:0x6b5340});
+G_STAND.members=[standA,standB,standC];
+[standA,standB,standC].forEach(a=>{a.group=G_STAND;});
+placeGroup(G_STAND);
+standA.talkative=1.8;   /* the raconteur gets extra turns */
+
+/* Barista behind the counter, working a legible 5-beat loop */
+const barista=makeAgent("barista","barista",{shirt:0x35543f,pants:0x23232b,skin:0xeac39a,hair:0x2c2018});
+barista.pos.set(2.55,0,-4.3);barista.yaw=0;
 {
   const apron=new THREE.Mesh(new THREE.BoxGeometry(.3,.4,.03),
-    new THREE.MeshStandardMaterial({color:0xd9c9a8,roughness:.9}));
-  apron.position.set(0,1.05,.19);barista.g.add(apron);
+    stdMat(0xd9c9a8,.9,0,.3));
+  apron.position.set(0,-.05,.19);
+  barista.rig.J.chest.add(apron);
 }
-const sitter=person(0x6e4a63,0x2e2e38,0xe0af83,0x14100c);
-sitter.g.position.set(-2.7,-.3,-3.05);
-sitter.lLeg.rotation.x=-1.35;sitter.rLeg.rotation.x=-1.35;
-sitter.lArm.rotation.x=-.35;
+/* barista props: grinder + the cup he slides across */
+const grinder=new THREE.Group();
+{
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.05,.06,.22,12),
+    stdMat(0x2a2a30,.35,.7,1.2));
+  body.position.y=.11;grinder.add(body);
+  const hopper=new THREE.Mesh(new THREE.ConeGeometry(.055,.09,12),
+    stdMat(0x6a6f76,.25,.8,1.3));
+  hopper.rotation.x=Math.PI;hopper.position.y=.26;grinder.add(hopper);
+  grinder.position.set(2.05,1.125,-3.72);
+  scene.add(grinder);
+}
+const serveCup=new THREE.Mesh(new THREE.CylinderGeometry(.035,.03,.07,14),
+  stdMat(0xf0e8dc,.18,0,1.2));
+serveCup.castShadow=true;serveCup.position.set(3.3,1.16,-3.45);scene.add(serveCup);
+const BAR={GRIND:0,TAMP:1,PULL:2,SERVE:3,IDLE:4};
+
+/* Laptop worker at the left table — "someone actually working" */
+const worker=makeAgent("worker","worker",{shirt:0x3f4a63,pants:0x2e2e38,skin:0xc48a5e,hair:0x14100c});
+worker.pos.set(-3.5,0,-2.4);worker.yaw=Math.PI/2;worker.rootY=-.33;
+const laptop=new THREE.Group();
+{
+  const base=new THREE.Mesh(new THREE.BoxGeometry(.3,.012,.21),
+    stdMat(0x2a2c30,.5,.6,1.1));
+  laptop.add(base);
+  const lid=new THREE.Mesh(new THREE.BoxGeometry(.3,.2,.008),
+    stdMat(0x2a2c30,.5,.6,1.1));
+  lid.position.set(0,.1,-.105);lid.rotation.x=-.32;laptop.add(lid);
+  const screen=new THREE.Mesh(new THREE.PlaneGeometry(.27,.17),
+    new THREE.MeshStandardMaterial({color:0x0a0c10,emissive:0xbfd8ff,
+      emissiveIntensity:1.6,roughness:1}));
+  screen.position.set(0,.1,-.099);screen.rotation.x=-.32;laptop.add(screen);
+  const glow=new THREE.PointLight(0xbfd8ff,.3,.9,2);
+  glow.position.set(0,.16,.12);laptop.add(glow);
+  laptop.position.set(-3.22,.815,-2.4);
+  laptop.rotation.y=-Math.PI/2;
+  scene.add(laptop);
+}
+worker.prop=laptop;
+const WK={TYPE:0,THINK:1,SIP:2,STRETCH:3};
+
+/* Drinker at the left table, real 4-phase sip cycle (no sine) */
+const drinker=makeAgent("drinker","drinker",{shirt:0x6e4a63,pants:0x2e2e38,skin:0xe0af83,hair:0x14100c});
+drinker.pos.set(-2.7,0,-3.05);drinker.yaw=0;drinker.rootY=-.33;
 {
   const scarf=new THREE.Mesh(new THREE.TorusGeometry(.09,.035,10,18),
-    new THREE.MeshStandardMaterial({color:0x2f8f86,roughness:.9}));
-  scarf.position.y=1.5;scarf.rotation.x=Math.PI/2;sitter.g.add(scarf);
+    stdMat(0x2f8f86,.9,0,.3));
+  scarf.position.y=.28;scarf.rotation.x=Math.PI/2;
+  drinker.rig.J.chest.add(scarf);
 }
 const sitCup=new THREE.Mesh(new THREE.CylinderGeometry(.035,.03,.08,12),
-  new THREE.MeshStandardMaterial({color:0xf0e8dc}));
+  stdMat(0xf0e8dc,.18,0,1.2));
 sitCup.castShadow=true;sitCup.position.set(-2.55,.85,-2.55);scene.add(sitCup);
-const reader=person(0xc9973c,0x2e2e38,0xdcae86,0x3a2c1c);
-reader.g.position.set(3.02,-.3,-1.6);reader.g.rotation.y=-Math.PI/2;
-reader.lLeg.rotation.x=-1.35;reader.rLeg.rotation.x=-1.35;
-reader.lArm.rotation.x=-1.1;reader.rArm.rotation.x=-1.1;
+drinker.cup=sitCup;
+drinker.cupRest=new THREE.Vector3(-2.55,.85,-2.55);
+drinker.prop=sitCup;
+
+/* Reader at the right table, page turn every 30-55 s */
+const reader=makeAgent("reader","reader",{shirt:0xc9973c,pants:0x2e2e38,skin:0xdcae86,hair:0x3a2c1c});
+reader.pos.set(3.02,0,-1.6);reader.yaw=-Math.PI/2;reader.rootY=-.33;
+const bookG=new THREE.Group();
+let bookPages=null;
 {
   const book=new THREE.Mesh(new THREE.BoxGeometry(.2,.14,.02),
-    new THREE.MeshStandardMaterial({color:0x8a3030,roughness:.8}));
-  book.position.set(0,1.28,.3);book.rotation.x=-.4;reader.g.add(book);
-  const pages=new THREE.Mesh(new THREE.BoxGeometry(.18,.12,.008),
-    new THREE.MeshStandardMaterial({color:0xf3ecdd}));
-  pages.position.set(0,1.285,.312);pages.rotation.x=-.4;reader.g.add(pages);
+    stdMat(0x8a3030,.8,0,.3));
+  bookG.add(book);
+  bookPages=new THREE.Mesh(new THREE.BoxGeometry(.18,.12,.008),
+    stdMat(0xf3ecdd,.7,0,.4));
+  bookPages.position.set(0,.005,.012);
+  bookG.add(bookPages);
+  bookG.position.set(0,.02,.34);bookG.rotation.x=-.5;
+  reader.rig.J.chest.add(bookG);
 }
+reader.prop=bookG;
+reader.pageT=jit(40,.35);
+
+/* Visitors: episodic walk along the back — spawn behind the counter (the
+   back room), stroll to the window, look out, walk back, despawn. No
+   U-turn ever happens in the middle of the frame. */
+const VISIT_PATH=[[4.7,-4.4],[.5,-4],[-3.4,-4.25],[-4.05,-3],[-4.1,-1.6]];
+const PALETTES={
+  shirt:[0x8a5540,0x51606e,0x35543f,0x6e4a63,0xc9973c,0x2c4a6e,0x7d3b3b,0xa86b4a],
+  pants:[0x2e2e38,0x3a3230,0x23232b,0x453b33],
+  skin:[0xe8b58c,0xd9a578,0xeac39a,0xe0af83,0xc48a5e,0x8d5a3b],
+  hair:[0x1d1d24,0x4a3524,0x2c2018,0x14100c,0x3a2c1c,0x8a8a8a]
+};
+function pickPal(arr){return arr[(Math.random()*arr.length)|0];}
+const visitor=makeAgent("visitor","visitor",{});
+visitor.rig.root.visible=false;visitor.blob.visible=false;
+visitor.vTimer=8+Math.random()*10;     /* first visit soon after entering */
+visitor.vLeg=0;visitor.vDir=1;visitor.vPauseT=0;visitor.active=false;
+function reskin(a){
+  const o={shirt:pickPal(PALETTES.shirt),pants:pickPal(PALETTES.pants),
+    skin:pickPal(PALETTES.skin),hair:pickPal(PALETTES.hair)};
+  a.rig.root.traverse(m=>{
+    if(!m.isMesh||!m.userData.slot)return;
+    const s=m.userData.slot;
+    m.material=stdMat(o[s],s==="skin"?.55:s==="hair"?.8:.9,0,
+      s==="skin"?.5:s==="hair"?.45:.25);
+  });
+  a.rig.root.scale.setScalar(.96+Math.random()*.08);
+  a.speed=.42+Math.random()*.16;
+  a.rateMul=.9+Math.random()*.2;
+  a.seed=Math.random()*100;
+}
+
+/* --- per-kind behaviour, decisions at 10 Hz --- */
+function tickStand(a,dtT){
+  if(a.group&&a.group.speaker===a){
+    a.gestureT-=dtT;
+    if(a.gestureT<=0){queueSpeechGesture(a);a.gestureT=jit(2.8,.45);}
+  }else{
+    a.nodT-=dtT;
+    if(a.nodT<=0){
+      playShot(a,.9,(k,b)=>{
+        const p=pulse(k)*Math.abs(Math.sin(k*6.28));
+        addPose(b,{head:{x:.11*p},neck:{x:.05*p}},1);
+      });
+      a.nodT=jit(6,.45);
+    }
+    a.postureT-=dtT;
+    if(a.postureT<=0){
+      a.postureT=jit(13,.5);
+      a.postureIdx=(a.postureIdx+1+((Math.random()*2)|0))%3;
+      a.postureK=0;
+    }
+  }
+  a.selfT-=dtT;
+  if(a.selfT<=0){
+    a.selfT=jit(26,.5);
+    if(a.shots.length===0)playShot(a,2.2,(k,buf)=>{   /* scratch the neck */
+      if(k<.25){const p=easeInOut(k/.25);
+        addPose(buf,{shoulderR:{x:-2.15*p,z:.55*p},elbowR:{x:-2.35*p},
+          head:{z:.06*p,x:.05*p}},1);
+      }else if(k<.75){const s=Math.sin((k-.25)*18.85);
+        addPose(buf,{shoulderR:{x:-2.15,z:.55},elbowR:{x:-2.35+s*.1},
+          head:{z:.06,x:.05}},1);
+      }else{const p=1-easeInOut((k-.75)/.25);
+        addPose(buf,{shoulderR:{x:-2.15*p,z:.55*p},elbowR:{x:-2.35*p},
+          head:{z:.06*p,x:.05*p}},1);}
+    });
+  }
+}
+function tickBarista(a,dtT){
+  if(a.onModeEnter&&a.mode===BAR.GRIND&&a.modeDur===0)setMode(a,BAR.GRIND,jit(4.5,.2));
+  a.modeT+=dtT;
+  const done=a.modeT>=a.modeDur;
+  switch(a.mode){
+    case BAR.GRIND:
+      a.gazeLock={pos:[2.05,1.35,-3.72]};
+      if(done)setMode(a,BAR.TAMP,jit(2.6,.2));
+      break;
+    case BAR.TAMP:
+      if(a.onModeEnter){
+        a.gazeLock={pos:[2.3,1.1,-3.42]};
+        playShot(a,2.2,(k,buf)=>{     /* two firm presses, with wind-up */
+          const kk=k<.45?k/.45:k<.55?0:(k-.55)/.45;
+          const press=kk>0?pulse(kk):0;
+          addPose(buf,{shoulderR:{x:-1.1-press*.5},elbowR:{x:-.6+press*.45},
+            chest:{x:press*.1}},1);
+        });
+      }
+      if(done)setMode(a,BAR.PULL,jit(15,.2));
+      break;
+    case BAR.PULL:
+      /* the machine works: he straightens, wipes, looks at the room */
+      if(a.modeT<2)a.gazeLock={pos:[3.5,1.4,-3.65]};
+      else{
+        a.gazeLock=null;                       /* free gaze over the room */
+        a.wipeT=(a.wipeT||0)-dtT;
+        if(a.wipeT<=0){
+          a.wipeT=jit(5.5,.4);
+          playShot(a,2.4,(k,buf)=>{
+            const p=pulse(k);
+            addPose(buf,{chest:{x:.14*p},
+              shoulderR:{x:-.9*p,y:Math.sin(k*12.5)*.35*p},
+              elbowR:{x:-.5*p}},1);
+          });
+        }
+      }
+      if(done)setMode(a,BAR.SERVE,jit(3.2,.2));
+      break;
+    case BAR.SERVE:
+      if(a.onModeEnter){
+        a.gazeLock={pos:[2.75,1.2,-2.9]};      /* toward the client side */
+        playShot(a,2.6,(k,buf)=>{
+          if(k<.4){const p=easeInOut(k/.4);
+            addPose(buf,{chest:{y:-.5*p},shoulderR:{x:-.85*p},elbowR:{x:-.3*p}},1);
+          }else if(k<.7){const p=(k-.4)/.3;
+            addPose(buf,{chest:{y:-.5},shoulderR:{x:-.85,y:-.5*p},elbowR:{x:-.3}},1);
+            serveCup.position.x=3.3-p*.55;     /* the cup slides across */
+          }else{const p=1-easeInOut((k-.7)/.3);
+            addPose(buf,{chest:{y:-.5*p},shoulderR:{x:-.85*p}},1);
+            addPose(buf,{head:{x:.08*pulse((k-.7)/.3)}},1);
+          }
+        });
+      }
+      if(done)setMode(a,BAR.IDLE,jit(6,.6));
+      break;
+    case BAR.IDLE:
+      if(a.onModeEnter){
+        a.gazeLock=null;
+        serveCup.position.set(3.3,1.16,-3.45);
+        if(Math.random()<.5&&a.shots.length===0)
+          playShot(a,2.4,(k,buf)=>{            /* stack cups */
+            const p=pulse(k);
+            addPose(buf,{chest:{y:.4*p},shoulderL:{x:-.8*p},elbowL:{x:-.6*p}},1);
+          });
+      }
+      if(done)setMode(a,BAR.GRIND,jit(4.5,.2));
+      break;
+  }
+  a.onModeEnter=false;
+}
+function tickWorker(a,dtT){
+  if(a.onModeEnter&&a.mode===WK.TYPE&&a.modeDur===0)setMode(a,WK.TYPE,jit(9,.4));
+  a.modeT+=dtT;
+  const done=a.modeT>=a.modeDur;
+  switch(a.mode){
+    case WK.TYPE:
+      a.typing=true;a.gazeLock={obj:laptop};
+      if(done){
+        a.typing=false;
+        const r=Math.random();
+        setMode(a,r<.4?WK.THINK:r<.75?WK.SIP:WK.STRETCH,
+          r<.4?jit(4,.4):r<.75?3.6:3);
+      }
+      break;
+    case WK.THINK:
+      if(a.onModeEnter){
+        playShot(a,1.2,(k,buf)=>{             /* hand to chin */
+          const p=easeInOut(Math.min(1,k*2));
+          addPose(buf,{shoulderR:{x:-1.7*p},elbowR:{x:-1.9*p},head:{z:-.06*p}},1);
+        });
+        a.gazeLock={pos:[-4.5,2.4,-3.4]};     /* up and to the left */
+      }
+      if(done)setMode(a,WK.TYPE,jit(9,.4));
+      break;
+    case WK.SIP:
+      if(a.onModeEnter&&a.shots.length===0)sipShot(a,null);
+      a.gazeLock=null;
+      if(done)setMode(a,WK.TYPE,jit(9,.4));
+      break;
+    case WK.STRETCH:
+      if(a.onModeEnter){
+        a.gazeLock=null;
+        playShot(a,2.8,(k,buf)=>{             /* arms up, spine back */
+          const p=pulse(k);
+          addPose(buf,{chest:{x:-.16*p},
+            shoulderL:{x:-2.6*p,z:-.3*p},shoulderR:{x:-2.6*p,z:.3*p},
+            head:{x:-.2*p}},1);
+        });
+      }
+      if(done)setMode(a,WK.TYPE,jit(9,.4));
+      break;
+  }
+  a.onModeEnter=false;
+}
+/* the 4-phase sip: grab -> raise -> drink -> put down. Never a sine. */
+function sipShot(a,cup){
+  playShot(a,3.4,(k,buf)=>{
+    if(k<.22){const p=easeInOut(k/.22);
+      addPose(buf,{shoulderR:{x:-.55*p},elbowR:{x:-.45*p}},1);
+      if(cup&&p>.9)a.cupHeld=true;
+    }else if(k<.45){const p=easeInOut((k-.22)/.23);
+      addPose(buf,{shoulderR:{x:-.55-.75*p},elbowR:{x:-.45-1.15*p},
+        head:{x:.06*p}},1);
+    }else if(k<.62){
+      addPose(buf,{shoulderR:{x:-1.3},elbowR:{x:-1.6},head:{x:.1}},1);
+    }else{const p=1-easeInOut((k-.62)/.38);
+      addPose(buf,{shoulderR:{x:-1.3*p},elbowR:{x:-1.6*p},head:{x:.1*p}},1);
+      if(a.cupHeld&&p<.1)a.cupHeld=false;
+    }
+    if(cup&&a.cupHeld){
+      a.rig.J.wristR.getWorldPosition(cup.position);
+      cup.position.y-=.03;
+    }else if(cup&&!a.cupHeld){
+      cup.position.lerp(a.cupRest,.25);
+    }
+  });
+}
+function tickDrinker(a,dtT){
+  a.sipT=(a.sipT===undefined?jit(9,.4):a.sipT)-dtT;
+  if(a.sipT<=0&&a.shots.length===0){
+    a.sipT=jit(14,.4);
+    sipShot(a,a.cup);
+  }
+}
+function tickReader(a,dtT){
+  a.pageT-=dtT;
+  if(a.pageT<=0&&a.shots.length===0){
+    a.pageT=jit(42,.3);
+    playShot(a,1.4,(k,buf)=>{                 /* left hand crosses the book */
+      const p=pulse(k);
+      addPose(buf,{shoulderL:{x:-1.2*p,z:.5*p},elbowL:{x:-1.1*p},
+        wristL:{y:.8*Math.sin(k*Math.PI)}},1);
+      if(bookPages)bookPages.rotation.y=Math.sin(Math.min(1,k*1.4)*Math.PI)*.5;
+    });
+  }
+}
+function tickVisitor(a,dtT){
+  if(RM)return;      /* reduced motion: no strolling extras */
+  if(!a.active){
+    a.vTimer-=dtT;
+    if(a.vTimer<=0){
+      a.active=true;
+      reskin(a);
+      a.rig.root.visible=true;a.blob.visible=true;
+      a.vLeg=0;a.vDir=1;a.vPauseT=0;
+      a.pos.set(VISIT_PATH[0][0],0,VISIT_PATH[0][1]);
+    }
+    return;
+  }
+  if(a.vPauseT>0){                            /* at the window, looking out */
+    a.vPauseT-=dtT;
+    a.gazeLock={pos:[-4.9,2,-1.2]};
+    if(a.vPauseT<=0){a.vDir=-1;a.vLeg=VISIT_PATH.length-2;a.gazeLock=null;}
+    return;
+  }
+  const wp=VISIT_PATH[a.vLeg+ (a.vDir>0?1:0)];
+  if(!wp){                                    /* walked off both ends */
+    a.active=false;a.rig.root.visible=false;a.blob.visible=false;
+    a.vTimer=25+Math.random()*35;
+    return;
+  }
+  const dx=wp[0]-a.pos.x,dz=wp[1]-a.pos.z;
+  const d=Math.hypot(dx,dz);
+  if(d<.18){
+    a.vLeg+=a.vDir;
+    if(a.vDir>0&&a.vLeg>=VISIT_PATH.length-1){a.vPauseT=jit(6,.4);}
+    if(a.vDir<0&&a.vLeg<0){
+      a.active=false;a.rig.root.visible=false;a.blob.visible=false;
+      a.vTimer=25+Math.random()*35;
+    }
+    return;
+  }
+  a.walkTarget=[wp[0],wp[1]];
+}
+
+/* --- 60 Hz layers --- */
+function angleDamp(cur,target,k,dt){
+  let d=target-cur;
+  while(d>Math.PI)d-=Math.PI*2;
+  while(d<-Math.PI)d+=Math.PI*2;
+  return cur+d*(1-Math.pow(1-k,dt*60));
+}
+const SEAT_POSE={hipL:{x:-1.35},hipR:{x:-1.35},kneeL:{x:1.2},kneeR:{x:1.2}};
+function walkLayer(a,buf,ac,dt){
+  let v=0;
+  if(a.active&&a.walkTarget&&a.vPauseT<=0){
+    const dx=a.walkTarget[0]-a.pos.x,dz=a.walkTarget[1]-a.pos.z;
+    const d=Math.hypot(dx,dz);
+    if(d>.02){
+      const arrive=Math.min(1,d/.45);
+      const vx=dx/d*a.speed*arrive,vz=dz/d*a.speed*arrive;
+      a.pos.x+=vx*dt;a.pos.z+=vz*dt;
+      a.yaw=angleDamp(a.yaw,Math.atan2(vx,vz),.14,dt);
+      v=Math.hypot(vx,vz);
+    }
+  }
+  a.walkK=damp(a.walkK,Math.min(1,v/.25),.12,dt);
+  if(a.walkK<.02){a.rig.root.position.y=a.rootY;return;}
+  const stepLen=.52*a.rig.root.scale.x;
+  a.walkPhase+=(v/stepLen)*dt*Math.PI;
+  const p=a.walkPhase,s=Math.sin(p),c=Math.cos(p);
+  addPose(buf,{
+    hipL:{x:s*.5},hipR:{x:-s*.5},
+    kneeL:{x:Math.max(0,-c)*.75},kneeR:{x:Math.max(0,c)*.75},
+    pelvis:{y:s*.08},chest:{y:-s*.12},
+    shoulderL:{x:-s*.35},shoulderR:{x:s*.35},
+    elbowL:{x:-.25-Math.max(0,s)*.25},elbowR:{x:-.25+Math.min(0,s)*.25},
+    head:{z:s*.025}
+  },a.walkK);
+  a.rig.root.position.y=a.rootY+Math.abs(s)*.022*a.walkK;
+}
+function typingLayer(a,buf,ac){
+  if(!a.typing)return;
+  /* typing pause ~1 s in 6: hands still, head lifts a touch —
+     "thinking about the sentence" */
+  const amp=Math.sin(ac*.9)>.86?0:1;
+  addPose(buf,{
+    shoulderL:{x:-.62},shoulderR:{x:-.62},
+    elbowL:{x:-.95},elbowR:{x:-.95},
+    wristL:{x:-.12+Math.sin(ac*21.7)*.055*amp},
+    wristR:{x:-.12+Math.sin(ac*24.3+1.3)*.055*amp},
+    chest:{x:.09},head:{x:.14-(1-amp)*.06}
+  },1);
+}
+function animateAgents(dt){
+  for(let i=0;i<agents.length;i++){
+    const a=agents[i];
+    if(!a.rig.root.visible)continue;
+    a.clock+=dt*a.rateMul;
+    const ac=a.clock;
+    clearPose(a.buf);
+    if(a.rootY<0)addPose(a.buf,SEAT_POSE,1);      /* seated base */
+    walkLayer(a,a.buf,ac,dt);
+    shotsLayer(a,a.buf,dt);
+    listenerLayer(a,a.buf,dt);
+    laughLayer(a,a.buf,ac);
+    typingLayer(a,a.buf,ac);
+    breathLayer(a,a.buf,ac);
+    gazeLayer(a,a.buf,dt,ac);
+    applyPose(a.rig,a.buf);
+    blinkLayer(a,dt);
+    a.rig.root.position.x=a.pos.x;
+    a.rig.root.position.z=a.pos.z;
+    if(a.walkK<.02)a.rig.root.position.y=a.rootY;
+    a.rig.root.rotation.y=a.yaw;
+    a.blob.position.set(a.pos.x,.006,a.pos.z);
+  }
+}
+const TICK_DT=1/10;
+let tickAcc=0;
+function behaviourTick(dtT){
+  updateGroups(dtT);
+  for(let i=0;i<agents.length;i++){
+    const a=agents[i];
+    /* gaze retarget every 1.4-5 s, blink queued on the change */
+    a.gazeT-=dtT;
+    if(a.gazeT<=0){
+      a.gaze=pickGazeTarget(a);
+      a.gazeT=jit(3.2,.55);
+      a.blinkQueue=true;
+    }
+    switch(a.kind){
+      case "stand":tickStand(a,dtT);break;
+      case "barista":tickBarista(a,dtT);break;
+      case "worker":tickWorker(a,dtT);break;
+      case "drinker":tickDrinker(a,dtT);break;
+      case "reader":tickReader(a,dtT);break;
+      case "visitor":tickVisitor(a,dtT);break;
+    }
+  }
+}
+function updateLife(dt){
+  tickAcc+=dt;
+  let guard=0;
+  while(tickAcc>=TICK_DT&&guard++<4){
+    behaviourTick(TICK_DT);
+    tickAcc-=TICK_DT;
+  }
+  if(guard>=4)tickAcc=0;
+  animateAgents(dt);
+}
+/* console probe: __agents() must show unique clocks and rateMuls */
+window.__agents=()=>agents.map(a=>({id:a.id,kind:a.kind,
+  clock:+a.clock.toFixed(1),rateMul:+a.rateMul.toFixed(3),
+  speaking:!!(a.group&&a.group.speaker===a)}));
+window.__groups=()=>groups.map(g=>({members:g.members.length,
+  speaker:g.speaker?g.speaker.id:null,
+  turn:+g.turnT.toFixed(1)+"/"+g.turnDur.toFixed(1),
+  laughing:+g.laughing.toFixed(2)}));
 
 /* ---------------- SIMON ---------------- */
 const simon=new THREE.Group();simon.position.set(0,0,-1.08);scene.add(simon);
@@ -1445,7 +2597,7 @@ function drawResume(){
   const oAct=current==="outro",oHov=hoverKey==="outro";
   ctx.textAlign="center";ctx.font="700 26px 'Caveat',cursive";
   ctx.fillStyle=oAct?"#b8860b":(oHov?"rgba(184,134,11,.85)":"rgba(20,38,61,.45)");
-  ctx.fillText(lang==="fr"?"— et pour conclure, touchez ici ☕ —":"— and to wrap up, tap here ☕ —",686,1330);
+  ctx.fillText("— and to wrap up, tap here ☕ —",686,1330);
   tex.needsUpdate=true;
 }
 drawResume();
@@ -1504,6 +2656,49 @@ addEventListener("pointerdown",e=>{
 
 /* ---------------- SPEECH ---------------- */
 const promptEl=document.getElementById("prompt");
+
+/* ---- GTA-style subtitles ----
+   The mp3s carry no cue track: sentences are spread pro-rata by
+   character count over audioEl.duration (±0.4 s — fine for captions).
+   TTS captions per uttered sentence. Also an accessibility fix the
+   README asks for: sound-off visitors used to get nothing. */
+const subsEl=document.getElementById("subs");
+let cues=[],cueIdx=-1;
+function buildCues(text,duration){
+  const parts=text.match(/[^.!?…]+[.!?…]+["']?|\S[^.!?…]*$/g)||[text];
+  const total=parts.reduce((a,p)=>a+p.length,0)||1;
+  let acc=0;
+  return parts.map(p=>{
+    const start=acc/total*duration;
+    acc+=p.length;
+    return {start:start,end:acc/total*duration,text:p.trim()};
+  });
+}
+function showCue(txt){
+  if(!txt){subsEl.classList.remove("on");return;}
+  subsEl.textContent=txt;
+  subsEl.classList.add("on");
+}
+function clearCues(){cues=[];cueIdx=-1;showCue("");}
+
+/* ---- lipsync ----
+   The jaw is driven by the actual audio amplitude (AnalyserNode over the
+   voice bins), not a fixed-rate sine decorrelated from the voice.
+   createMediaElementSource is once-per-element — speak() makes a fresh
+   Audio each call, so that holds. The AudioContext resumes on the
+   enter-button click, the required user gesture. */
+let lipCtx=null,lipAnalyser=null,lipData=null,jawOpen=0;
+function attachAnalyser(el){
+  if(!lipCtx)lipCtx=new (window.AudioContext||window.webkitAudioContext)();
+  if(lipCtx.state==="suspended")lipCtx.resume();
+  const src=lipCtx.createMediaElementSource(el);
+  lipAnalyser=lipCtx.createAnalyser();
+  lipAnalyser.fftSize=256;
+  lipAnalyser.smoothingTimeConstant=.55;
+  lipData=new Uint8Array(lipAnalyser.frequencyBinCount);
+  src.connect(lipAnalyser);
+  lipAnalyser.connect(lipCtx.destination);
+}
 function selectSection(key){
   if(beerMode)setBeerMode(false);
   current=key;drawResume();
@@ -1532,8 +2727,8 @@ function bestVoice(code){
 }
 function ttsStart(text){
   if(!("speechSynthesis"in window)){endSpeech();return;}
-  const code=lang==="fr"?"fr-FR":"en-GB";
-  const v=bestVoice(code)||bestVoice(lang);
+  const code="en-GB";
+  const v=bestVoice(code)||bestVoice("en");
   queue=text.match(/[^.!?…]+[.!?…]+["']?|\S[^.!?…]*$/g)||[text];
   next(code,v);
 }
@@ -1542,44 +2737,61 @@ function speak(text,key){
   const f=key&&AUDIO[lang][key];
   if(f){
     audioEl=new Audio(f);
-    audioEl.onended=endSpeech;
-    audioEl.onerror=()=>{audioEl=null;ttsStart(text);};
-    audioEl.play().catch(()=>{audioEl=null;ttsStart(text);});
+    try{attachAnalyser(audioEl);}catch(_){lipAnalyser=null;}
+    audioEl.addEventListener("loadedmetadata",()=>{
+      cues=buildCues(text,audioEl.duration||1);
+    });
+    audioEl.addEventListener("timeupdate",()=>{
+      if(!audioEl)return;
+      const ct=audioEl.currentTime;
+      let i=-1;
+      for(let k=0;k<cues.length;k++){
+        if(ct>=cues[k].start&&ct<cues[k].end){i=k;break;}
+      }
+      if(i!==cueIdx){cueIdx=i;showCue(i>=0?cues[i].text:"");}
+    });
+    audioEl.onended=()=>{endSpeech();};
+    audioEl.onerror=()=>{audioEl=null;clearCues();ttsStart(text);};
+    audioEl.play().catch(()=>{audioEl=null;clearCues();ttsStart(text);});
     return;
   }
   ttsStart(text);
 }
 function next(code,v){
   if(!queue.length){endSpeech();return;}
-  const u=new SpeechSynthesisUtterance(queue.shift().trim());
+  const sentence=queue.shift().trim();
+  const u=new SpeechSynthesisUtterance(sentence);
   u.lang=code;u.rate=.98;if(v)u.voice=v;
+  showCue(sentence);
   u.onend=()=>setTimeout(()=>next(code,v),140);
-  u.onerror=endSpeech;
+  u.onerror=()=>endSpeech();
   speechSynthesis.speak(u);
 }
-function endSpeech(){speaking=false;}
-function stopSpeaking(){queue=[];speaking=false;
+function endSpeech(){speaking=false;clearCues();}
+function stopSpeaking(){queue=[];speaking=false;clearCues();
   if("speechSynthesis"in window)speechSynthesis.cancel();
   if(audioEl){audioEl.pause();audioEl=null;}}
 
+/* ---- keyboard: 1-7 sections, 8 off the record, 0 outro, space = hush ---- */
+const KEY_SECTIONS={"1":"intro","2":"experience","3":"education","4":"skills",
+  "5":"certifications","6":"languages","7":"contact","8":"about","0":"outro"};
+addEventListener("keydown",e=>{
+  if(!entered||cafeClosed)return;
+  if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;
+  if(!document.getElementById("cv-text").hidden)return;
+  if(e.key===" "){e.preventDefault();stopSpeaking();return;}
+  const k=KEY_SECTIONS[e.key];
+  if(k==="about")selectAbout();
+  else if(k)selectSection(k);
+});
+
 /* ---------------- LANGUAGE ----------------
-   VC owns the EN/FR toggle, the <html lang> attribute and the text
-   résumé, because those have to keep working without a scene. The café
-   is just one more subscriber. */
+   English only — the FR mode was retired. paintSign stays: closeCafe
+   repaints the sign for the closed room. */
 function paintSign(){
   const s=cafeClosed?DATA[lang].closed.sign:DATA[lang].sign;
   document.getElementById("sign").innerHTML=s[0]+"<small>"+s[1]+"</small>";
 }
-function applyLang(l){
-  if(l===lang)return;stopSpeaking();lang=l;
-  const d=DATA[lang];
-  paintSign();
-  promptEl.textContent=cafeClosed?d.closed.prompt:(TOUCH?d.promptTouch:d.prompt);
-  drawResume();
-  if(cafeClosed)drawMenu();   /* the CLOSED board is bilingual too */
-  renderHowto();
-}
-VC.onLang(applyLang);
 VC.onOpenCV=stopSpeaking;   /* opening the flat résumé shuts Simon up */
 if("speechSynthesis"in window){speechSynthesis.getVoices();speechSynthesis.onvoiceschanged=()=>{};}
 
@@ -1590,13 +2802,11 @@ const HOWTO={
             "👆 Hover the résumé on the table — it lifts up. Tap any section",
             "🍺 Tap me — Simon — for the off-the-record story",
             "🔊 It's my real voice — turn your sound on",
-            "🇬🇧 EN / FR toggle at the top right",
             "📄 In a hurry? “Text résumé” gives you the flat version"],
      stepsTouch:["🪑 You're sitting across the table from me, in a small café",
             "👆 Tap the résumé to lift it, then tap any section",
             "🍺 Tap me — Simon — for the off-the-record story",
             "🔊 It's my real voice — turn your sound on",
-            "🇬🇧 EN / FR toggle at the top right",
             "📄 In a hurry? “Text résumé” gives you the flat version"],
      btn:"Take a seat",
      /* Same card, other state. No new markup: #howto is already the
@@ -1605,33 +2815,10 @@ const HOWTO={
      closed:{title:"The café is closed\u00A0🌙",
              steps:["🌙 Lights down, room empty — Simon has gone home for the night",
                     "📄 The résumé did not close with it: the full text version is one tap away",
-                    "🇬🇧 EN / FR toggle at the top right, as always",
                     "☕ Come back another day and I'll talk you through it out loud, in my own voice",
                     "🚪 Tap outside this card if you'd rather sit in the dark a minute"],
              btn:"Read the text résumé"},
-     welcome:`Hey, welcome, grab a seat. Here's how this works: the resume is sitting right there on the table. Hover over it and it lifts up, which is already fancier than my actual desk. Tap any section that catches your eye and I'll tell you about it, in my own words, like we're having a real coffee, except I do all the talking. There's no right order, start wherever you're curious. And if you'd rather hear this in French, there's a switch for that. So, where do we begin?`},
- fr:{title:"Bienvenue dans mon café virtuel\u00A0☕",
-     steps:["🪑 Vous êtes assis en face de moi, dans un petit café",
-            "👆 Survolez le CV posé sur la table — il se soulève. Touchez une section",
-            "🍺 Touchez-moi — Simon — pour la version off",
-            "🔊 Activez le son — c'est ma vraie voix",
-            "🇫🇷 Bouton EN / FR en haut à droite",
-            "📄 Pressé ? « CV en texte » donne la version à plat"],
-     stepsTouch:["🪑 Vous êtes assis en face de moi, dans un petit café",
-            "👆 Touchez le CV pour le soulever, puis touchez une section",
-            "🍺 Touchez-moi — Simon — pour la version off",
-            "🔊 Activez le son — c'est ma vraie voix",
-            "🇫🇷 Bouton EN / FR en haut à droite",
-            "📄 Pressé ? « CV en texte » donne la version à plat"],
-     btn:"Prendre place",
-     closed:{title:"Le café est fermé\u00A0🌙",
-             steps:["🌙 Lumières baissées, salle vide — Simon est rentré",
-                    "📄 Le CV, lui, n'a pas fermé : la version texte est à un clic",
-                    "🇫🇷 Bouton EN / FR en haut à droite, comme toujours",
-                    "☕ Repassez un autre jour : je vous raconterai tout ça à voix haute",
-                    "🚪 Touchez à côté de cette carte pour rester un peu dans le noir"],
-             btn:"Lire le CV en texte"},
-     welcome:`Hé, bienvenue, installez-vous. Voilà comment ça marche : le CV est posé juste là, sur la table. Survolez-le, il se soulève — déjà plus chic que mon vrai bureau. Touchez la section qui vous intrigue et je vous la raconte, avec mes mots, comme autour d'un vrai café — sauf que c'est moi qui fais toute la conversation. Pas d'ordre imposé : commencez où vous êtes curieux. Alors, on commence où ?`}
+     welcome:`Hey, welcome, grab a seat. Here's how this works: the resume is sitting right there on the table. Hover over it and it lifts up, which is already fancier than my actual desk. Tap any section that catches your eye and I'll tell you about it, in my own words, like we're having a real coffee, except I do all the talking. There's no right order, start wherever you're curious. And if you'd rather hear this in French, there's a switch for that. So, where do we begin?`}
 };
 function renderHowto(){
   const el=document.getElementById("howto");
@@ -1685,9 +2872,9 @@ function closeCafe(){
      and his sheet of paper. Chairs, tables, rug and plants stay exactly
      where they were: that is what makes the room read as closed rather
      than as unfinished. */
-  [simon,simonHead,simonBox,barista.g,sitter.g,reader.g,sitCup,
+  [simon,simonHead,simonBox,sitCup,serveCup,grinder,laptop,
    paper,cup,saucer,pen,plate,beers].forEach(o=>{o.visible=false;});
-  walkers.forEach(w=>{w.P.g.visible=false;});
+  agents.forEach(a=>{a.rig.root.visible=false;a.blob.visible=false;});
   steam.forEach(s=>{s.visible=false;});
   croissant.forEach(s=>{s.visible=false;});
 
@@ -1707,13 +2894,15 @@ function closeCafe(){
   /* Two shadow maps for a room lit by a single 0.34 point light is pure
      cost — at this exposure the shadows are below the noise floor. */
   keySpot.castShadow=false;winDir.castShadow=false;
+  neonTube.visible=false;neonGlow.visible=false;neonPt.intensity=0;
   shafts.forEach(s=>{s.visible=false;});       /* no daylight: it is night out */
   win.material.color.setHex(0x1b2331);         /* and the view dims with it */
 
   /* Darker, tighter, and the dust keeps drifting through it — the only
      thing still moving in the room. (RM already freezes it.) */
-  scene.fog.near=3.4;scene.fog.far=12;
+  scene.fog.density=.11;
   scene.background.setHex(0x0c0a0a);
+  applyGrade("vinewoodNight");
   dust.material.opacity=.22;
 
   drawMenu();                                  /* same slate, CLOSED side up */
@@ -1734,16 +2923,90 @@ function closeCafe(){
    call is synchronous and runs right here. */
 PING.whenClosed(closeCafe);
 
-/* ---------------- ANIMATION LOOP ---------------- */
+/* ---------------- CINEMATIC CAMERA ----------------
+   While Simon speaks this is a cutscene, not gameplay: letterbox, hard
+   cuts between coverage shots every 6-9 s, rack focus. All shot
+   positions stay on the +x side of the Simon<->visitor axis (180 rule);
+   overShldr is the legitimate reverse. */
 const clock=new THREE.Clock();
 const camTarget=new THREE.Vector3(0,1.08,-.95);
+/* One shot only, by request: the camera keeps a fixed seat-level angle
+   on Simon — no coverage cuts, no zoom changes. Letterbox and subtitles
+   still mark the spoken moments. */
+const SHOTS={
+  gameplay: {pos:[.42,1.3,1.62], look:[0,1.06,-.95], fov:47,focus:2.6, range:1.4, roll:.006, shake:1}
+};
+let shot=SHOTS.gameplay,shotName="gameplay",hardCut=false;
+const camPos=new THREE.Vector3().fromArray(SHOTS.gameplay.pos);
+const camLook=new THREE.Vector3().fromArray(SHOTS.gameplay.look);
+let camFov=SHOTS.gameplay.fov,camRoll=SHOTS.gameplay.roll;
+function cutTo(name,hard){
+  if(!SHOTS[name])return;
+  shot=SHOTS[name];shotName=name;hardCut=!!hard;
+  if(hard){
+    camPos.fromArray(shot.pos);
+    camLook.fromArray(shot.look);
+    camFov=shot.fov;camRoll=shot.roll;
+  }
+}
+function updateDirection(t){
+  if(shotName!=="gameplay")cutTo("gameplay",false);
+}
+function dampV3(v,target,k,dt){
+  v.x=damp(v.x,target[0],k,dt);
+  v.y=damp(v.y,target[1],k,dt);
+  v.z=damp(v.z,target[2],k,dt);
+}
+function updateCamera(dt,t){
+  updateDirection(t);
+  document.body.classList.toggle("cine",speaking&&!RM&&!cafeClosed);
+  if(hardCut){hardCut=false;}
+  else{
+    dampV3(camPos,shot.pos,.055,dt);
+    dampV3(camLook,shot.look,.07,dt);
+    camFov=damp(camFov,shot.fov,.045,dt);
+    camRoll=damp(camRoll,shot.roll,.05,dt);
+  }
+  camera.position.copy(camPos);
+  /* mouse parallax only on the gameplay shot — a cutscene must not wobble */
+  if(!RM&&!TOUCH&&shotName==="gameplay"){
+    camera.position.x+=Math.max(-1,Math.min(1,pointer.x))*.10;
+    camera.position.y+=Math.max(-1,Math.min(1,pointer.y))*.05;
+  }
+  if(!RM){
+    const sh=shot.shake;
+    camera.position.x+=fbm1(t,.37,0)*.0065*sh;
+    camera.position.y+=fbm1(t,.31,1.9)*.0045*sh;
+    camera.position.z+=fbm1(t,.27,3.3)*.003*sh;
+  }
+  camera.lookAt(camLook);
+  /* roll AFTER lookAt — lookAt rebuilds the whole rotation */
+  camera.rotation.z+=camRoll+(RM?0:fbm1(t,.23,5.1)*.0038*shot.shake);
+  if(Math.abs(camera.fov-camFov)>.01){
+    camera.fov=camFov;camera.updateProjectionMatrix();
+  }
+  /* rack focus: the sheet pulls focus when hovered — the DOF says where
+     to click */
+  let fT=shot.focus,rT=shot.range;
+  if(paperHover||paperLifted){fT=.95;rT=.25;}
+  dofMat.uniforms.uFocus.value=damp(dofMat.uniforms.uFocus.value,fT,.038,dt);
+  dofMat.uniforms.uRange.value=damp(dofMat.uniforms.uRange.value,rT,.038,dt);
+}
 function applyStaging(){
   const portrait=camera.aspect<0.75;
-  camera.fov=portrait?64:50;
   camBase.set(0,portrait?1.38:1.34,portrait?1.72:1.6);
   camTarget.set(0,portrait?1.02:1.08,-.95);
-  camera.position.set(camBase.x,camBase.y,camBase.z);
-  camera.updateProjectionMatrix();
+  /* the gameplay shot follows the staging; portrait recenters (a 0.42 m
+     offset would push Simon out of a narrow frame) */
+  SHOTS.gameplay.pos=[portrait?0:.42,camBase.y,camBase.z];
+  SHOTS.gameplay.look=[camTarget.x,camTarget.y,camTarget.z];
+  SHOTS.gameplay.fov=portrait?64:47;
+  if(shotName==="gameplay"){
+    camPos.fromArray(SHOTS.gameplay.pos);
+    camLook.fromArray(SHOTS.gameplay.look);
+    camFov=SHOTS.gameplay.fov;
+    camera.fov=camFov;camera.updateProjectionMatrix();
+  }
   paperRest.pos.set(0,.802,portrait?.20:.24);
   paperUp.pos.set(0,portrait?1.06:1.0,portrait?.66:.5);
   paperUp.rot=portrait?-.98:-.85;
@@ -1753,32 +3016,10 @@ function animate(){
   requestAnimationFrame(animate);
   const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;
 
-  for(const w of walkers){
-    const a=w.path[w.seg],b=w.path[w.seg+w.dir];
-    if(!b){w.dir*=-1;continue;}
-    const L=a.distanceTo(b);
-    w.t+=dt*w.speed/L;
-    if(w.t>=1){w.t=0;w.seg+=w.dir;
-      if(w.seg<=0){w.seg=0;w.dir=1;}if(w.seg>=w.path.length-1){w.seg=w.path.length-1;w.dir=-1;}
-    }
-    const p=a.clone().lerp(b,Math.min(w.t,1));
-    w.P.g.position.copy(p);
-    w.P.g.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);
-    w.phase+=dt*6;
-    const s=Math.sin(w.phase)*.5;
-    w.P.lLeg.rotation.x=s;w.P.rLeg.rotation.x=-s;
-    w.P.lArm.rotation.x=-s*.6;w.P.rArm.rotation.x=s*.6;
-    w.P.body.position.y=1.12+Math.abs(Math.sin(w.phase))*.02;
-    w.P.head.rotation.y=Math.sin(t*.8+w.phase*.1)*.25;
+  if(!cafeClosed){
+    updateLife(dt);
+    if(!RM)fan.rotation.y+=dt*1.6;
   }
-  barista.lArm.rotation.x=-.5+Math.sin(t*2.2)*.25;
-  barista.rArm.rotation.x=-.4+Math.cos(t*1.8)*.2;
-  barista.body.rotation.y=Math.sin(t*.7)*.12;
-  const sip=Math.max(0,Math.sin(t*.5));
-  sitter.rArm.rotation.x=-.4-sip*1.0;
-  sitCup.position.y=.85+sip*.28;sitCup.position.z=-2.55-sip*.1;
-  reader.g.rotation.z=Math.sin(t*.9)*.015;
-  reader.head.rotation.x=.25+Math.sin(t*.6)*.05;
 
   /* Simon */
   simonHead.position.y=1.6+Math.sin(t*1.2)*.008;
@@ -1786,15 +3027,28 @@ function animate(){
   const blinkT=t%3.7;
   const eyeS=blinkT<.12?.12:1;
   eyeGroups.forEach(g=>g.scale.y=eyeS);
+  /* jaw driven by the real audio amplitude (voice bins ~90 Hz-1.1 kHz);
+     TTS fallback keeps a softer pseudo-energy. The eye detects a
+     fixed-rate mouth in about one second. */
+  let jawTarget=0;
+  if(speaking&&audioEl&&lipAnalyser){
+    lipAnalyser.getByteFrequencyData(lipData);
+    let s=0;
+    for(let i=2;i<26;i++)s+=lipData[i];
+    jawTarget=Math.min(1,(s/24)/105);
+  }else if(speaking){
+    jawTarget=.25+Math.abs(Math.sin(t*9.3))*.45;
+  }
+  jawOpen+=(jawTarget-jawOpen)*Math.min(1,dt*20);
+  mouthMesh.scale.y=1+jawOpen*3.2;
+  mouthMesh.scale.x=1-jawOpen*.15;      /* the mouth narrows as it opens */
   if(speaking){
-    simonHead.rotation.x=Math.sin(t*3.2)*.05;
-    simonHead.position.y+=Math.sin(t*6)*.006;
-    mouthMesh.scale.y=1+Math.abs(Math.sin(t*14))*2.6;
+    simonHead.rotation.x=fbm1(t,2.6,.7)*.04;
+    simonHead.position.y+=jawOpen*.005;
     if(simon.userData.rShoulder)
-      simon.userData.rShoulder.rotation.z=.32+Math.sin(t*2.6)*.1;
+      simon.userData.rShoulder.rotation.z=.32+fbm1(t,2.1,1.9)*.09;
   }else{
     simonHead.rotation.x*=.92;
-    mouthMesh.scale.y+=(1-mouthMesh.scale.y)*.2;
     if(simon.userData.rShoulder)
       simon.userData.rShoulder.rotation.z+=(.32-simon.userData.rShoulder.rotation.z)*.1;
   }
@@ -1824,18 +3078,37 @@ function animate(){
        prefers-reduced-motion, like everything else here. */
     if(closedLamp)closedLamp.intensity=RM?.34:.34+Math.sin(t*1.6)*.035;
   }else{
-    keySpot.intensity=1.5+Math.sin(t*9)*.03;
-    lampPts.forEach((p,i)=>p.intensity=.85+Math.sin(t*7+i*2)*.04);
+    /* incommensurable frequencies: a pure sine reads as a mechanical pulse */
+    keySpot.intensity=1.75+(RM?0:fbm1(t,8.7,0)*.035);
+    lampPts.forEach((p,i)=>p.intensity=.7+(RM?0:fbm1(t,7.3,i*2.3+1.1)*.045));
   }
 
-  if(!RM&&!TOUCH){
-    camera.position.x+= (camBase.x+pointer.x*.10-camera.position.x)*.04;
-    camera.position.y+= (camBase.y+pointer.y*.05-camera.position.y)*.04;
-  }
-  camera.position.z=camBase.z;
-  camera.lookAt(camTarget);
+  updateCamera(dt,t);
 
+  /* ---- post pipeline: scene -> HDR -> bloom -> DOF -> composite -> FXAA ---- */
+  if(!RM)compMat.uniforms.uTime.value=t;
+  renderer.setRenderTarget(RT_HDR);
+  renderer.clear();
   renderer.render(scene,camera);
+  if(QUALITY.bloom>0)renderBloom(QUALITY.bloom);
+  let srcTex=RT_HDR.texture;
+  if(QUALITY.dof&&RT_HDR.depthTexture){
+    dofMat.uniforms.tSrc.value=RT_HDR.texture;
+    dofMat.uniforms.tDepth.value=RT_HDR.depthTexture;
+    dofMat.uniforms.cameraNear.value=camera.near;
+    dofMat.uniforms.cameraFar.value=camera.far;
+    blit(dofMat,RT_DOF);
+    srcTex=RT_DOF.texture;
+  }
+  compMat.uniforms.tSrc.value=srcTex;
+  compMat.uniforms.tBloom.value=QUALITY.bloom>0?MIPS[0].texture:whiteTex;
+  compMat.uniforms.tAO.value=whiteTex;
+  blit(compMat,QUALITY.fxaa?RT_LDR:null);
+  if(QUALITY.fxaa){
+    fxaaMat.uniforms.tSrc.value=RT_LDR.texture;
+    blit(fxaaMat,null);
+  }
+  renderer.setRenderTarget(null);
 }
 animate();
 })();
