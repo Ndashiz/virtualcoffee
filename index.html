@@ -583,8 +583,9 @@ const app=document.getElementById("app");
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x11151a);
 /* FogExp2: linear fog with near=7.5 in a 10 m room never triggered.
-   The colour matches the grade's cool shadow tint. */
-scene.fog=new THREE.FogExp2(0x1a2228,.055);
+   The colour matches the grade's cool shadow tint. Density halved with
+   the cleanDay grade: the old haze was most of the "washed out" look. */
+scene.fog=new THREE.FogExp2(0x1a2228,.032);
 const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,.1,25);
 const camBase=new THREE.Vector3(0,1.42,2.6);
 camera.position.copy(camBase);
@@ -759,7 +760,7 @@ const compMat=new THREE.ShaderMaterial({
   uniforms:{tSrc:{value:null},tBloom:{value:null},tAO:{value:null},
     uRes:{value:new THREE.Vector2()},uTime:{value:0},
     uExposure:{value:1.15},uBloom:{value:.32},uCA:{value:.85},uGrain:{value:.055},
-    uVig:{value:.55},uSharp:{value:.35},uBarrel:{value:.02},
+    uVig:{value:.55},uSharp:{value:.45},uBarrel:{value:.02},
     uSlope:{value:new THREE.Vector3(1.06,1.015,.935)},
     uOffset:{value:new THREE.Vector3(-.01,.002,.022)},
     uPower:{value:new THREE.Vector3(1,.975,1.03)},
@@ -834,11 +835,20 @@ const compMat=new THREE.ShaderMaterial({
 
 const GRADES={
   neutral:{slope:[1,1,1],offset:[0,0,0],power:[1,1,1],sat:1,contrast:1,pivot:.42,
-           exposure:1.18,bloom:0,vig:0,grain:0,ca:0,barrel:0},
+           exposure:1.18,bloom:0,vig:0,grain:0,ca:0,barrel:0,sharp:0},
+  /* v3 daytime look — "des couleurs nettes" : the Los Santos wash made a
+     slate shirt read as bare skin. Near-neutral slope, blacks that sit
+     at black instead of lifted blue, saturation ABOVE 1 so the palette
+     reads true, and the softeners (CA fringe, grain, bloom) pulled way
+     down — sharpness is part of "net". */
+  cleanDay:{slope:[1.02,1,.97],offset:[-.004,0,.006],power:[1,.99,1.01],
+           sat:1.06,contrast:1.22,pivot:.4,exposure:1.04,bloom:.2,vig:.4,grain:.028,ca:.35,barrel:.015,sharp:.45},
   losSantosDay:{slope:[1.06,1.015,.935],offset:[-.01,.002,.022],power:[1,.975,1.03],
-           sat:.86,contrast:1.2,pivot:.38,exposure:.98,bloom:.32,vig:.55,grain:.055,ca:.85,barrel:.02},
+           sat:.86,contrast:1.2,pivot:.38,exposure:.98,bloom:.32,vig:.55,grain:.055,ca:.85,barrel:.02,sharp:.35},
+  /* the night keeps the .35 it was authored against: the day grade's
+     extra bite would only crunch the CA fringes around the one lit lamp */
   vinewoodNight:{slope:[.965,.985,1.09],offset:[-.014,-.004,.03],power:[1.04,1,.96],
-           sat:.94,contrast:1.22,pivot:.36,exposure:1.05,bloom:.48,vig:.7,grain:.075,ca:1.1,barrel:.024}
+           sat:.94,contrast:1.22,pivot:.36,exposure:1.05,bloom:.48,vig:.7,grain:.075,ca:1.1,barrel:.024,sharp:.35}
 };
 function applyGrade(name){
   const g=GRADES[name]||GRADES.losSantosDay;
@@ -850,8 +860,9 @@ function applyGrade(name){
   u.uExposure.value=g.exposure;u.uBloom.value=g.bloom;
   u.uVig.value=g.vig;u.uGrain.value=g.grain;
   u.uCA.value=g.ca;u.uBarrel.value=g.barrel;
+  u.uSharp.value=g.sharp==null?.35:g.sharp;
 }
-applyGrade("losSantosDay");
+applyGrade("cleanDay");
 
 let RT_HDR=null,RT_BRIGHT=null,RT_DOF=null,RT_LDR=null,MIPS=[];
 const BLOOM_MIPS=4;
@@ -1482,7 +1493,12 @@ function humanizeRig(rig){
   });
   J.head.scale.setScalar(1.12);
 }
-fetch("person.obj").then(r=>{
+/* v3: person.obj RETIRED — Simon's call ("ils ne ressemblent à rien") :
+   the segmented base-mesh bodies read as ragged mannequins next to the
+   capsule cast, so the capsules ARE the look again. The whole pipeline
+   above stays in place for a future, better-cut mesh — flip the flag. */
+const USE_PERSON_MESH=false;
+if(USE_PERSON_MESH)fetch("person.obj").then(r=>{
   if(!r.ok)throw new Error("HTTP "+r.status);
   return r.text();
 }).then(function(text){
@@ -2221,8 +2237,58 @@ const GUEST_SEAT={x:.82,z:-.245,yaw:-Math.PI/2};
 const guest=makeAgent("guest","guest",{});
 guest.rig.root.visible=false;guest.blob.visible=false;
 guest.state="off";           /* off | walk | sit | seated */
+guest.mode="auto";           /* auto (path) | manual (arrow keys) */
+guest.idleT=0;guest.ctl=null;
+guest.collide=collideGuest;  /* walkLayer's hook — the guest alone has one */
 guest.vPauseT=0;             /* walkLayer's gate reads it — must be a number */
 let simonLook=0;             /* Simon's head yaw toward the guest, eased in animate() */
+
+/* --- the walk is PLAYABLE: arrows (or physical WASD, which lands on
+   ZQSD for an AZERTY keyboard) steer him, screen-relative — the camera
+   is axis-aligned, so up walks into the room. The autopilot drives
+   until the first key press; nine idle seconds hand it back, so an
+   abandoned character still finds the chair. */
+const GUEST_KEYMAP={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],
+  KeyW:[0,-1],KeyS:[0,1],KeyA:[-1,0],KeyD:[1,0]};
+const guestKeys=new Set();
+addEventListener("keydown",e=>{
+  if(!GUEST_KEYMAP[e.code])return;
+  if(guest.state!=="walk"||cafeClosed)return;
+  if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;
+  if(!document.getElementById("cv-text").hidden)return;   /* panel open: arrows scroll it */
+  e.preventDefault();
+  guestKeys.add(e.code);
+  guest.mode="manual";guest.idleT=0;guest.walkTarget=null;
+});
+addEventListener("keyup",e=>{if(GUEST_KEYMAP[e.code])guestKeys.delete(e.code);});
+/* a key released while the window is unfocused never fires keyup — it
+   would stay held for ever and bias every later press into a diagonal */
+addEventListener("blur",()=>guestKeys.clear());
+document.addEventListener("visibilitychange",()=>{if(document.hidden)guestKeys.clear();});
+function guestCtl(){
+  if(guest.state!=="walk"||guest.mode!=="manual")return null;
+  let x=0,z=0;
+  guestKeys.forEach(k=>{x+=GUEST_KEYMAP[k][0];z+=GUEST_KEYMAP[k][1];});
+  return (x||z)?[x,z]:null;
+}
+/* keep him on the floor and out of the furniture: rect clamps for the
+   window bar / counter / walls, circle push-outs for the tables. The
+   seat stays reachable: its trigger ring pokes out of the T1 circle
+   (GUEST_SEAT sits 1.2 m from Simon's circle, .93 from T1's). Simon has
+   his own circle — the T1 one stops 1 cm short of his chair, and walking
+   INTO the man you came to meet is the one clip nobody would forgive. */
+const GUEST_BLOCKERS=[[2.65,1.81,.8],[5.19,-2.38,.85],[5.03,2.18,.8],[.48,3.19,.8],
+  [0,-.15,.92],[0,-1.12,.52]];
+function collideGuest(a){
+  a.pos.x=Math.max(-1.35,Math.min(6.85,a.pos.x));
+  a.pos.z=Math.max(-2.35,Math.min(3.75,a.pos.z));
+  for(let i=0;i<GUEST_BLOCKERS.length;i++){
+    const b=GUEST_BLOCKERS[i];
+    const dx=a.pos.x-b[0],dz=a.pos.z-b[1];
+    const d=Math.hypot(dx,dz);
+    if(d<b[2]&&d>1e-4){a.pos.x=b[0]+dx/d*b[2];a.pos.z=b[1]+dz/d*b[2];}
+  }
+}
 function startSit(a){
   a.state="sit";a.walkTarget=null;
   a.sit={k:0,fx:a.pos.x,fz:a.pos.z,rY:.56-.855*a.rig.root.scale.x};
@@ -2469,8 +2535,30 @@ function tickVisitor(a,dtT){
 }
 function tickGuest(a,dtT){
   if(a.state==="walk"){
+    /* the chair claims him — same trigger whether he walked himself or
+       the autopilot did: this ring is the ONLY way the dialogue starts */
+    if(Math.hypot(GUEST_SEAT.x-a.pos.x,GUEST_SEAT.z-a.pos.z)<.55){startSit(a);return;}
+    if(a.mode==="manual"){
+      a.walkTarget=null;
+      /* "idle" means NO KEY DOWN, not "no keydown event": the OS only
+         auto-repeats the last key pressed, so a player holding a
+         direction can fire zero events for minutes. Gating on the held
+         set is what stops the autopilot stealing the character
+         mid-stride. */
+      if(guestKeys.size)a.idleT=0;else a.idleT+=dtT;
+      if(a.idleT>9){                   /* stranded mid-room: autopilot resumes */
+        a.mode="auto";
+        let bi=0,bd=1e9;
+        for(let i=0;i<GUEST_PATH.length;i++){
+          const d=Math.hypot(GUEST_PATH[i][0]-a.pos.x,GUEST_PATH[i][1]-a.pos.z);
+          if(d<bd){bd=d;bi=i;}
+        }
+        a.vLeg=Math.max(0,bi-1);       /* aim at the nearest waypoint, walk on */
+      }
+      return;
+    }
     const wp=GUEST_PATH[a.vLeg+1];
-    if(!wp){startSit(a);return;}       /* path done → into the chair */
+    if(!wp){startSit(a);return;}       /* end of path: safety net for the ring */
     if(Math.hypot(wp[0]-a.pos.x,wp[1]-a.pos.z)<.16){a.vLeg++;return;}
     a.walkTarget=[wp[0],wp[1]];
     return;
@@ -2492,7 +2580,13 @@ function angleDamp(cur,target,k,dt){
 const SEAT_POSE={hipL:{x:-1.35},hipR:{x:-1.35},kneeL:{x:1.2},kneeR:{x:1.2}};
 function walkLayer(a,buf,ac,dt){
   let v=0;
-  if(a.active&&a.walkTarget&&a.vPauseT<=0){
+  if(a.ctl){                       /* the guest, under arrow-key control */
+    const cl=Math.hypot(a.ctl[0],a.ctl[1]);
+    const vx=a.ctl[0]/cl*a.speed,vz=a.ctl[1]/cl*a.speed;
+    a.pos.x+=vx*dt;a.pos.z+=vz*dt;
+    a.yaw=angleDamp(a.yaw,Math.atan2(vx,vz),.14,dt);
+    v=a.speed;
+  }else if(a.active&&a.walkTarget&&a.vPauseT<=0){
     const dx=a.walkTarget[0]-a.pos.x,dz=a.walkTarget[1]-a.pos.z;
     const d=Math.hypot(dx,dz);
     if(d>.02){
@@ -2503,6 +2597,13 @@ function walkLayer(a,buf,ac,dt){
       v=Math.hypot(vx,vz);
     }
   }
+  /* the guest collides in BOTH modes — the autopilot's straight line back
+     to the path, after the player parked him behind a table, would
+     otherwise walk him through the tabletop. The circle push-out slides
+     him around the edge while the waypoint pull keeps him going.
+     WALK ONLY: the chair itself sits inside the T1 circle (that is what
+     makes it a chair), so collide would evict the seated guest. */
+  if(a.collide&&a.state==="walk")a.collide(a);
   a.walkK=damp(a.walkK,Math.min(1,v/.25),.12,dt);
   if(a.walkK<.02){a.rig.root.position.y=a.rootY;return;}
   const stepLen=.52*a.rig.root.scale.x;
@@ -3048,7 +3149,7 @@ if("speechSynthesis"in window){speechSynthesis.getVoices();speechSynthesis.onvoi
 /* ---------------- HOW-TO OVERLAY ---------------- */
 const HOWTO={
  en:{title:"Welcome to my virtual coffee\u00A0☕",
-     steps:["🪑 You'll walk in and take the chair at my table, in a small café",
+     steps:["🪑 Arrow keys walk you in — come take the chair at my table",
             "👆 Hover the résumé on the table — it lifts up. Tap any section",
             "🍺 Tap me — Simon — for the off-the-record story",
             "🔊 It's my real voice — turn your sound on",
@@ -3140,12 +3241,18 @@ function startEntrance(){
   guest.yaw=Math.atan2(GUEST_PATH[s+1][0]-GUEST_PATH[s][0],
                        GUEST_PATH[s+1][1]-GUEST_PATH[s][1]);
   guest.state="walk";
+  guest.mode="auto";guest.idleT=0;guestKeys.clear();
+  /* the walk is yours to drive (desktop); on touch the autopilot walks */
+  if(TOUCH)promptEl.style.display="none";
+  else promptEl.textContent="Arrow keys to walk in — your seat is at the table ☕";
   /* the stroller yields the entrance beat — unless he's already inside */
   if(!visitor.active)visitor.vTimer=Math.max(visitor.vTimer,16);
 }
 function arriveAtTable(){
   if(entered)return;
   entered=true;
+  promptEl.textContent=TOUCH?DATA[lang].promptTouch:DATA[lang].prompt;
+  promptEl.style.display="";
   welcomeUsed=true;
   const el=welcomeEl;welcomeEl=null;
   if(el){try{el.pause();el.currentTime=0;el.volume=1;}catch(_){}}
@@ -3278,10 +3385,9 @@ function dampV3(v,target,k,dt){
 }
 function updateCamera(dt,t){
   updateDirection(t);
-  /* the walk to the chair is a cutscene too: letterbox from the click to
-     the end of the welcome */
-  const cine=speaking||guest.state==="walk"||guest.state==="sit";
-  document.body.classList.toggle("cine",cine&&!RM&&!cafeClosed);
+  /* letterbox only while Simon speaks — the walk is GAMEPLAY now (the
+     visitor drives it with the arrows), and the hint must stay readable */
+  document.body.classList.toggle("cine",speaking&&!RM&&!cafeClosed);
   if(hardCut){hardCut=false;}
   else{
     dampV3(camPos,shot.pos,.055,dt);
@@ -3341,6 +3447,7 @@ function animate(){
   const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;
 
   if(!cafeClosed){
+    guest.ctl=guestCtl();      /* read the arrows at frame rate, not tick rate */
     updateLife(dt);
     if(!RM)fan.rotation.y+=dt*1.6;
   }

@@ -1,13 +1,16 @@
 # Virtual Coffee
 
-An interactive 3D résumé. "Take a seat" walks your character in through the
-door and across the room to the chair at Simon's table — the welcome (and the
-clickable CV) waits until you are actually seated. The CV is lying on the
-table, and tapping a section makes Simon tell you about it out loud — in his
-own recorded voice. Tap Simon himself and he orders a round of beers for the
-off-the-record version. English only (the FR mode was retired in favour of the
-recorded voice). Under `prefers-reduced-motion` the walk is skipped: you appear
-seated and the welcome starts at once.
+An interactive 3D résumé. "Take a seat" spawns your character by the door and
+**the arrow keys are yours** (physical WASD works too, which lands on ZQSD for
+AZERTY): walk him across the room to the chair at Simon's table — the welcome
+(and the clickable CV) waits until you are actually seated. An autopilot walks
+him in until you touch a key, and takes over again after nine idle seconds, so
+touch devices and idle visitors still end up in the chair. The CV is lying on
+the table, and tapping a section makes Simon tell you about it out loud — in
+his own recorded voice. Tap Simon himself and he orders a round of beers for
+the off-the-record version. English only (the FR mode was retired in favour of
+the recorded voice). Under `prefers-reduced-motion` the walk is skipped: you
+appear seated and the welcome starts at once.
 
 **Live** : <https://ndashiz.be/virtualcoffee/>
 
@@ -82,19 +85,16 @@ procedural canvas textures as before — the chalkboard still repaints through
 the table, Simon and the résumé are all procedural: the conversation survives
 on a bare parquet.
 
-`person.obj` upgrades the NPCs from capsule figures to a real body. It is a
-decimated base mesh cut offline into fifteen segments, each exported **in the
-local space of the rig joint that carries it** — so the swap is just "remove
-the cylinder under this joint, add this mesh under the same joint", and every
-behaviour written for the capsules (gaze, turn-taking, sip, walk, `reskin()`)
-drives the new bodies untouched. The segments keep the mesh's own proportions;
-it is the rig's REST offsets that move to match (rotations are
-length-independent, and the mesh's hip line happens to sit where the rig's
-pelvis already was, so seated heights hold). Segments are coloured by the same
-shirt/pants/skin slots, lightly inflated so they read as clothes; eyes, mouth
-and hair cap are refitted onto the sculpted head, which is scaled up 12% to
-stay legible next to Simon. The drinker rides the same mesh a size down, Simon
-stays bespoke, and if the fetch fails the capsules simply remain.
+`person.obj` is currently **retired** (`USE_PERSON_MESH=false` in the scene):
+the segmented base-mesh bodies read as ragged mannequins next to the capsule
+cast, so the capsule people are the look again — consistent with Simon, who
+was always bespoke. The whole swap pipeline is still in the file and the asset
+still ships, for a future better-cut mesh: it is a decimated base mesh cut
+offline into fifteen segments, each exported **in the local space of the rig
+joint that carries it**, so the swap is just "remove the cylinder under this
+joint, add this mesh under the same joint" and every behaviour written for the
+capsules (gaze, turn-taking, sip, walk, `reskin()`) drives either body
+untouched. Flip the flag to try again.
 
 No build step, no bundler, no dependencies to install. Open `index.html` or:
 
