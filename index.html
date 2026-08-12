@@ -566,7 +566,7 @@ const AUDIO={
    not be able to throw in here. */
 const PING=window.VCPing||{tap(){},whenClosed(){}};
 
-let lang=VC.lang, current=null, hoverKey=null, speaking=false, audioEl=null, queue=[];
+let lang=VC.lang, current=null, hoverKey=null, speaking=false, audioEl=null, queue=[], lastKey=null;
 const RM=matchMedia("(prefers-reduced-motion: reduce)").matches;
 const TOUCH=matchMedia("(pointer: coarse)").matches;
 var paperLifted=false;      /* touch: sheet stays up until you tap away */
@@ -1383,7 +1383,7 @@ function groupGeometry(g){
    fails, nobody notices: the capsules are still built first. */
 const PERSON={parts:new Map(),ready:false};
 const HUMANS=new Set(["standA","standB","standC","barista","worker","reader",
-  "visitor","drinker"]);
+  "visitor","drinker","guest"]);
 /* Anatomy of person.obj, printed by the preprocessor. v1 forced the mesh
    into the capsule rig's stylised segment lengths (legs stretched 1.6x,
    torso squashed) — deformed. v2 keeps the mesh's own proportions and
@@ -1925,6 +1925,8 @@ function pickGazeTarget(a){
   if(a.group&&a.group.speaker&&a.group.speaker!==a)
     c.push({w:6,obj:a.group.speaker.rig.J.head});
   c.push({w:2.5,obj:simonHead});
+  /* someone just walked in — patrons glance over */
+  if(a!==guest&&guest.state==="walk")c.push({w:4,obj:guest.rig.J.head});
   if(a.prop)c.push({w:2,obj:a.prop});
   c.push({w:1,pos:[(Math.random()-.5)*6,1+Math.random()*.9,-1-Math.random()*3]});
   let tot=0;for(let i=0;i<c.length;i++)tot+=c[i].w;
@@ -2205,6 +2207,34 @@ function reskin(a){
   a.seed=Math.random()*100;
 }
 
+/* The GUEST — the person who just clicked "Take a seat". He enters by the
+   door (off-frame right, same convention as the stroller: no door to
+   animate, the entrance is implied), crosses the room on camera, and sits
+   on the spare chair at Simon's table. The welcome — and every
+   interaction, since pick() and the keyboard both gate on `entered` —
+   waits until he is IN the chair: arriveAtTable() is what flips it.
+   Seat numbers come from the model (assise.1: top y=.503, centre
+   (.763,-.256), backrest on +x → he sits facing -x, Simon front-left);
+   the path stays clear of T3, the T1 tabletop corner and the rug props. */
+const GUEST_PATH=[[6.5,-1.5],[5.0,-1.12],[3.4,-.72],[2.2,-.28],[1.5,.32],[1.0,.18]];
+const GUEST_SEAT={x:.82,z:-.245,yaw:-Math.PI/2};
+const guest=makeAgent("guest","guest",{});
+guest.rig.root.visible=false;guest.blob.visible=false;
+guest.state="off";           /* off | walk | sit | seated */
+guest.vPauseT=0;             /* walkLayer's gate reads it — must be a number */
+let simonLook=0;             /* Simon's head yaw toward the guest, eased in animate() */
+function startSit(a){
+  a.state="sit";a.walkTarget=null;
+  a.sit={k:0,fx:a.pos.x,fz:a.pos.z,rY:.56-.855*a.rig.root.scale.x};
+  playShot(a,1.05,(k,buf)=>{           /* brace on the way down */
+    const p=pulse(k);
+    addPose(buf,{chest:{x:.18*p},
+      shoulderL:{x:-.55*p,z:-.25*p},shoulderR:{x:-.55*p,z:.25*p},
+      elbowL:{x:-.35*p},elbowR:{x:-.35*p}},1);
+  });
+  arriveAtTable();   /* "at the table" is when the dialogue starts */
+}
+
 /* --- per-kind behaviour, decisions at 10 Hz --- */
 function tickStand(a,dtT){
   if(a.group&&a.group.speaker===a){
@@ -2437,6 +2467,20 @@ function tickVisitor(a,dtT){
   }
   a.walkTarget=[wp[0],wp[1]];
 }
+function tickGuest(a,dtT){
+  if(a.state==="walk"){
+    const wp=GUEST_PATH[a.vLeg+1];
+    if(!wp){startSit(a);return;}       /* path done → into the chair */
+    if(Math.hypot(wp[0]-a.pos.x,wp[1]-a.pos.z)<.16){a.vLeg++;return;}
+    a.walkTarget=[wp[0],wp[1]];
+    return;
+  }
+  /* settling in / seated: watch Simon whenever he talks (and while
+     sitting down — he is being greeted); otherwise the free gaze system
+     wanders, résumé included via a.prop */
+  if(a.state==="sit"||a.state==="seated")
+    a.gazeLock=(a.state==="sit"||speaking)?{obj:simonHead}:null;
+}
 
 /* --- 60 Hz layers --- */
 function angleDamp(cur,target,k,dt){
@@ -2474,6 +2518,23 @@ function walkLayer(a,buf,ac,dt){
   },a.walkK);
   a.rig.root.position.y=a.rootY+Math.abs(s)*.022*a.walkK;
 }
+/* the guest's sit-down: lower, slide onto the seat, settle the yaw — then
+   hold the seated base for good. His automatic rootY<0 path is gated off
+   in animateAgents: this blend owns SEAT_POSE entirely, so the pose grows
+   with the descent instead of snapping the moment rootY dips negative. */
+function sitLayer(a,buf,dt){
+  const s=a.sit;
+  if(s.k<1){
+    s.k=Math.min(1,s.k+dt/1.05);
+    const e=easeInOut(s.k);
+    a.pos.x=s.fx+(GUEST_SEAT.x-s.fx)*e;
+    a.pos.z=s.fz+(GUEST_SEAT.z-s.fz)*e;
+    a.yaw=angleDamp(a.yaw,GUEST_SEAT.yaw,.14,dt);
+    a.rootY=s.rY*e;
+    if(s.k>=1)a.state="seated";
+  }
+  addPose(buf,SEAT_POSE,easeInOut(s.k));
+}
 function typingLayer(a,buf,ac){
   if(!a.typing)return;
   /* typing pause ~1 s in 6: hands still, head lifts a touch —
@@ -2494,8 +2555,9 @@ function animateAgents(dt){
     a.clock+=dt*a.rateMul;
     const ac=a.clock;
     clearPose(a.buf);
-    if(a.rootY<0)addPose(a.buf,SEAT_POSE,1);      /* seated base */
+    if(a.rootY<0&&!a.sit)addPose(a.buf,SEAT_POSE,1);  /* seated base (guest: sitLayer owns it) */
     walkLayer(a,a.buf,ac,dt);
+    if(a.sit)sitLayer(a,a.buf,dt);
     shotsLayer(a,a.buf,dt);
     listenerLayer(a,a.buf,dt);
     laughLayer(a,a.buf,ac);
@@ -2531,6 +2593,7 @@ function behaviourTick(dtT){
       case "drinker":tickDrinker(a,dtT);break;
       case "reader":tickReader(a,dtT);break;
       case "visitor":tickVisitor(a,dtT);break;
+      case "guest":tickGuest(a,dtT);break;
     }
   }
 }
@@ -2792,8 +2855,11 @@ const paperUp ={pos:new THREE.Vector3(0,1.00,.50),rot:-.85};
 let paperT=0;
 paper.position.copy(paperRest.pos);paper.rotation.x=paperRest.rot;
 
-/* ---------------- INTERACTION ---------------- */
-var entered=false;
+/* ---------------- INTERACTION ----------------
+   `entering` covers the walk from the door to the chair; `entered` only
+   flips once the guest is IN the chair — pick() and the keyboard hang off
+   it, so nothing is clickable (and nothing talks) before he sits. */
+var entered=false,entering=false,welcomeEl=null,welcomeUsed=false;
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();
 let paperHover=false;
 function pick(e){
@@ -2910,14 +2976,20 @@ function ttsStart(text){
   queue=text.match(/[^.!?…]+[.!?…]+["']?|\S[^.!?…]*$/g)||[text];
   next(code,v);
 }
-function speak(text,key){
-  stopSpeaking();speaking=true;
+/* `el` (optional): a pre-made Audio for the same file — the entrance
+   blesses the welcome element inside the click gesture, then hands it
+   here once the guest is seated, well outside any gesture. */
+function speak(text,key,el){
+  stopSpeaking();speaking=true;lastKey=key||null;
   const f=key&&AUDIO[lang][key];
   if(f){
-    audioEl=new Audio(f);
+    audioEl=el||new Audio(f);
     try{attachAnalyser(audioEl);}catch(_){lipAnalyser=null;}
-    audioEl.addEventListener("loadedmetadata",()=>{
-      cues=buildCues(text,audioEl.duration||1);
+    /* a blessed element may have its metadata already — the event
+       won't refire, so build the cues from what's there */
+    if(audioEl.readyState>=1&&audioEl.duration)cues=buildCues(text,audioEl.duration);
+    else audioEl.addEventListener("loadedmetadata",()=>{
+      if(audioEl)cues=buildCues(text,audioEl.duration||1);
     });
     audioEl.addEventListener("timeupdate",()=>{
       if(!audioEl)return;
@@ -2976,12 +3048,12 @@ if("speechSynthesis"in window){speechSynthesis.getVoices();speechSynthesis.onvoi
 /* ---------------- HOW-TO OVERLAY ---------------- */
 const HOWTO={
  en:{title:"Welcome to my virtual coffee\u00A0☕",
-     steps:["🪑 You're sitting across the table from me, in a small café",
+     steps:["🪑 You'll walk in and take the chair at my table, in a small café",
             "👆 Hover the résumé on the table — it lifts up. Tap any section",
             "🍺 Tap me — Simon — for the off-the-record story",
             "🔊 It's my real voice — turn your sound on",
             "📄 In a hurry? “Text résumé” gives you the flat version"],
-     stepsTouch:["🪑 You're sitting across the table from me, in a small café",
+     stepsTouch:["🪑 You'll walk in and take the chair at my table, in a small café",
             "👆 Tap the résumé to lift it, then tap any section",
             "🍺 Tap me — Simon — for the off-the-record story",
             "🔊 It's my real voice — turn your sound on",
@@ -3013,12 +3085,78 @@ function dismissHowto(){
   el.classList.add("hide");
   setTimeout(()=>el.style.display="none",450);
 }
+/* ---------------- THE ENTRANCE ----------------
+   Clicking "Take a seat" no longer teleports you into the chair: your
+   character walks in by the door, crosses the room and sits down at the
+   table — the welcome starts only once he is in the chair. Two things
+   must happen INSIDE this click (the last user gesture before the
+   welcome): resuming the AudioContext, and blessing the welcome's Audio
+   element with a volume-0 play() — Safari refuses a cold play() eight
+   seconds later, but resuming a blessed element is fine everywhere. */
+function startEntrance(){
+  entering=true;
+  try{
+    if(!lipCtx)lipCtx=new (window.AudioContext||window.webkitAudioContext)();
+    lipCtx.resume();
+  }catch(_){}
+  const f=AUDIO[lang]&&AUDIO[lang].welcome;
+  if(f){
+    welcomeEl=new Audio(f);
+    welcomeEl.preload="auto";
+    welcomeEl.volume=0;                /* the blessing must not be heard */
+    try{
+      const p=welcomeEl.play();
+      if(p&&p.then)p.then(()=>{
+        if(!welcomeUsed&&welcomeEl){welcomeEl.pause();welcomeEl.currentTime=0;}
+      }).catch(()=>{});
+    }catch(_){}
+  }
+  reskin(guest);                       /* a fresh coat every visit — it's you */
+  /* the shared wardrobe holds two skin-like tans — fine on a background
+     stroller, naked-looking on the guest of honour: re-pick the shirt
+     from the clearly-clothed end of the rack */
+  const GUEST_SHIRTS=[0x2c4a6e,0x35543f,0x6e4a63,0x7d3b3b];
+  const sc=GUEST_SHIRTS[(Math.random()*GUEST_SHIRTS.length)|0];
+  guest.rig.root.traverse(m=>{
+    if(m.isMesh&&m.userData.slot==="shirt")m.material=stdMat(sc,.9,0,.25);
+  });
+  guest.rig.root.scale.setScalar(1);
+  guest.speed=.74;
+  guest.active=true;guest.vPauseT=0;guest.walkK=0;guest.walkPhase=0;
+  guest.prop=paper;                    /* idle glances go to the résumé */
+  guest.rig.root.visible=true;guest.blob.visible=true;
+  if(RM){                              /* no cutscene: already seated, talk now */
+    guest.pos.set(GUEST_SEAT.x,0,GUEST_SEAT.z);
+    guest.yaw=GUEST_SEAT.yaw;
+    guest.rootY=.56-.855*guest.rig.root.scale.x;
+    guest.sit={k:1,fx:GUEST_SEAT.x,fz:GUEST_SEAT.z,rY:guest.rootY};
+    guest.state="seated";
+    arriveAtTable();
+    return;
+  }
+  const s=camera.aspect<.75?2:0;       /* portrait: the door lane is off-frame — skip it */
+  guest.vLeg=s;
+  guest.pos.set(GUEST_PATH[s][0],0,GUEST_PATH[s][1]);
+  guest.yaw=Math.atan2(GUEST_PATH[s+1][0]-GUEST_PATH[s][0],
+                       GUEST_PATH[s+1][1]-GUEST_PATH[s][1]);
+  guest.state="walk";
+  /* the stroller yields the entrance beat — unless he's already inside */
+  if(!visitor.active)visitor.vTimer=Math.max(visitor.vTimer,16);
+}
+function arriveAtTable(){
+  if(entered)return;
+  entered=true;
+  welcomeUsed=true;
+  const el=welcomeEl;welcomeEl=null;
+  if(el){try{el.pause();el.currentTime=0;el.volume=1;}catch(_){}}
+  speak(HOWTO[lang].welcome,"welcome",el);
+}
 document.getElementById("enterBtn").addEventListener("click",()=>{
   if(cafeClosed){VC.openCV();return;}   /* closed: the button is the way to the CV, not a seat */
-  entered=true;
+  if(entering)return;
   dismissHowto();
   PING.tap("enter");
-  speak(HOWTO[lang].welcome,"welcome");
+  startEntrance();
 });
 /* Closed only: tapping the backdrop puts the card away so you can look at
    the dark room. Nothing else is behind it — the pill and the sign carry
@@ -3043,7 +3181,7 @@ document.getElementById("howto").addEventListener("click",e=>{
    the no-WebGL path, not this one. */
 function closeCafe(){
   if(cafeClosed)return;
-  if(entered)return;      /* already seated — nobody gets thrown out mid-sentence */
+  if(entered||entering)return;  /* seated, or walking to the chair — nobody gets thrown out */
   cafeClosed=true;
 
   /* Everyone has gone home, and so have Simon, his coffee, his croissant
@@ -3140,7 +3278,10 @@ function dampV3(v,target,k,dt){
 }
 function updateCamera(dt,t){
   updateDirection(t);
-  document.body.classList.toggle("cine",speaking&&!RM&&!cafeClosed);
+  /* the walk to the chair is a cutscene too: letterbox from the click to
+     the end of the welcome */
+  const cine=speaking||guest.state==="walk"||guest.state==="sit";
+  document.body.classList.toggle("cine",cine&&!RM&&!cafeClosed);
   if(hardCut){hardCut=false;}
   else{
     dampV3(camPos,shot.pos,.055,dt);
@@ -3207,6 +3348,13 @@ function animate(){
   /* Simon */
   simonHead.position.y=1.6+Math.sin(t*1.2)*.008;
   simonHead.rotation.z=Math.sin(t*.9)*.02;
+  /* he clocks you coming in and stays with you through the welcome —
+     head yaw only, capped at a natural turn; back to camera afterwards */
+  const watchGuest=guest.state==="walk"||guest.state==="sit"||
+    (speaking&&lastKey==="welcome"&&guest.state!=="off");
+  simonLook+=((watchGuest?clampN(Math.atan2(guest.pos.x,guest.pos.z+1.08),1):0)
+    -simonLook)*Math.min(1,dt*2.2);
+  simonHead.rotation.y=simonLook;
   const blinkT=t%3.7;
   const eyeS=blinkT<.12?.12:1;
   eyeGroups.forEach(g=>g.scale.y=eyeS);

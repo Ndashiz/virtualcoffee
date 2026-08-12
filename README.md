@@ -1,10 +1,13 @@
 # Virtual Coffee
 
-An interactive 3D résumé. You sit across a café table from Simon, his CV is
-lying on the table, and tapping a section makes him tell you about it out loud —
-in his own recorded voice. Tap Simon himself and he orders a round of beers for
-the off-the-record version. English only (the FR mode was retired in favour of
-the recorded voice).
+An interactive 3D résumé. "Take a seat" walks your character in through the
+door and across the room to the chair at Simon's table — the welcome (and the
+clickable CV) waits until you are actually seated. The CV is lying on the
+table, and tapping a section makes Simon tell you about it out loud — in his
+own recorded voice. Tap Simon himself and he orders a round of beers for the
+off-the-record version. English only (the FR mode was retired in favour of the
+recorded voice). Under `prefers-reduced-motion` the walk is skipped: you appear
+seated and the welcome starts at once.
 
 **Live** : <https://ndashiz.be/virtualcoffee/>
 
