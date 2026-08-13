@@ -2,14 +2,13 @@
 
 An interactive 3D résumé. "Take a seat" spawns your character by the door and
 **the arrow keys are yours** (physical WASD works too, which lands on ZQSD for
-AZERTY): a third-person camera follows you across the room — drag to look,
-wheel to pull back, Shift to run — to the chair across the table from Simon,
-marked by a ring on the floor, an arrow and a sign above it. Step into the
-ring and the interview starts — the welcome, and the clickable CV with it,
+AZERTY, or a tap on the floor — the only control a phone has): nothing moves
+until you move it, so Simon calls you over out loud. A third-person camera
+follows you across the room — drag to look, wheel to pull back, Shift to run —
+to the chair across the table from him, marked by a ring on the floor, an
+arrow and a sign above it. Step into the ring and the interview starts — the welcome, and the clickable CV with it,
 waits until you are actually in the chair. When Simon finishes the outro the
-barista comes over, says they're closing, and the room empties around you. An autopilot walks you in until you
-touch a key, and takes over again after nine idle seconds, so touch devices and
-idle visitors still end up seated. The CV is lying on the table, and tapping a
+barista comes over, says they're closing, and the room empties around you. The CV is lying on the table, and tapping a
 section makes Simon tell you about it out loud — in his own recorded voice,
 while he looks you in the eye. Tap Simon himself and he orders a round of beers
 for the off-the-record version. There is a mute pill (or `M`) for the voice;

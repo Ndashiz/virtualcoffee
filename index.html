@@ -584,6 +584,8 @@ const DATA={
    languages:`French is my mother tongue. English, fluent, clearly, since I've been talking your ear off. And Dutch, intermediate, which in Brussels is basically a survival skill and a daily act of courage.`,
    contact:`So, if any of this resonated, the easiest way to reach me is email: goffin dot simon at gmail dot com. I'm here in Brussels. And look, the virtual coffee was nice, but I'm always up for a real one. Just say the word.`,
    about:`Ah, you want to explore the personal stuff? Then this isn't really a virtual coffee anymore. Hang on, let me order us a couple of beers, one for you, one for me. There we go. Much better. So, off the clock, I'm a builder, and I mean that literally. I bought a place in Brussels and I've spent the last year and a half renovating it with my own hands, the woodwork, the electricity, all of it. I said "a weekend project" out loud once. The house heard me and laughed. I own two of the four floors, and I'm also the syndic for the building, which is a fancy way of saying I volunteered to manage everyone's problems, including my own. The other thing I can't leave alone is AI. Honestly, this whole place you're sitting in? I built it just to play with the tech, because I really believe if you're not learning to work with AI right now, you'll be outdated by Tuesday. I'd rather be early than obsolete. Beyond that, I'm a people person, I get my energy from a full room. And I run, a few challenge races a year that I actually train for, mostly so the finish line stays a goal and not a medical event.`,
+   walkin:`Hey! Yes, you, by the door. If you fancy a chat, come and sit with me — just walk over using your arrow keys. The chair with the arrow over it is yours.`,
+   walkinTouch:`Hey! Yes, you, by the door. If you fancy a chat, come and sit with me — just tap the floor and you'll walk over. The chair with the arrow over it is yours.`,
    outro:`Well, that's about everything I can tell you about myself. You've reached the end. And look, I'm aware this has been a bit of a one-way street, me talking, you listening, which is not really my style, I promise. In real life I'm much more fun, mostly because you get to talk back. So if any of this landed with you, don't be a stranger. Drop me a message on LinkedIn and let's turn this virtual coffee into a real one. I'd genuinely love the actual conversation. See you on the other side.`},
   /* ── Closed café ─────────────────────────────────────────────────
      Every word the closed state puts on screen lives here, beside the
@@ -1234,6 +1236,143 @@ function artTex(kind){return ctex(256,320,(x,w,h)=>{
   }
   x.strokeStyle="rgba(0,0,0,.15)";x.lineWidth=12;x.strokeRect(0,0,w,h);
 });}
+/* ---------------- FRAMED PRESS CLIPPINGS ----------------
+   Two of Simon's own headlines, framed on the wall the way a café frames
+   its one good review. The cartoon is the point: a CV that says "fast
+   track" is a bullet, a drawing of a man taking the stairs three at a
+   time while the queue shuffles is a story you remember. Painted to
+   canvas like the chalkboard, and repainted on VC.fontsReady — text
+   baked before the webfont lands falls back to a system face. */
+const PRESS=[
+  {year:"2022",paper:"THE CONSULTING TIMES",
+   head:"Fast-tracked at EY: Senior in one year, not two",
+   sub:"Colleagues report a man visibly skipping steps",
+   art:"stairs"},
+  {year:"2024",paper:"THE BRUSSELS PRODUCT REVIEW",
+   head:"Made product owner of two teams at Degroof Petercam",
+   sub:"Sources confirm he now attends two stand-ups before nine",
+   art:"juggle"}
+];
+function drawPress(c,a){
+  const x=c.getContext("2d"),w=c.width,h=c.height;
+  x.fillStyle="#efe7d5";x.fillRect(0,0,w,h);
+  /* paper tooth */
+  for(let i=0;i<700;i++){
+    x.fillStyle="rgba(120,100,70,"+(Math.random()*.045)+")";
+    x.fillRect(Math.random()*w,Math.random()*h,1.5,1.5);
+  }
+  const ink="#1b2a33",dim="rgba(27,42,51,.42)";
+  /* masthead */
+  x.fillStyle=ink;x.textAlign="center";
+  x.font='700 25px "Space Grotesk", sans-serif';
+  x.fillText(a.paper,w/2,44);
+  x.strokeStyle=ink;x.lineWidth=3;
+  x.beginPath();x.moveTo(26,58);x.lineTo(w-26,58);x.stroke();
+  x.font='400 15px "Space Grotesk", sans-serif';
+  x.fillStyle=dim;
+  x.textAlign="left";x.fillText(a.year,28,80);
+  x.textAlign="right";x.fillText("BRUSSELS",w-28,80);
+  /* headline, wrapped by hand */
+  x.fillStyle=ink;x.textAlign="left";
+  x.font='700 30px "Space Grotesk", sans-serif';
+  const words=a.head.split(" ");let line="",y=120;
+  for(let i=0;i<words.length;i++){
+    const t=line?line+" "+words[i]:words[i];
+    if(x.measureText(t).width>w-56&&line){x.fillText(line,28,y);y+=34;line=words[i];}
+    else line=t;
+  }
+  x.fillText(line,28,y);y+=26;
+  x.font='italic 400 17px "Space Grotesk", sans-serif';
+  x.fillStyle=dim;x.fillText(a.sub,28,y);y+=20;
+  /* the cartoon, boxed like a press photo */
+  const bx=28,by=y+4,bw=w-56,bh=h-by-58;
+  x.fillStyle="#e2d8c2";x.fillRect(bx,by,bw,bh);
+  x.strokeStyle=dim;x.lineWidth=2;x.strokeRect(bx,by,bw,bh);
+  x.save();x.beginPath();x.rect(bx,by,bw,bh);x.clip();
+  const cx=bx+bw/2,cy=by+bh/2;
+  function guy(gx,gy,s,col,arms){
+    x.fillStyle=col;
+    x.beginPath();x.arc(gx,gy-30*s,11*s,0,7);x.fill();       /* head */
+    x.fillRect(gx-9*s,gy-19*s,18*s,26*s);                     /* body */
+    x.lineWidth=4*s;x.strokeStyle=col;
+    x.beginPath();                                            /* legs */
+    x.moveTo(gx-4*s,gy+7*s);x.lineTo(gx-10*s,gy+26*s);
+    x.moveTo(gx+4*s,gy+7*s);x.lineTo(gx+11*s,gy+26*s);
+    if(arms){x.moveTo(gx-9*s,gy-12*s);x.lineTo(gx-22*s,gy-24*s);
+             x.moveTo(gx+9*s,gy-12*s);x.lineTo(gx+22*s,gy-24*s);}
+    x.stroke();
+  }
+  if(a.art==="stairs"){
+    /* the gag has to be ONE picture: a staircase climbing across the
+       whole frame, two colleagues plodding up it a step at a time, and
+       Simon airborne over the top with the speed lines still behind him */
+    const sw=Math.round(bw*.11),base=by+bh-14,rise=30;
+    x.fillStyle="#c9bda3";
+    for(let i=0;i<4;i++){
+      const top=base-(i+1)*rise;
+      x.fillRect(bx+12+i*sw,top,sw+1,base-top);
+    }
+    const px0=bx+12+4*sw,ptop=base-4*rise;
+    x.fillRect(px0,ptop,bx+bw-12-px0,base-ptop);
+    guy(bx+12+sw*.5,base-rise,.5,"#8a8272",false);
+    guy(bx+12+sw*1.5,base-rise*2,.5,"#8a8272",false);
+    x.strokeStyle="#f4b740";x.lineWidth=3;x.lineCap="round";
+    for(let i=0;i<3;i++){                       /* trailing, not floating */
+      const yy=ptop-46+i*13;
+      x.beginPath();x.moveTo(bx+12+sw*1.9,yy);x.lineTo(bx+12+sw*2.7,yy-3);x.stroke();
+    }
+    guy(bx+12+sw*3.25,ptop-34,.82,"#14263d",true);
+    x.fillStyle="#14263d";x.font='700 17px "Space Grotesk", sans-serif';
+    x.textAlign="center";x.fillText("EY",(px0+bx+bw-12)/2,ptop+30);
+  }else{
+    /* one man, two teams orbiting him like juggled cups */
+    guy(cx,cy+16,1.05,"#14263d",true);
+    [[-1,"#f4b740"],[1,"#4fd1c5"]].forEach(function(p,k){
+      const ox=cx+p[0]*74;
+      x.strokeStyle=p[1];x.lineWidth=3;
+      x.beginPath();x.ellipse(ox,cy-6,34,26,0,0,7);x.stroke();
+      for(let i=0;i<3;i++)guy(ox-18+i*18,cy+2,.42,p[1],false);
+      x.fillStyle=p[1];x.font='700 13px "Space Grotesk", sans-serif';
+      x.textAlign="center";x.fillText("TEAM "+(k+1),ox,cy+46);
+    });
+    x.strokeStyle="#14263d";x.lineWidth=2;
+    x.beginPath();x.arc(cx,cy-34,30,3.5,6.0);x.stroke();      /* juggling arc */
+  }
+  x.restore();
+  x.fillStyle=dim;x.font='400 14px "Space Grotesk", sans-serif';
+  x.textAlign="left";
+  x.fillText("Photo: our correspondent",bx,h-24);
+  x.textAlign="right";x.fillText("p.1",w-28,h-24);
+  /* a whisper of a fold, so it reads as newsprint under glass */
+  x.strokeStyle="rgba(0,0,0,.06)";x.lineWidth=8;
+  x.beginPath();x.moveTo(w*.52,0);x.lineTo(w*.5,h);x.stroke();
+}
+PRESS.forEach(function(a,i){
+  const c=document.createElement("canvas");c.width=640;c.height=470;
+  drawPress(c,a);
+  const tex=new THREE.CanvasTexture(c);
+  tex.encoding=THREE.sRGBEncoding;tex.anisotropy=maxAniso;
+  VC.fontsReady.then(function(){drawPress(c,a);tex.needsUpdate=true;});
+  /* back wall, left of the counter — the one stretch of plaster with
+     nothing in front of it, and well inside the seated wide shot */
+  const g=new THREE.Group();
+  /* a plain material, NOT stdMat(): its cache is a const declared far
+     below this line, so calling it here would hit the temporal dead
+     zone and take the whole scene down at load */
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(1.22,.94,.045),
+    new THREE.MeshStandardMaterial({color:0x241a12,roughness:.55,envMapIntensity:.7}));
+  frame.castShadow=true;g.add(frame);
+  const sheet=new THREE.Mesh(new THREE.PlaneGeometry(1.14,.86),
+    new THREE.MeshStandardMaterial({map:tex,roughness:.82,
+      emissive:0x2a2418,emissiveMap:tex,emissiveIntensity:.22}));
+  sheet.position.z=.024;g.add(sheet);
+  /* above the counter line and clear of the trio's heads; the pair sits
+     left of the chalkboard, which is the one stretch of this wall with
+     nothing standing in front of it */
+  g.position.set(i===0?-2.92:-1.66,1.66,-4.72);
+  scene.add(g);
+});
+
 /* glow sprite + shaft */
 const glowTex=ctex(128,128,(x)=>{
   const g=x.createRadialGradient(64,64,2,64,64,62);
@@ -2298,7 +2437,12 @@ function reskin(a){
    clamps into his collar for the first second of the walk. A step in
    buys the lens the room it needs, and the doorway is still behind him
    in frame, which is all the entrance has to read as. */
-const GUEST_PATH=[[5.5,-1.4],[4.2,-1.0],[3.0,-.6],[2.2,-.28],[1.4,.55],[0,.95],[-.64,.62]];
+/* Only the first two entries still matter: with the autopilot gone this
+   is a SPAWN and a facing reference, not a route. He starts a good two
+   metres inside the door — at 5.5 the shopfront was close enough behind
+   him that the chase camera craned up his back, and now that he stands
+   there until you move him, that cramped frame IS the opening shot. */
+const GUEST_PATH=[[4.0,-1.15],[3.0,-.7],[3.0,-.6],[2.2,-.28],[1.4,.55],[0,.95],[-.64,.62]];
 /* ACROSS the table from Simon, not on the chair beside him — the whole
    page promises "you sit across a café table from me", and the model's
    spare chair sat at his elbow. Same radius from the table centre as his
@@ -2491,7 +2635,7 @@ document.addEventListener("visibilitychange",()=>{
   if(document.hidden){guestKeys.clear();CAM.sprint=false;}
 });
 function guestCtl(){
-  if(guest.state!=="walk"||guest.mode!=="manual")return null;
+  if(guest.state!=="walk")return null;
   let x=0,z=0;
   guestKeys.forEach(k=>{x+=GUEST_KEYMAP[k][0];z+=GUEST_KEYMAP[k][1];});
   if(!x&&!z)return null;
@@ -2774,33 +2918,23 @@ function tickVisitor(a,dtT){
 }
 function tickGuest(a,dtT){
   if(a.state==="walk"){
-    /* the chair claims him — same trigger whether he walked himself or
-       the autopilot did: this ring is the ONLY way the dialogue starts,
-       and SEAT_TRIGGER is the radius drawn on the floor */
+    /* the chair claims him: this ring is the ONLY way the dialogue
+       starts, and SEAT_TRIGGER is the radius drawn on the floor */
     if(Math.hypot(GUEST_SEAT.x-a.pos.x,GUEST_SEAT.z-a.pos.z)<SEAT_TRIGGER){startSit(a);return;}
-    if(a.mode==="manual"){
-      a.walkTarget=null;
-      /* "idle" means NO KEY DOWN, not "no keydown event": the OS only
-         auto-repeats the last key pressed, so a player holding a
-         direction can fire zero events for minutes. Gating on the held
-         set is what stops the autopilot stealing the character
-         mid-stride. */
-      if(guestKeys.size)a.idleT=0;else a.idleT+=dtT;
-      if(a.idleT>9){                   /* stranded mid-room: autopilot resumes */
-        a.mode="auto";
-        let bi=0,bd=1e9;
-        for(let i=0;i<GUEST_PATH.length;i++){
-          const d=Math.hypot(GUEST_PATH[i][0]-a.pos.x,GUEST_PATH[i][1]-a.pos.z);
-          if(d<bd){bd=d;bi=i;}
-        }
-        a.vLeg=Math.max(0,bi-1);       /* aim at the nearest waypoint, walk on */
+    /* NO AUTOPILOT. He stands in the doorway until the visitor moves
+       him — the walk is the invitation, and a character who strolls off
+       on his own answers it for them. Two ways to move: the arrows
+       (a.ctl, read at frame rate), or a tap on the floor (a.moveTo),
+       which is the only one a phone has. */
+    if(a.ctl){a.walkTarget=null;a.moveTo=null;return;}     /* keys win outright */
+    if(a.moveTo){
+      if(Math.hypot(a.moveTo[0]-a.pos.x,a.moveTo[1]-a.pos.z)<.2){
+        a.moveTo=null;a.walkTarget=null;return;
       }
+      a.walkTarget=a.moveTo;
       return;
     }
-    const wp=GUEST_PATH[a.vLeg+1];
-    if(!wp){startSit(a);return;}       /* end of path: safety net for the ring */
-    if(Math.hypot(wp[0]-a.pos.x,wp[1]-a.pos.z)<.16){a.vLeg++;return;}
-    a.walkTarget=[wp[0],wp[1]];
+    a.walkTarget=null;
     return;
   }
   /* Seated, he HOLDS Simon's gaze. Handing him back to the free gaze
@@ -3425,6 +3559,13 @@ function attachAnalyser(el){
    Sound off is a first-class way to use this page (the subtitles carry
    every word), so the choice is remembered between visits. */
 let muted=false,ttsInterrupt=false,ttsCode="en-GB",ttsVoice=null;
+/* Every utterance carries the generation it was started in. cancel()
+   fires its callbacks LATER — after the next line has already begun —
+   so without this a stale onend walks straight into endSpeech() and
+   strips the NEW line of its captions, its lipsync and its letterbox.
+   That is what happened to the welcome the moment the walk-in call was
+   cut short by sitting down: Simon mouthed it in silence. */
+let speechGen=0;
 try{muted=localStorage.getItem("vc:muted")==="1";}catch(_){}
 const muteBtn=document.getElementById("muteBtn");
 function applyMute(){
@@ -3490,13 +3631,14 @@ function bestVoice(code){
     if(!v.localService)s+=1;return s;};
   return c.sort((a,b)=>sc(b)-sc(a))[0];
 }
-function ttsStart(text){
+function ttsStart(text,gen){
+  if(gen===undefined)gen=speechGen;
   if(!("speechSynthesis"in window)){endSpeech();return;}
   const code="en-GB";
   const v=bestVoice(code)||bestVoice("en");
   ttsCode=code;ttsVoice=v;
   queue=text.match(/[^.!?…]+[.!?…]+["']?|\S[^.!?…]*$/g)||[text];
-  next(code,v);
+  next(code,v,gen);
 }
 /* Resume the caption chain after a mute interrupted an utterance.
    cancel() on a sentence already being spoken fires `error` on
@@ -3504,10 +3646,12 @@ function ttsStart(text){
    three used to strand the section: dead voice, dead subtitles, nothing
    rearmed on unmute. Whichever arrives first wins, the flag makes sure
    only one continuation runs, and the timer covers the silent case. */
-function ttsResume(){
+function ttsResume(gen){
+  if(gen!==undefined&&gen!==speechGen)return;
   if(!ttsInterrupt)return;
   ttsInterrupt=false;
-  if(queue.length)setTimeout(()=>next(ttsCode,ttsVoice),60);
+  const g=gen===undefined?speechGen:gen;
+  if(queue.length)setTimeout(()=>next(ttsCode,ttsVoice,g),60);
   else endSpeech();
 }
 /* `el` (optional): a pre-made Audio for the same file — the entrance
@@ -3515,6 +3659,7 @@ function ttsResume(){
    here once the guest is seated, well outside any gesture. */
 function speak(text,key,el){
   stopSpeaking();speaking=true;lastKey=key||null;
+  const gen=++speechGen;
   const f=key&&AUDIO[lang][key];
   if(f){
     audioEl=el||new Audio(f);
@@ -3535,14 +3680,15 @@ function speak(text,key,el){
       }
       if(i!==cueIdx){cueIdx=i;showCue(i>=0?cues[i].text:"");}
     });
-    audioEl.onended=()=>{endSpeech(true);};        /* played all the way through */
-    audioEl.onerror=()=>{audioEl=null;clearCues();ttsStart(text);};
-    audioEl.play().catch(()=>{audioEl=null;clearCues();ttsStart(text);});
+    audioEl.onended=()=>{if(gen!==speechGen)return;endSpeech(true);};   /* played through */
+    audioEl.onerror=()=>{if(gen!==speechGen)return;audioEl=null;clearCues();ttsStart(text,gen);};
+    audioEl.play().catch(()=>{if(gen!==speechGen)return;audioEl=null;clearCues();ttsStart(text,gen);});
     return;
   }
-  ttsStart(text);
+  ttsStart(text,gen);
 }
-function next(code,v){
+function next(code,v,gen){
+  if(gen!==speechGen)return;                      /* a cancelled line talking from the grave */
   if(!queue.length){endSpeech(true);return;}      /* every sentence spoken */
   const sentence=queue.shift().trim();
   const u=new SpeechSynthesisUtterance(sentence);
@@ -3551,8 +3697,8 @@ function next(code,v){
      keep their pacing with the sound off */
   u.volume=muted?0:1;
   showCue(sentence);
-  u.onend=()=>{if(ttsInterrupt){ttsResume();return;}setTimeout(()=>next(code,v),140);};
-  u.onerror=()=>{if(ttsInterrupt){ttsResume();return;}endSpeech();};
+  u.onend=()=>{if(gen!==speechGen)return;if(ttsInterrupt){ttsResume(gen);return;}setTimeout(()=>next(code,v,gen),140);};
+  u.onerror=()=>{if(gen!==speechGen)return;if(ttsInterrupt){ttsResume(gen);return;}endSpeech();};
   speechSynthesis.speak(u);
 }
 /* `natural` = the clip actually reached its end. Hushing with space, or
@@ -3562,7 +3708,7 @@ function endSpeech(natural){
   speaking=false;clearCues();
   if(natural&&lastKey==="outro"&&!RM)startClosing();
 }
-function stopSpeaking(){queue=[];speaking=false;ttsInterrupt=false;clearCues();
+function stopSpeaking(){speechGen++;queue=[];speaking=false;ttsInterrupt=false;clearCues();
   if("speechSynthesis"in window)speechSynthesis.cancel();
   if(audioEl){audioEl.pause();audioEl=null;}}
 
@@ -3597,7 +3743,7 @@ const HOWTO={
             "🍺 Tap me — Simon — for the off-the-record story",
             "🔊 It's my real voice — turn your sound on",
             "📄 In a hurry? “Text résumé” gives you the flat version"],
-     stepsTouch:["🪑 You'll walk in and take the chair at my table, in a small café",
+     stepsTouch:["🪑 Tap the floor to walk over — come take the chair at my table",
             "👆 Tap the résumé to lift it, then tap any section",
             "🍺 Tap me — Simon — for the off-the-record story",
             "🔊 It's my real voice — turn your sound on",
@@ -3686,7 +3832,7 @@ function startEntrance(){
   guest.yaw=Math.atan2(GUEST_PATH[s+1][0]-GUEST_PATH[s][0],
                        GUEST_PATH[s+1][1]-GUEST_PATH[s][1]);
   guest.state="walk";
-  guest.mode="auto";guest.idleT=0;guestKeys.clear();
+  guest.moveTo=null;guestKeys.clear();
   /* Parked behind him from frame one. Anything else means the camera
      swings while the player is already holding a direction — and since
      the keys are camera-relative, a swinging camera bends his path. */
@@ -3695,11 +3841,21 @@ function startEntrance(){
   CAM.dist=2.7;CAM.distNow=2.7;CAM.sprint=false;
   camColliders=null;              /* cafe.obj may have landed since */
   showSeatMarker(true);           /* the arrow says where the coffee is */
-  /* the walk is yours to drive (desktop); on touch the autopilot walks */
-  if(TOUCH)promptEl.style.display="none";
-  else promptEl.textContent="Arrows to walk · drag to look · Shift to run — head for the arrow ☕";
+  /* nothing moves until the visitor moves it, so the prompt has to say
+     HOW — and on a phone that is a different instruction, not none */
+  promptEl.style.display="";
+  promptEl.textContent=TOUCH
+    ?"Tap the floor to walk · drag to look — head for the arrow ☕"
+    :"Arrows to walk · drag to look · Shift to run — head for the arrow ☕";
   /* the stroller yields the entrance beat — unless he's already inside */
   if(!visitor.active)visitor.vTimer=Math.max(visitor.vTimer,16);
+  /* Simon calls you over. Nobody walks any more unless they are told to,
+     so the telling has to be part of the room rather than a line of UI.
+     No mp3 for this one, so speak() falls through to the browser voice
+     and the subtitles carry it — the same path the skills section has
+     always used. Drop audio/en/walkin.mp3 in and add the key to AUDIO
+     and it becomes his real voice with nothing else to change. */
+  speak(TOUCH?DATA[lang].speech.walkinTouch:DATA[lang].speech.walkin,"walkin");
 }
 function arriveAtTable(){
   if(entered)return;
@@ -3960,7 +4116,25 @@ function updateFollowShot(dt){
 /* --- look controls: drag to orbit, wheel to dolly. No pointer lock — it
    would seize the cursor on a page whose whole point is a clickable
    résumé, and the browser's own prompt would land mid-walk. --- */
-let dragId=null,dragX=0,dragY=0;
+/* Tap-to-walk. Without it a phone could never reach the chair now that
+   the autopilot is gone — there are no arrow keys to press. A TAP is a
+   move order; a DRAG is a look, and the two are told apart by distance
+   and duration, not by which element was hit. */
+const _tapRay=new THREE.Raycaster(),_tapPt=new THREE.Vector2();
+const _floor=new THREE.Plane(new THREE.Vector3(0,1,0),0),_tapHit=new THREE.Vector3();
+function walkOrder(cx,cy){
+  const r=renderer.domElement.getBoundingClientRect();
+  _tapPt.x=((cx-r.left)/r.width)*2-1;
+  _tapPt.y=-((cy-r.top)/r.height)*2+1;
+  _tapRay.setFromCamera(_tapPt,camera);
+  if(!_tapRay.ray.intersectPlane(_floor,_tapHit))return;
+  /* run it through the same collision the walk uses, so a tap into the
+     counter parks him against it instead of inside it */
+  const probe={pos:{x:_tapHit.x,z:_tapHit.z}};
+  collideGuest(probe);
+  guest.moveTo=[probe.pos.x,probe.pos.z];
+}
+let dragId=null,dragX=0,dragY=0,dragT=0,dragMoved=0,dragSX=0,dragSY=0;
 function lookActive(){
   if(guest.state!=="walk"||RM||cafeClosed)return false;
   /* the text résumé is a scrollable panel over the whole page: while it
@@ -3972,12 +4146,14 @@ addEventListener("pointerdown",e=>{
   if(!lookActive()||e.button!==0)return;
   if(e.target&&e.target.closest&&e.target.closest(".tools,.howto,.cv"))return;
   dragId=e.pointerId;dragX=e.clientX;dragY=e.clientY;CAM.yawV=0;
+  dragT=e.timeStamp;dragMoved=0;dragSX=e.clientX;dragSY=e.clientY;
 });
 addEventListener("pointermove",e=>{
   if(dragId===null||e.pointerId!==dragId)return;
   if(!lookActive()||!(e.buttons&1)){dragId=null;return;}   /* he sat down mid-drag, or the button went up off-window */
   const dx=e.clientX-dragX,dy=e.clientY-dragY;
   dragX=e.clientX;dragY=e.clientY;
+  dragMoved=Math.max(dragMoved,Math.hypot(e.clientX-dragSX,e.clientY-dragSY));
   CAM.yaw-=dx*CAM.sens;
   CAM.pitch=Math.max(CAM.minPitch,Math.min(CAM.maxPitch,CAM.pitch+dy*CAM.sens*.7));
   CAM.idle=0;
@@ -3986,7 +4162,12 @@ addEventListener("pointermove",e=>{
   CAM.yawV=-dx*CAM.sens*7;
 });
 function endDrag(e){if(dragId!==null&&(!e||e.pointerId===dragId))dragId=null;}
-addEventListener("pointerup",endDrag);
+addEventListener("pointerup",e=>{
+  /* a tap (barely moved, quickly released) is a walk order, not a look */
+  if(dragId!==null&&e.pointerId===dragId&&dragMoved<9&&e.timeStamp-dragT<450&&lookActive())
+    walkOrder(e.clientX,e.clientY);
+  endDrag(e);
+});
 addEventListener("pointercancel",endDrag);
 addEventListener("blur",()=>{dragId=null;});
 addEventListener("wheel",e=>{
@@ -4026,7 +4207,11 @@ function updateCamera(dt,t){
   updateDirection(t,dt);
   /* letterbox only while Simon speaks — the walk is GAMEPLAY now (the
      visitor drives it with the arrows), and the hint must stay readable */
-  document.body.classList.toggle("cine",speaking&&!RM&&!cafeClosed);
+  /* NOT during the walk: .cine fades the prompt and the sign, and the
+     walk-in line is Simon naming the very keys that prompt shows —
+     letterboxing it hides the instruction exactly as it is spoken. */
+  document.body.classList.toggle("cine",
+    speaking&&!RM&&!cafeClosed&&guest.state!=="walk");
   if(hardCut){hardCut=false;}
   else{
     /* per-shot response. The fixed interview shot glides (.055); the
