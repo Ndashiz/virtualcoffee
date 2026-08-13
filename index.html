@@ -3919,17 +3919,36 @@ function updateFollowShot(dt){
   const allowed=CAM.blocked||wantDist;
   /* snap IN hard (a wall must never clip through), ease OUT gently */
   CAM.distNow=allowed<CAM.distNow?allowed:damp(CAM.distNow,allowed,.06,dt);
-  /* squeezed against a wall, the lens also RISES: 1.25 m of a shoulder
-     shot is the back of his head filling the frame, the same distance
-     from higher up still shows the floor he is walking on */
+  /* Squeezed, the lens RISES: 1.25 m of shoulder shot is the back of his
+     head filling the frame, the same distance from higher up still shows
+     the floor he walks on. */
   const squeeze=Math.max(0,Math.min(1,(wantDist-CAM.distNow)/Math.max(.5,wantDist-1.25)));
-  if(squeeze>.01){
-    const p2=CAM.pitch+squeeze*.42,c2=Math.cos(p2);
-    _camDir.set(Math.sin(CAM.yaw)*c2,Math.sin(p2),Math.cos(CAM.yaw)*c2);
-  }
-  s.pos[0]=Math.max(CAM.xmin,Math.min(CAM.xmax,_camPivot.x+_camDir.x*CAM.distNow));
-  s.pos[1]=Math.max(.55,_camPivot.y+_camDir.y*CAM.distNow);
-  s.pos[2]=Math.max(CAM.zmin,Math.min(CAM.zmax,_camPivot.z+_camDir.z*CAM.distNow));
+  /* Then place it by walking OUT along the orbit until the room stops
+     us — a slab test, not a per-axis clamp. Clamping x and z separately
+     silently threw away the 1.25 m standoff the obstacle probe enforces:
+     standing by the door and turning the camera toward the street left
+     the lens 8 cm from his chest, i.e. inside him. When the room really
+     is that tight, buy the distance VERTICALLY instead of collapsing —
+     tilting up shortens the horizontal reach the walls limit. */
+  const pitchUse=CAM.pitch+squeeze*.42;
+  const hx=Math.sin(CAM.yaw),hz=Math.cos(CAM.yaw);
+  /* how far the room lets the lens travel along the ground */
+  let tH=Infinity;
+  if(hx>1e-5)tH=Math.min(tH,(CAM.xmax-_camPivot.x)/hx);
+  else if(hx<-1e-5)tH=Math.min(tH,(CAM.xmin-_camPivot.x)/hx);
+  if(hz>1e-5)tH=Math.min(tH,(CAM.zmax-_camPivot.z)/hz);
+  else if(hz<-1e-5)tH=Math.min(tH,(CAM.zmin-_camPivot.z)/hz);
+  const h=Math.max(0,Math.min(CAM.distNow*Math.cos(pitchUse),tH));
+  /* whatever the floor refuses, take in height: cornered against the
+     shopfront, tilting up buys nothing (the wall is 3 cm away whatever
+     the angle) — craning straight over his head always can, and reads
+     as a camera getting out of the way rather than one inside his ribs */
+  let v=Math.max(CAM.distNow*Math.sin(pitchUse),
+                 Math.sqrt(Math.max(0,1.5625-h*h)));   /* 1.25 m standoff */
+  v=Math.min(v,2.72-_camPivot.y);                      /* stay under the beams */
+  s.pos[0]=_camPivot.x+hx*h;
+  s.pos[1]=Math.max(.55,_camPivot.y+v);
+  s.pos[2]=_camPivot.z+hz*h;
   s.look[0]=_camPivot.x;s.look[1]=_camPivot.y-.06;s.look[2]=_camPivot.z;
   s.focus=Math.max(1.2,CAM.distNow);
 }
