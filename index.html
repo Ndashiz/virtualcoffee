@@ -2654,9 +2654,15 @@ function guestCtl(){
    (GUEST_SEAT sits 1.2 m from Simon's circle, .93 from T1's). Simon has
    his own circle — the T1 one stops 1 cm short of his chair, and walking
    INTO the man you came to meet is the one clip nobody would forgive. */
+/* ONE circle for the table AND Simon behind it, not two. Two overlapping
+   circles leave a pocket between them: pushed out of one, you land in the
+   other, and a walk order aimed past them pins you there for good — and
+   the straight line from the door to the chair runs right through it, so
+   a tap-to-walk visitor with no keyboard was stranded. Centred at
+   (0,-.5) r 1.15 it swallows the tabletop and Simon, and still leaves the
+   seat (1.20 out) and its trigger ring standable. */
 const GUEST_BLOCKERS=[[2.65,1.81,.8],[5.19,-2.38,.85],[5.03,2.18,.8],[.48,3.19,.8],
-  [0,-.15,.88],[0,-1.12,.52]];   /* T1 at .88: the tabletop is .715, and the
-                                    seat opposite has to be standable */
+  [0,-.5,1.15]];
 function collideGuest(a){
   /* the south of the room is dressed for the wide shot, not for standing
      in: keeping the player out of it keeps the chase camera off the
@@ -2961,6 +2967,24 @@ function angleDamp(cur,target,k,dt){
   return cur+d*(1-Math.pow(1-k,dt*60));
 }
 const SEAT_POSE={hipL:{x:-1.35},hipR:{x:-1.35},kneeL:{x:1.2},kneeR:{x:1.2}};
+/* Steer AROUND a blocker instead of into it. Walking straight at a
+   target on the far side of the table pins him on the collision circle:
+   the push-out and the pull-in cancel and he stalls there for ever. With
+   no keyboard to shake him loose, that is a dead end on every phone — so
+   when the heading digs into a circle he is already hugging, swap it for
+   the tangent that makes progress and let him walk round. */
+function steerAround(a,dx,dz){
+  for(let i=0;i<GUEST_BLOCKERS.length;i++){
+    const b=GUEST_BLOCKERS[i];
+    const rx=a.pos.x-b[0],rz=a.pos.z-b[1],rl=Math.hypot(rx,rz);
+    if(rl<1e-4||rl>b[2]+.3)continue;              /* not against this one */
+    if(-(dx*rx+dz*rz)/rl<=.05)continue;           /* not heading inward */
+    const tx=-rz/rl,tz=rx/rl;                     /* the two tangents */
+    const s=(dx*tx+dz*tz)>=0?1:-1;                /* the one that goes his way */
+    return [tx*s,tz*s];
+  }
+  return [dx,dz];
+}
 function walkLayer(a,buf,ac,dt){
   let v=0;
   if(a.ctl){                       /* the guest, under arrow-key control */
@@ -2979,7 +3003,9 @@ function walkLayer(a,buf,ac,dt){
     const d=Math.hypot(dx,dz);
     if(d>.02){
       const arrive=Math.min(1,d/.45);
-      const vx=dx/d*a.speed*arrive,vz=dz/d*a.speed*arrive;
+      /* only the guest steers: the extras' routes are authored to be clear */
+      const h=a.collide?steerAround(a,dx/d,dz/d):[dx/d,dz/d];
+      const vx=h[0]*a.speed*arrive,vz=h[1]*a.speed*arrive;
       a.pos.x+=vx*dt;a.pos.z+=vz*dt;
       a.yaw=angleDamp(a.yaw,Math.atan2(vx,vz),.14,dt);
       v=Math.hypot(vx,vz);
@@ -3565,7 +3591,7 @@ let muted=false,ttsInterrupt=false,ttsCode="en-GB",ttsVoice=null;
    strips the NEW line of its captions, its lipsync and its letterbox.
    That is what happened to the welcome the moment the walk-in call was
    cut short by sitting down: Simon mouthed it in silence. */
-let speechGen=0;
+let speechGen=0,ttsTimer=0;
 try{muted=localStorage.getItem("vc:muted")==="1";}catch(_){}
 const muteBtn=document.getElementById("muteBtn");
 function applyMute(){
@@ -3697,7 +3723,8 @@ function next(code,v,gen){
      keep their pacing with the sound off */
   u.volume=muted?0:1;
   showCue(sentence);
-  u.onend=()=>{if(gen!==speechGen)return;if(ttsInterrupt){ttsResume(gen);return;}setTimeout(()=>next(code,v,gen),140);};
+  u.onend=()=>{if(gen!==speechGen)return;if(ttsInterrupt){ttsResume(gen);return;}
+    ttsTimer=setTimeout(()=>next(code,v,gen),140);};
   u.onerror=()=>{if(gen!==speechGen)return;if(ttsInterrupt){ttsResume(gen);return;}endSpeech();};
   speechSynthesis.speak(u);
 }
@@ -3708,7 +3735,7 @@ function endSpeech(natural){
   speaking=false;clearCues();
   if(natural&&lastKey==="outro"&&!RM)startClosing();
 }
-function stopSpeaking(){speechGen++;queue=[];speaking=false;ttsInterrupt=false;clearCues();
+function stopSpeaking(){speechGen++;if(ttsTimer){clearTimeout(ttsTimer);ttsTimer=0;}queue=[];speaking=false;ttsInterrupt=false;clearCues();
   if("speechSynthesis"in window)speechSynthesis.cancel();
   if(audioEl){audioEl.pause();audioEl=null;}}
 
