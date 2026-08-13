@@ -140,6 +140,20 @@
      is what you get when you turn your back on it — a chase camera has
      no minimap, and "walk to the chair" is useless advice if the chair
      is behind you. Positioned and rotated from JS each frame. */
+  /* The barista's line at closing time. Its own element, not the subtitle
+     track: those captions belong to Simon's voice and are rebuilt from
+     the mp3 timings — an aside from someone else must not be able to
+     collide with them. */
+  /* clear of the subtitle track, which sits at the bottom and can run to
+     three lines on a phone */
+  .aside{position:fixed;left:50%;bottom:calc(124px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);z-index:22;pointer-events:none;
+    font-family:"Space Grotesk",sans-serif;font-size:16px;font-style:italic;
+    color:#e6d6b4;text-shadow:0 2px 10px rgba(0,0,0,.85);
+    opacity:0;transition:opacity .45s;white-space:nowrap;}
+  .aside.on{opacity:1;}
+  @media(max-width:640px){.aside{font-size:14px;white-space:normal;width:min(92vw,340px);text-align:center;}}
+
   .seathud{position:fixed;left:0;top:0;z-index:21;display:none;pointer-events:none;
     color:#f0b64a;filter:drop-shadow(0 2px 6px rgba(0,0,0,.55));}
   .seathud svg{display:block;}
@@ -206,6 +220,7 @@
   </button>
   <button class="pill" id="cvBtn" aria-expanded="false" aria-controls="cv-text">Text résumé</button>
 </div>
+<div class="aside" id="aside" role="status" aria-live="polite"></div>
 <div class="seathud" id="seatHud" aria-hidden="true">
   <svg viewBox="0 0 34 34" width="42" height="42" fill="currentColor">
     <path d="M17 3 L27 21 L17 16.5 L7 21 Z"/>
@@ -2278,7 +2293,12 @@ function reskin(a){
    Seat numbers come from the model (assise.1: top y=.503, centre
    (.763,-.256), backrest on +x → he sits facing -x, Simon front-left);
    the path stays clear of T3, the T1 tabletop corner and the rug props. */
-const GUEST_PATH=[[6.5,-1.5],[5.0,-1.12],[3.4,-.72],[2.2,-.28],[1.4,.55],[0,.95],[-.64,.62]];
+/* He starts a metre INSIDE the door, not on the mat. At x 6.5 there is
+   no "behind him" left — the shopfront is at 6.95, so the chase camera
+   clamps into his collar for the first second of the walk. A step in
+   buys the lens the room it needs, and the doorway is still behind him
+   in frame, which is all the entrance has to read as. */
+const GUEST_PATH=[[5.5,-1.4],[4.2,-1.0],[3.0,-.6],[2.2,-.28],[1.4,.55],[0,.95],[-.64,.62]];
 /* ACROSS the table from Simon, not on the chair beside him — the whole
    page promises "you sit across a café table from me", and the model's
    spare chair sat at his elbow. Same radius from the table centre as his
@@ -2460,15 +2480,29 @@ addEventListener("keydown",e=>{
   guest.mode="manual";guest.idleT=0;guest.walkTarget=null;
 });
 addEventListener("keyup",e=>{if(GUEST_KEYMAP[e.code])guestKeys.delete(e.code);});
+/* Shift = sprint. It exists so the camera has something to react to:
+   the lens pulls back and opens up while he runs (see CAM). */
+addEventListener("keydown",e=>{if(e.key==="Shift")CAM.sprint=true;});
+addEventListener("keyup",e=>{if(e.key==="Shift")CAM.sprint=false;});
 /* a key released while the window is unfocused never fires keyup — it
    would stay held for ever and bias every later press into a diagonal */
-addEventListener("blur",()=>guestKeys.clear());
-document.addEventListener("visibilitychange",()=>{if(document.hidden)guestKeys.clear();});
+addEventListener("blur",()=>{guestKeys.clear();CAM.sprint=false;});
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){guestKeys.clear();CAM.sprint=false;}
+});
 function guestCtl(){
   if(guest.state!=="walk"||guest.mode!=="manual")return null;
   let x=0,z=0;
   guestKeys.forEach(k=>{x+=GUEST_KEYMAP[k][0];z+=GUEST_KEYMAP[k][1];});
-  return (x||z)?[x,z]:null;
+  if(!x&&!z)return null;
+  /* CAMERA-RELATIVE, because the camera turns now: "up" has to mean
+     "away from the lens", not "north". Screen-forward is the direction
+     the camera looks (−dir); screen-right is that turned a quarter with
+     three.js's handedness. Feed world axes back, the walk layer is
+     written in them. */
+  const fx=-Math.sin(CAM.yaw),fz=-Math.cos(CAM.yaw);
+  const rx=-fz,rz=fx;
+  return [rx*x+fx*(-z),rz*x+fz*(-z)];
 }
 /* keep him on the floor and out of the furniture: rect clamps for the
    window bar / counter / walls, circle push-outs for the tables. The
@@ -2701,6 +2735,7 @@ function tickReader(a,dtT){
 }
 function tickVisitor(a,dtT){
   if(RM)return;      /* reduced motion: no strolling extras */
+  if(closing)return; /* the café is emptying — nobody new wanders in */
   if(!a.active){
     a.vTimer-=dtT;
     if(a.vTimer<=0){
@@ -2796,11 +2831,16 @@ function walkLayer(a,buf,ac,dt){
   let v=0;
   if(a.ctl){                       /* the guest, under arrow-key control */
     const cl=Math.hypot(a.ctl[0],a.ctl[1]);
-    const vx=a.ctl[0]/cl*a.speed,vz=a.ctl[1]/cl*a.speed;
+    const sp=a.speed*(a===guest&&CAM.sprint?1.55:1);
+    const vx=a.ctl[0]/cl*sp,vz=a.ctl[1]/cl*sp;
     a.pos.x+=vx*dt;a.pos.z+=vz*dt;
     a.yaw=angleDamp(a.yaw,Math.atan2(vx,vz),.14,dt);
-    v=a.speed;
-  }else if(a.active&&a.walkTarget&&a.vPauseT<=0){
+    v=sp;
+  /* `!(vPauseT>0)` and not `vPauseT<=0`: only the stroller and the guest
+     ever set that field, so on every other agent it is undefined — and
+     `undefined<=0` is false, which silently pinned the whole cast to the
+     floor the first time anyone else was asked to walk. */
+  }else if(a.active&&a.walkTarget&&!(a.vPauseT>0)){
     const dx=a.walkTarget[0]-a.pos.x,dz=a.walkTarget[1]-a.pos.z;
     const d=Math.hypot(dx,dz);
     if(d>.02){
@@ -2891,9 +2931,10 @@ function animateAgents(dt){
 const TICK_DT=1/10;
 let tickAcc=0;
 function behaviourTick(dtT){
-  updateGroups(dtT);
+  if(!closing)updateGroups(dtT);   /* closing time: the chat is over */
   for(let i=0;i<agents.length;i++){
     const a=agents[i];
+    if(a.leaving){tickLeaving(a,dtT);continue;}
     /* gaze retarget every 1.4-5 s, blink queued on the change */
     a.gazeT-=dtT;
     if(a.gazeT<=0){
@@ -2901,6 +2942,10 @@ function behaviourTick(dtT){
       a.gazeT=jit(4.6,.5);          /* longer holds: darting eyes read as shifty */
       a.blinkQueue=true;
     }
+    /* the barista is on a script during closing: his own tick would put
+       his gaze back on the machine and restart the grind loop. The gaze
+       RETARGET above still runs, or he crosses the room glassy-eyed. */
+    if(a.scripted)continue;
     switch(a.kind){
       case "stand":tickStand(a,dtT);break;
       case "barista":tickBarista(a,dtT);break;
@@ -2911,6 +2956,111 @@ function behaviourTick(dtT){
       case "guest":tickGuest(a,dtT);break;
     }
   }
+}
+/* ---------------- LAST ORDERS ----------------
+   When Simon finishes the outro the room does what a café does at the
+   end of the evening: the barista comes out from behind the counter,
+   says the line every closing time is made of, and the regulars drift
+   out through the door.
+
+   Deliberately DECOR ONLY. Simon stays, the résumé stays clickable, the
+   sections still play — this is the room emptying around a conversation
+   that is still yours to have, not the page shutting down. That is
+   closeCafe()'s job, and this is not it. */
+const EXIT=[6.6,-1.25];              /* the doorway, one step off-frame */
+/* Round the EAST end of the counter (it spans x −1.74…3.22, z −4.26…−3.18):
+   a straight line from his post to the table walks him through the
+   counter, the machine and the pastry case. */
+const BARISTA_TO_TABLE=[[3.55,-4.35],[3.6,-2.7],[2.0,-1.3],[1.35,-.5]];
+const ASIDE_LINE="Excuse me — we're closing now.";
+let closing=null;
+const asideEl=document.getElementById("aside");
+function showAside(txt){
+  if(!asideEl)return;
+  if(txt){asideEl.textContent=txt;asideEl.classList.add("on");}
+  else asideEl.classList.remove("on");
+}
+function sendHome(a,path,delay){
+  if(!a||a.leaving)return;
+  a.leaving=true;a.exitDelay=delay;a.exitPath=path;a.exitLeg=0;
+}
+function startClosing(){
+  if(closing||cafeClosed)return;
+  closing={phase:0,t:0};
+  barista.leaving=false;                 /* he has a line to deliver first */
+  barista.scripted=true;                 /* tickBarista hands over to tickClosing */
+  barista.active=true;barista.exitLeg=0;barista.vPauseT=0;
+  barista.gazeLock=null;barista.shots.length=0;
+  /* 8 m of detour: at a stroll the watchdog below fires before he ever
+     arrives and he delivers the line from behind his own counter */
+  barista.speed=1.0;
+  /* unfreeze the trio: updateGroups stops running, and a laugh or a
+     gesture caught mid-shake would stay locked on their faces */
+  for(let i=0;i<groups.length;i++){groups[i].speaker=null;groups[i].laughing=0;}
+  /* a stroller caught mid-visit is sent out with everyone else — left
+     alone, tickVisitor's early return would freeze him where he stands */
+  if(visitor.active)sendHome(visitor,[[4.6,-1.5],EXIT],.5);
+}
+function tickClosing(dt){
+  if(!closing)return;
+  closing.t+=dt;
+  if(closing.phase===0){                 /* --- he comes round the counter --- */
+    const wp=BARISTA_TO_TABLE[barista.exitLeg];
+    if(!wp||closing.t>13){               /* arrived, or long enough — say it */
+      barista.walkTarget=null;
+      barista.gazeLock={obj:simonHead};
+      closing.phase=1;closing.t=0;
+      showAside(ASIDE_LINE);
+      return;
+    }
+    if(Math.hypot(wp[0]-barista.pos.x,wp[1]-barista.pos.z)<.28)barista.exitLeg++;
+    else barista.walkTarget=[wp[0],wp[1]];
+    return;
+  }
+  if(closing.phase===1){                 /* --- the line hangs for a beat --- */
+    if(closing.t<3.4)return;
+    closing.phase=2;closing.t=0;
+    /* everyone drifts out, staggered — a room that empties in lockstep
+       reads as a fire drill */
+    /* separate lanes as well as separate delays: same waypoints and they
+       converge into one another on the way to the door. The trio starts
+       east of the window bar (x −1.706) so nobody walks through a stool,
+       and everyone crosses BEHIND Simon (z ≈ −2), never through him. */
+    sendHome(standA,[[-1.3,-2.9],[2.4,-2.1],[5.0,-1.5],EXIT],.2);
+    sendHome(standB,[[-1.0,-2.6],[2.6,-1.8],[5.0,-1.2],EXIT],1.1);
+    sendHome(standC,[[-1.45,-3.1],[2.2,-2.4],[5.0,-1.8],EXIT],2.0);
+    sendHome(worker,[[2.6,-2.35],[5.1,-1.35],EXIT],1.4);
+    sendHome(drinker,[[-1.15,-2.15],[2.5,-1.55],[5.1,-1.1],EXIT],2.9);
+    sendHome(reader,[[-1.0,-1.75],[2.7,-1.3],[5.2,-1.0],EXIT],3.8);
+    sendHome(barista,[[2.6,-1.7],[5.1,-1.45],EXIT],5.4);   /* last one out, of course */
+    return;
+  }
+  if(closing.phase===2){                 /* --- fade the line, then done --- */
+    if(closing.t>4)showAside("");
+    if(closing.t>16)closing.phase=3;
+  }
+}
+function tickLeaving(a,dtT){
+  if(a.leaving==="gone")return;
+  if(a.exitDelay>0){a.exitDelay-=dtT;return;}
+  if(!a.stood){                          /* stand up, put the props down */
+    a.stood=true;a.active=true;a.rootY=0;a.group=null;a.gazeLock=null;
+    a.typing=false;a.shots.length=0;a.vPauseT=0;
+    /* only what he was CARRYING: the book rides on his chest and would
+       fly out with him, but the cup and the laptop belong to the bar and
+       stay on it — clearing those would wipe the furniture as he stood */
+    if(a.prop&&a.prop.parent&&a.prop.parent!==scene)a.prop.visible=false;
+    a.prop=null;
+    a.speed=.48+Math.random()*.22;
+  }
+  const wp=a.exitPath[a.exitLeg];
+  if(!wp){                               /* through the door, out of the scene */
+    a.rig.root.visible=false;a.blob.visible=false;
+    a.walkTarget=null;a.leaving="gone";
+    return;
+  }
+  if(Math.hypot(wp[0]-a.pos.x,wp[1]-a.pos.z)<.3){a.exitLeg++;return;}
+  a.walkTarget=[wp[0],wp[1]];
 }
 function updateLife(dt){
   tickAcc+=dt;
@@ -3385,7 +3535,7 @@ function speak(text,key,el){
       }
       if(i!==cueIdx){cueIdx=i;showCue(i>=0?cues[i].text:"");}
     });
-    audioEl.onended=()=>{endSpeech();};
+    audioEl.onended=()=>{endSpeech(true);};        /* played all the way through */
     audioEl.onerror=()=>{audioEl=null;clearCues();ttsStart(text);};
     audioEl.play().catch(()=>{audioEl=null;clearCues();ttsStart(text);});
     return;
@@ -3393,7 +3543,7 @@ function speak(text,key,el){
   ttsStart(text);
 }
 function next(code,v){
-  if(!queue.length){endSpeech();return;}
+  if(!queue.length){endSpeech(true);return;}      /* every sentence spoken */
   const sentence=queue.shift().trim();
   const u=new SpeechSynthesisUtterance(sentence);
   u.lang=code;u.rate=.98;if(v)u.voice=v;
@@ -3405,7 +3555,13 @@ function next(code,v){
   u.onerror=()=>{if(ttsInterrupt){ttsResume();return;}endSpeech();};
   speechSynthesis.speak(u);
 }
-function endSpeech(){speaking=false;clearCues();}
+/* `natural` = the clip actually reached its end. Hushing with space, or
+   an error, must NOT read as "Simon finished his goodbye" — otherwise
+   cutting the outro short empties the café around you. */
+function endSpeech(natural){
+  speaking=false;clearCues();
+  if(natural&&lastKey==="outro"&&!RM)startClosing();
+}
 function stopSpeaking(){queue=[];speaking=false;ttsInterrupt=false;clearCues();
   if("speechSynthesis"in window)speechSynthesis.cancel();
   if(audioEl){audioEl.pause();audioEl=null;}}
@@ -3509,7 +3665,9 @@ function startEntrance(){
     if(m.isMesh&&m.userData.slot==="shirt")m.material=stdMat(sc,.9,0,.25);
   });
   guest.rig.root.scale.setScalar(1);
-  guest.speed=.74;
+  /* the seat moved across the table, so the walk is ~8 m: at a stroll
+     that is a quarter-minute of nothing happening */
+  guest.speed=.95;
   guest.active=true;guest.vPauseT=0;guest.walkK=0;guest.walkPhase=0;
   guest.prop=paper;                    /* idle glances go to the résumé */
   guest.rig.root.visible=true;guest.blob.visible=true;
@@ -3529,10 +3687,17 @@ function startEntrance(){
                        GUEST_PATH[s+1][1]-GUEST_PATH[s][1]);
   guest.state="walk";
   guest.mode="auto";guest.idleT=0;guestKeys.clear();
+  /* Parked behind him from frame one. Anything else means the camera
+     swings while the player is already holding a direction — and since
+     the keys are camera-relative, a swinging camera bends his path. */
+  CAM.yaw=guest.yaw+Math.PI;
+  CAM.pitch=.19;CAM.yawV=0;CAM.idle=0;
+  CAM.dist=2.7;CAM.distNow=2.7;CAM.sprint=false;
+  camColliders=null;              /* cafe.obj may have landed since */
   showSeatMarker(true);           /* the arrow says where the coffee is */
   /* the walk is yours to drive (desktop); on touch the autopilot walks */
   if(TOUCH)promptEl.style.display="none";
-  else promptEl.textContent="Arrow keys — walk into the arrow to sit down ☕";
+  else promptEl.textContent="Arrows to walk · drag to look · Shift to run — head for the arrow ☕";
   /* the stroller yields the entrance beat — unless he's already inside */
   if(!visitor.active)visitor.vTimer=Math.max(visitor.vTimer,16);
 }
@@ -3654,50 +3819,157 @@ const SHOTS={
      every frame by updateFollowShot(). Nothing else changes: the same
      damping that used to blend between fixed setups now trails the
      character, which is exactly the lag a chase camera wants. */
-  follow: {pos:[3,1.95,1.2], look:[3,1.35,0], fov:58, focus:2.8, range:2.4, roll:0, shake:.5}
+  follow: {pos:[3,1.95,1.2], look:[3,1.35,0], fov:58, focus:2.8, range:2.4, roll:0, shake:.5,
+           k:.2, lookK:.28}
 };
-/* Behind him — but only ever from the audience side.
-   A true orbit-behind camera swings round to the fourth wall, and this
-   café is a SET: it is modelled to be seen from the customer's chair, so
-   from behind you get the blue backdrop slab, an unlit ceiling and black
-   void. So the chase vector is blended 62% toward +z before it is used:
-   the camera still swings when you turn (it reads as a chase), but its
-   +z component can never drop below ~.27, which keeps the dressed room —
-   counter, chalkboard, shopfront — behind the character at all times. */
-/* zmax vs the player's own z clamp (1.9) sets the CLOSEST the chase can
-   get: 3.6 − 1.9 = 1.7 m. Let the player walk further south than that
-   and the camera jams against the wall clamp, collapsing into a
-   nose-to-nose close-up pitched steeply down. */
-const FOLLOW={dist:2.7,height:1.9,lookH:1.3,ahead:.4,bias:.62,
-  xmin:-2.6,xmax:6.2,zmin:-1.1,zmax:3.6};
-function updateFollowShot(){
-  const fx=Math.sin(guest.yaw),fz=Math.cos(guest.yaw);
-  /* Where the camera stands is half "behind his back" and half "on the
-     far side of him FROM THE CHAIR" — a pure over-the-shoulder puts the
-     objective behind the lens the moment he turns away from it, which is
-     precisely when the player needs to see where they are going. */
-  let gx=guest.pos.x-GUEST_SEAT.x,gz=guest.pos.z-GUEST_SEAT.z;
-  let gl=Math.hypot(gx,gz);
-  if(gl<.8){gx=-fx;gz=-fz;gl=1;}         /* already on it: back to his shoulder */
-  const bx=-fx*.5+(gx/gl)*.5,bz=-fz*.5+(gz/gl)*.5;
-  let dx=bx*(1-FOLLOW.bias),dz=bz*(1-FOLLOW.bias)+FOLLOW.bias;
-  const dl=Math.hypot(dx,dz)||1;dx/=dl;dz/=dl;
-  const px=Math.max(FOLLOW.xmin,Math.min(FOLLOW.xmax,guest.pos.x+dx*FOLLOW.dist));
-  const pz=Math.max(FOLLOW.zmin,Math.min(FOLLOW.zmax,guest.pos.z+dz*FOLLOW.dist));
-  const s=SHOTS.follow;
-  s.pos[0]=px;s.pos[1]=FOLLOW.height;s.pos[2]=pz;
-  /* and the frame leads TOWARD the chair rather than at the back of his
-     head — up to 1.4 m of it, so he stays the subject either way */
-  let ax=GUEST_SEAT.x-guest.pos.x,az=GUEST_SEAT.z-guest.pos.z;
-  const al=Math.hypot(ax,az);
-  /* .75 m of lead, no more: at 2.7 m back and a 44° horizontal frame,
-     anything past ~1 m pushes the player himself out of shot */
-  const lead=al>.05?Math.min(.75,al*.5)/al:0;
-  s.look[0]=guest.pos.x+(lead?ax*lead:fx*FOLLOW.ahead);
-  s.look[1]=FOLLOW.lookH;
-  s.look[2]=guest.pos.z+(lead?az*lead:fz*FOLLOW.ahead);
-  s.focus=Math.max(1.2,Math.hypot(s.look[0]-px,s.look[2]-pz));
+/* ---------------- THIRD-PERSON ORBIT CAMERA ----------------
+   The GTA rig, as far as a café allows it:
+   · sits behind and above, far enough back to show the room;
+   · orbits freely — drag to look, wheel to push in and out;
+   · recentres behind him on its own once you stop looking around and
+     keep walking, damped, never a snap;
+   · lags his turns, so the frame has weight instead of being welded to
+     his shoulders;
+   · pulls back and opens up when he sprints (Shift);
+   · slides in when a wall, the counter or the fridge gets between the
+     lens and him, rather than filling the frame with plaster.
+   The one liberty the room cannot give is a full 360°: the café is a SET,
+   dressed to be seen from the customer's chair. So the ORBIT is free but
+   the RECENTRE is biased — left alone, the camera always drifts back to
+   the side that has a café on it. */
+const CAM={
+  yaw:0,pitch:.19,           /* world-space orbit, radians */
+  yawV:0,                    /* look velocity, for the inertia tail */
+  dist:2.7,distNow:2.7,      /* wanted vs actual (obstacles shorten it) */
+  pivotY:1.3,                /* what it orbits: his chest, not his feet */
+  minPitch:-.05,maxPitch:.55,
+  minDist:1.7,maxDist:4.2,
+  sens:.0052,                /* rad per pixel dragged */
+  idle:0,recentreAfter:1.0,  /* seconds of no looking before it drifts back */
+  sprint:false,
+  /* xmax must clear the player's own limit (6.85) or the lens ends up
+     inside him at the door; the shopfront glass is at ~6.95 */
+  xmin:-2.9,xmax:6.88,zmin:-4.4,zmax:3.7,
+  rayT:0,blocked:0           /* obstacle probe throttle + last result */
+};
+const camRay=new THREE.Raycaster();   /* private: `ray` belongs to pick() */
+let camColliders=null;
+function cameraColliders(){
+  /* built once, after cafe.obj lands: the solid furniture only — glass,
+     wrappers, decals and the rug must not shove the lens around */
+  if(camColliders&&camColliders.length)return camColliders;
+  camColliders=[];
+  if(CAFE.ready)CAFE.meshes.forEach((m,k)=>{
+    if(/verre|emballage|vitrophanie|ampoule|tapis|carte|enseigne|paillasson|chene_sol/.test(k))return;
+    camColliders.push(m);
+  });
+  return camColliders;
 }
+const _camDir=new THREE.Vector3(),_camPivot=new THREE.Vector3();
+function updateFollowShot(dt){
+  const s=SHOTS.follow;
+  /* --- recentring: only while he is actually going somewhere, and only
+         once the player has stopped steering the camera --- */
+  const moving=guest.walkK>.35;
+  CAM.idle+=dt;
+  if(moving&&CAM.idle>CAM.recentreAfter){
+    /* STRICTLY behind him, with no scenic bias — and that is not a
+       preference, it is the only stable answer. The keys are
+       camera-relative, so biasing the recentre toward the dressed side
+       turns the camera, which turns "forward", which turns him, which
+       moves the camera again: hold one arrow and you slowly curve away
+       on your own. Pure behind-the-back is a fixed point: once the
+       camera is there, forward is his heading and nothing drifts. */
+    const want=guest.yaw+Math.PI;
+    let d=want-CAM.yaw;
+    while(d>Math.PI)d-=Math.PI*2;
+    while(d<-Math.PI)d+=Math.PI*2;
+    CAM.yaw+=d*(1-Math.pow(1-.028,dt*60));      /* slow, deliberate drift */
+  }
+  /* --- inertia: the tail of a flick keeps travelling and dies out --- */
+  if(Math.abs(CAM.yawV)>1e-4){
+    CAM.yaw+=CAM.yawV*dt;
+    CAM.yawV*=Math.pow(.0025,dt);
+  }
+  /* --- speed: a sprint pushes the lens back and opens the lens up --- */
+  const wantDist=CAM.dist+(CAM.sprint&&moving?.45:0);
+  const wantFov=(camera.aspect<.75?64:58)+(CAM.sprint&&moving?6:0);
+  s.fov=damp(s.fov,wantFov,.05,dt);
+  /* --- where it wants to be --- */
+  const cp=Math.cos(CAM.pitch);
+  _camDir.set(Math.sin(CAM.yaw)*cp,Math.sin(CAM.pitch),Math.cos(CAM.yaw)*cp);
+  _camPivot.set(guest.pos.x,CAM.pivotY,guest.pos.z);
+  /* --- obstacle avoidance: cast pivot to camera, stop short of whatever
+         it hits, ease back out when the way clears --- */
+  /* the café is ~26k merged triangles: probing it every frame costs more
+     than the walk is worth, and a wall does not move between frames.
+     Three times a second is well inside the ease-out. */
+  CAM.rayT-=dt;
+  if(CAM.rayT<=0){
+    CAM.rayT=.09;
+    CAM.blocked=0;
+    const cols=cameraColliders();
+    if(cols.length){
+      camRay.set(_camPivot,_camDir);
+      camRay.far=wantDist+.3;
+      const hit=camRay.intersectObjects(cols,false)[0];
+      if(hit&&hit.distance<wantDist+.3)CAM.blocked=Math.max(1.25,hit.distance-.28);
+    }
+  }
+  const allowed=CAM.blocked||wantDist;
+  /* snap IN hard (a wall must never clip through), ease OUT gently */
+  CAM.distNow=allowed<CAM.distNow?allowed:damp(CAM.distNow,allowed,.06,dt);
+  /* squeezed against a wall, the lens also RISES: 1.25 m of a shoulder
+     shot is the back of his head filling the frame, the same distance
+     from higher up still shows the floor he is walking on */
+  const squeeze=Math.max(0,Math.min(1,(wantDist-CAM.distNow)/Math.max(.5,wantDist-1.25)));
+  if(squeeze>.01){
+    const p2=CAM.pitch+squeeze*.42,c2=Math.cos(p2);
+    _camDir.set(Math.sin(CAM.yaw)*c2,Math.sin(p2),Math.cos(CAM.yaw)*c2);
+  }
+  s.pos[0]=Math.max(CAM.xmin,Math.min(CAM.xmax,_camPivot.x+_camDir.x*CAM.distNow));
+  s.pos[1]=Math.max(.55,_camPivot.y+_camDir.y*CAM.distNow);
+  s.pos[2]=Math.max(CAM.zmin,Math.min(CAM.zmax,_camPivot.z+_camDir.z*CAM.distNow));
+  s.look[0]=_camPivot.x;s.look[1]=_camPivot.y-.06;s.look[2]=_camPivot.z;
+  s.focus=Math.max(1.2,CAM.distNow);
+}
+/* --- look controls: drag to orbit, wheel to dolly. No pointer lock — it
+   would seize the cursor on a page whose whole point is a clickable
+   résumé, and the browser's own prompt would land mid-walk. --- */
+let dragId=null,dragX=0,dragY=0;
+function lookActive(){
+  if(guest.state!=="walk"||RM||cafeClosed)return false;
+  /* the text résumé is a scrollable panel over the whole page: while it
+     is open the wheel belongs to it, not to the camera */
+  const cv=document.getElementById("cv-text");
+  return !cv||cv.hidden;
+}
+addEventListener("pointerdown",e=>{
+  if(!lookActive()||e.button!==0)return;
+  if(e.target&&e.target.closest&&e.target.closest(".tools,.howto,.cv"))return;
+  dragId=e.pointerId;dragX=e.clientX;dragY=e.clientY;CAM.yawV=0;
+});
+addEventListener("pointermove",e=>{
+  if(dragId===null||e.pointerId!==dragId)return;
+  if(!lookActive()||!(e.buttons&1)){dragId=null;return;}   /* he sat down mid-drag, or the button went up off-window */
+  const dx=e.clientX-dragX,dy=e.clientY-dragY;
+  dragX=e.clientX;dragY=e.clientY;
+  CAM.yaw-=dx*CAM.sens;
+  CAM.pitch=Math.max(CAM.minPitch,Math.min(CAM.maxPitch,CAM.pitch+dy*CAM.sens*.7));
+  CAM.idle=0;
+  /* remember the flick, so letting go mid-swing coasts instead of
+     stopping dead — the weight the spec asks for */
+  CAM.yawV=-dx*CAM.sens*7;
+});
+function endDrag(e){if(dragId!==null&&(!e||e.pointerId===dragId))dragId=null;}
+addEventListener("pointerup",endDrag);
+addEventListener("pointercancel",endDrag);
+addEventListener("blur",()=>{dragId=null;});
+addEventListener("wheel",e=>{
+  if(!lookActive())return;
+  e.preventDefault();
+  CAM.dist=Math.max(CAM.minDist,Math.min(CAM.maxDist,CAM.dist+Math.sign(e.deltaY)*.28));
+},{passive:false});
 let shot=SHOTS.gameplay,shotName="gameplay",hardCut=false;
 const camPos=new THREE.Vector3().fromArray(SHOTS.gameplay.pos);
 const camLook=new THREE.Vector3().fromArray(SHOTS.gameplay.look);
@@ -3711,11 +3983,11 @@ function cutTo(name,hard){
     camFov=shot.fov;camRoll=shot.roll;
   }
 }
-function updateDirection(t){
+function updateDirection(t,dt){
   /* the chase camera owns the walk; the moment he sits, the damping
      carries the frame back to the interview shot on its own */
   if(!RM&&!cafeClosed&&guest.state==="walk"){
-    updateFollowShot();
+    updateFollowShot(dt);
     if(shotName!=="follow")cutTo("follow",false);
     return;
   }
@@ -3727,14 +3999,19 @@ function dampV3(v,target,k,dt){
   v.z=damp(v.z,target[2],k,dt);
 }
 function updateCamera(dt,t){
-  updateDirection(t);
+  updateDirection(t,dt);
   /* letterbox only while Simon speaks — the walk is GAMEPLAY now (the
      visitor drives it with the arrows), and the hint must stay readable */
   document.body.classList.toggle("cine",speaking&&!RM&&!cafeClosed);
   if(hardCut){hardCut=false;}
   else{
-    dampV3(camPos,shot.pos,.055,dt);
-    dampV3(camLook,shot.look,.07,dt);
+    /* per-shot response. The fixed interview shot glides (.055); the
+       chase has to answer the hand on the mouse, so it tracks nearly
+       four times faster and gets its weight from the rig's own inertia
+       and recentring instead of from a laggy position filter. */
+    const k=shot.k||.055,lk=shot.lookK||.07;
+    dampV3(camPos,shot.pos,k,dt);
+    dampV3(camLook,shot.look,lk,dt);
     camFov=damp(camFov,shot.fov,.045,dt);
     camRoll=damp(camRoll,shot.roll,.05,dt);
   }
@@ -3791,6 +4068,7 @@ function animate(){
 
   if(!cafeClosed){
     guest.ctl=guestCtl();      /* read the arrows at frame rate, not tick rate */
+    tickClosing(dt);
     updateLife(dt);
     if(!RM)fan.rotation.y+=dt*1.6;
   }
