@@ -3814,12 +3814,17 @@ const SHOTS={
   /* Pulled back from the table (z 1.62 → 2.6, fov 47 → 52): the café —
      counter, register, chalkboard, window bar — is part of the shot now,
      not a backdrop glimpsed behind Simon's shoulders. */
-  gameplay: {pos:[.42,1.42,2.6], look:[0,1.12,-.95], fov:52,focus:3.5, range:1.75, roll:.006, shake:1},
+  /* range 14, not 1.75: the CoC is (|z−focus| − range)/range, so a range
+     of 1.75 smears everything past 7 m — which in a 10 m room is the
+     counter, the chalkboard, the window and every extra in the place.
+     A range this wide means NOTHING blurs by distance; the only rack
+     focus left is the deliberate one, when you hover the résumé. */
+  gameplay: {pos:[.42,1.42,2.6], look:[0,1.12,-.95], fov:52,focus:3.5, range:14, roll:.006, shake:1},
   /* Third-person chase for the walk in — the arrays below are rewritten
      every frame by updateFollowShot(). Nothing else changes: the same
      damping that used to blend between fixed setups now trails the
      character, which is exactly the lag a chase camera wants. */
-  follow: {pos:[3,1.95,1.2], look:[3,1.35,0], fov:58, focus:2.8, range:2.4, roll:0, shake:.5,
+  follow: {pos:[3,1.95,1.2], look:[3,1.35,0], fov:58, focus:2.8, range:14, roll:0, shake:.5,
            k:.2, lookK:.28}
 };
 /* ---------------- THIRD-PERSON ORBIT CAMERA ----------------
@@ -4056,8 +4061,13 @@ function updateCamera(dt,t){
      to click */
   let fT=shot.focus,rT=shot.range;
   if(paperHover||paperLifted){fT=1.6;rT=.4;}
-  dofMat.uniforms.uFocus.value=damp(dofMat.uniforms.uFocus.value,fT,.038,dt);
-  dofMat.uniforms.uRange.value=damp(dofMat.uniforms.uRange.value,rT,.038,dt);
+  /* the pull IN has to be quick or it is not a rack focus — and the trip
+     is now 14 → .4, not 1.75 → .4, so the old rate would take two full
+     seconds to say "this sheet is the thing you click". Coming back out
+     stays lazy, which is how a focus puller releases. */
+  const k=rT<dofMat.uniforms.uRange.value?.075:.045;
+  dofMat.uniforms.uFocus.value=damp(dofMat.uniforms.uFocus.value,fT,k,dt);
+  dofMat.uniforms.uRange.value=damp(dofMat.uniforms.uRange.value,rT,k,dt);
 }
 function applyStaging(){
   const portrait=camera.aspect<0.75;
@@ -4208,7 +4218,14 @@ function animate(){
   renderer.render(scene,camera);
   if(QUALITY.bloom>0)renderBloom(QUALITY.bloom);
   let srcTex=RT_HDR.texture;
-  if(QUALITY.dof&&RT_HDR.depthTexture){
+  /* a wide range means the CoC is zero everywhere, so the whole bokeh
+     pass is a full-screen no-op — skip it and keep the frame budget for
+     the walk. It comes back the moment the résumé pulls focus, and the
+     #coc debug view keeps it alive: that view reads this pass's alpha,
+     and skipping it left the one instrument for auditing blur showing a
+     flat white screen. */
+  if(QUALITY.dof&&RT_HDR.depthTexture&&
+     (dofMat.uniforms.uRange.value<8||compMat.uniforms.uDebug.value===4)){
     dofMat.uniforms.tSrc.value=RT_HDR.texture;
     dofMat.uniforms.tDepth.value=RT_HDR.depthTexture;
     dofMat.uniforms.cameraNear.value=camera.near;
