@@ -89,6 +89,20 @@
     font-family:"Space Grotesk",sans-serif;font-size:13px;transition:.18s;}
   .pill:hover{color:var(--gold);border-color:var(--gold);}
 
+  /* Mute: icon only — the label would push "Text résumé" off a narrow
+     screen, and the speaker glyph is the one control nobody needs told.
+     Hidden until the scene wires it: no audio exists without the scene,
+     and a dead toggle is worse than no toggle. */
+  /* the [hidden] rule must come with the display, or the attribute is
+     inert and the toggle survives the no-WebGL path as dead UI */
+  .pill.icon{padding:7px 10px;display:inline-flex;align-items:center;}
+  .pill.icon[hidden]{display:none;}
+  .pill.icon svg{display:block;}
+  #muteBtn .off{display:none;}
+  #muteBtn[aria-pressed="true"]{color:var(--gold);border-color:var(--gold);}
+  #muteBtn[aria-pressed="true"] .on{display:none;}
+  #muteBtn[aria-pressed="true"] .off{display:block;}
+
   /* ── Text résumé ───────────────────────────────────────────────
      Not a second-class citizen: it is the accessible reading of the
      café (keyboard, screen readers, sound off), what a visitor without
@@ -121,6 +135,14 @@
   /* Reachable by screen readers and crawlers, invisible on screen. */
   .visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
     overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;}
+
+  /* Off-screen objective pointer. The 3D beacon is the real marker; this
+     is what you get when you turn your back on it — a chase camera has
+     no minimap, and "walk to the chair" is useless advice if the chair
+     is behind you. Positioned and rotated from JS each frame. */
+  .seathud{position:fixed;left:0;top:0;z-index:21;display:none;pointer-events:none;
+    color:#f0b64a;filter:drop-shadow(0 2px 6px rgba(0,0,0,.55));}
+  .seathud svg{display:block;}
 
   .prompt{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:20;
     font-family:"Caveat",cursive;font-weight:700;font-size:22px;color:#f5e6c4;
@@ -169,7 +191,25 @@
 </div>
 <div class="sign" id="sign">Virtual Coffee<small>discussion with Simon</small></div>
 <div class="tools">
+  <button class="pill icon" id="muteBtn" hidden aria-pressed="false"
+          aria-label="Mute Simon's voice" title="Mute the voice (M)">
+    <svg class="on" viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none"
+         stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 7.6h2.6L10 4.6v10.8L6.6 12.4H4z"/>
+      <path d="M12.9 7.8a3.2 3.2 0 0 1 0 4.4"/><path d="M15.1 5.7a6.2 6.2 0 0 1 0 8.6"/>
+    </svg>
+    <svg class="off" viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none"
+         stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 7.6h2.6L10 4.6v10.8L6.6 12.4H4z"/>
+      <path d="M13.2 8.2l3.8 3.6M17 8.2l-3.8 3.6"/>
+    </svg>
+  </button>
   <button class="pill" id="cvBtn" aria-expanded="false" aria-controls="cv-text">Text résumé</button>
+</div>
+<div class="seathud" id="seatHud" aria-hidden="true">
+  <svg viewBox="0 0 34 34" width="42" height="42" fill="currentColor">
+    <path d="M17 3 L27 21 L17 16.5 L7 21 Z"/>
+  </svg>
 </div>
 <div class="prompt" id="prompt">Hover the résumé on the table &amp; tap a section&nbsp;☕</div>
 
@@ -928,7 +968,11 @@ function onResize(){
   renderer.setSize(innerWidth,innerHeight);
   if(postReady)allocTargets();
   if(stagingReady)applyStaging();
-  else{camera.fov=camera.aspect<0.75?64:50;camera.updateProjectionMatrix();}
+  else camera.fov=camera.aspect<0.75?64:50;
+  /* unconditional: applyStaging only rebuilds the projection when the
+     gameplay shot is live, so a rotate during the chase-camera walk used
+     to leave the whole frame stretched at the old aspect */
+  camera.updateProjectionMatrix();
 }
 addEventListener("resize",onResize); onResize();
 
@@ -1944,7 +1988,9 @@ function pickGazeTarget(a){
   /* someone just walked in — patrons glance over */
   if(a!==guest&&guest.state==="walk")c.push({w:4,obj:guest.rig.J.head});
   if(a.prop)c.push({w:2,obj:a.prop});
-  c.push({w:1,pos:[(Math.random()-.5)*6,1+Math.random()*.9,-1-Math.random()*3]});
+  /* the random sweep is deliberately the weakest pull: at weight 1 the
+     whole room read as evasive, everyone forever checking the corners */
+  c.push({w:.55,pos:[(Math.random()-.5)*6,1+Math.random()*.9,-1-Math.random()*3]});
   let tot=0;for(let i=0;i<c.length;i++)tot+=c[i].w;
   let r=Math.random()*tot;
   for(let i=0;i<c.length;i++){r-=c[i].w;if(r<=0)return c[i];}
@@ -2232,8 +2278,161 @@ function reskin(a){
    Seat numbers come from the model (assise.1: top y=.503, centre
    (.763,-.256), backrest on +x → he sits facing -x, Simon front-left);
    the path stays clear of T3, the T1 tabletop corner and the rug props. */
-const GUEST_PATH=[[6.5,-1.5],[5.0,-1.12],[3.4,-.72],[2.2,-.28],[1.5,.32],[1.0,.18]];
-const GUEST_SEAT={x:.82,z:-.245,yaw:-Math.PI/2};
+const GUEST_PATH=[[6.5,-1.5],[5.0,-1.12],[3.4,-.72],[2.2,-.28],[1.4,.55],[0,.95],[-.64,.62]];
+/* ACROSS the table from Simon, not on the chair beside him — the whole
+   page promises "you sit across a café table from me", and the model's
+   spare chair sat at his elbow. Same radius from the table centre as his
+   own seat (.93), swung round to face him; the small x offset is what
+   keeps the avatar clear of the résumé and of Simon in the wide shot,
+   which a dead-centre seat would both eclipse. */
+const GUEST_SEAT={x:-.64,z:.52,yaw:Math.atan2(0-(-.64),-1.08-.52)};
+const SEAT_TRIGGER=.55;      /* stand inside this and the interview starts */
+
+/* His chair. The café model merges its own chairs into one mesh per
+   material, so the spare one cannot be moved at runtime — this is a
+   procedural twin, built to the same seat height (.50) the seated pose
+   assumes. */
+{
+  const wood=stdMat(0x8a5a33,.62,0,.7),metal=stdMat(0x23232b,.5,.55,.9);
+  const ch=new THREE.Group();
+  const seat=new THREE.Mesh(new THREE.BoxGeometry(.44,.045,.44),wood);
+  seat.position.y=.48;seat.castShadow=true;ch.add(seat);
+  for(const sx of[-1,1])for(const sz of[-1,1]){
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(.019,.019,.48,8),metal);
+    leg.position.set(sx*.185,.24,sz*.185);leg.castShadow=true;ch.add(leg);
+  }
+  for(const sx of[-1,1]){
+    const up=new THREE.Mesh(new THREE.CylinderGeometry(.019,.019,.52,8),metal);
+    up.position.set(sx*.185,.72,-.2);up.castShadow=true;ch.add(up);
+  }
+  for(const y of[.78,.93]){
+    const slat=new THREE.Mesh(new THREE.BoxGeometry(.4,.075,.028),wood);
+    slat.position.set(0,y,-.2);slat.castShadow=true;ch.add(slat);
+  }
+  ch.position.set(GUEST_SEAT.x,0,GUEST_SEAT.z);
+  ch.rotation.y=GUEST_SEAT.yaw;
+  scene.add(ch);
+  contactShadow(GUEST_SEAT.x,GUEST_SEAT.z,.36,.013);
+}
+
+/* ---------------- THE SEAT MARKER ----------------
+   Objective marker, read straight off a game: a ring on the floor around
+   the chair and an arrow bobbing over it. The ring's radius IS
+   SEAT_TRIGGER — what you see is exactly what you have to step into, so
+   "walk into the arrow and he starts talking" is a promise the geometry
+   keeps. Unlit basic materials on purpose: this is UI, it must not dim
+   with the room. Shown only while you are walking. */
+const seatMarker=new THREE.Group();
+seatMarker.visible=false;
+let markerA=0;               /* eased 0..1 opacity, driven in animate() */
+{
+  const gold=0xf0b64a;
+  const ringMat=new THREE.MeshBasicMaterial({color:gold,transparent:true,
+    opacity:.85,depthWrite:false,side:THREE.DoubleSide});
+  const ring=new THREE.Mesh(new THREE.RingGeometry(SEAT_TRIGGER-.055,SEAT_TRIGGER,44),ringMat);
+  ring.rotation.x=-Math.PI/2;ring.position.y=.024;   /* over the rug (top .013) */
+  ring.renderOrder=3;
+  seatMarker.add(ring);
+  const innerMat=new THREE.MeshBasicMaterial({color:gold,transparent:true,
+    opacity:.13,depthWrite:false,side:THREE.DoubleSide});
+  const disc=new THREE.Mesh(new THREE.CircleGeometry(SEAT_TRIGGER-.055,40),innerMat);
+  disc.rotation.x=-Math.PI/2;disc.position.y=.02;disc.renderOrder=2;
+  seatMarker.add(disc);
+  const arrowMat=new THREE.MeshBasicMaterial({color:gold,transparent:true,
+    opacity:.95,depthWrite:false});
+  const cone=new THREE.Mesh(new THREE.ConeGeometry(.15,.3,4),arrowMat);
+  cone.rotation.x=Math.PI;cone.rotation.y=Math.PI/4;   /* point down, square on */
+  cone.renderOrder=4;
+  const stem=new THREE.Mesh(new THREE.BoxGeometry(.075,.26,.075),arrowMat);
+  stem.position.y=.26;stem.rotation.y=Math.PI/4;stem.renderOrder=4;
+  const arrow=new THREE.Group();
+  arrow.add(cone);arrow.add(stem);
+  arrow.position.y=1.5;
+  seatMarker.add(arrow);
+  /* a soft beacon column on top of the arrow: a 30 cm arrowhead is easy
+     to lose behind a table from across the room, a pillar of light is
+     not. Additive and depth-tested, so furniture still occludes it. */
+  const beamMat=new THREE.MeshBasicMaterial({color:gold,transparent:true,
+    opacity:.1,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
+  /* starts above the tabletop (y .802): a column rising from the floor
+     would cut an additive seam through the corner of Simon's table */
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.115,.16,1.8,14,1,true),beamMat);
+  beam.position.y=1.75;beam.renderOrder=2;
+  seatMarker.add(beam);
+  /* Simon's invitation, hanging over the arrow. A Sprite so it always
+     faces the camera — the chase camera circles, and a flat plane would
+     turn edge-on and vanish exactly when you need reading it. Repainted
+     on VC.fontsReady: canvas text baked before the webfont lands falls
+     back to a system face (the gotcha the README calls out). */
+  const LABEL="Come have a coffee with me";
+  function paintLabel(c){
+    const x=c.getContext("2d");
+    x.clearRect(0,0,c.width,c.height);
+    x.fillStyle="rgba(20,26,31,.86)";
+    const r=26,w=c.width-8,h=c.height-8;
+    x.beginPath();x.moveTo(4+r,4);x.arcTo(4+w,4,4+w,4+h,r);x.arcTo(4+w,4+h,4,4+h,r);
+    x.arcTo(4,4+h,4,4,r);x.arcTo(4,4,4+w,4,r);x.closePath();x.fill();
+    x.strokeStyle="#f0b64a";x.lineWidth=3;x.stroke();
+    x.fillStyle="#f0b64a";x.textAlign="center";x.textBaseline="middle";
+    x.font='44px "Caveat", cursive';
+    x.fillText(LABEL,c.width/2,c.height/2+2);
+  }
+  const labelCnv=document.createElement("canvas");
+  labelCnv.width=560;labelCnv.height=110;
+  paintLabel(labelCnv);
+  const labelTex=new THREE.CanvasTexture(labelCnv);
+  labelTex.encoding=THREE.sRGBEncoding;labelTex.anisotropy=maxAniso;
+  VC.fontsReady.then(()=>{paintLabel(labelCnv);labelTex.needsUpdate=true;});
+  const labelMat=new THREE.SpriteMaterial({map:labelTex,transparent:true,
+    depthWrite:false,opacity:.95});
+  const label=new THREE.Sprite(labelMat);
+  label.scale.set(1.32,.26,1);
+  label.position.y=2.12;
+  label.renderOrder=5;
+  seatMarker.add(label);
+  seatMarker.userData.label=label;
+  seatMarker.userData.arrow=arrow;
+  /* every material of the marker goes in here — one left out is one that
+     pops in at full opacity and blinks out instead of fading */
+  seatMarker.userData.mats=[ringMat,innerMat,arrowMat,beamMat,labelMat];
+  seatMarker.userData.base=[.85,.13,.95,.1,.95];
+  seatMarker.position.set(GUEST_SEAT.x,0,GUEST_SEAT.z);
+  scene.add(seatMarker);
+}
+function showSeatMarker(on){
+  if(on)seatMarker.visible=true;      /* hidden again by the fade in animate() */
+  seatMarker.userData.want=on?1:0;
+  if(!on&&seatHudEl)seatHudEl.style.display="none";
+}
+/* The pointer that finds the beacon when the beacon is behind you.
+   Projects the seat into screen space; while it is comfortably in frame
+   the 3D marker speaks for itself and this stays hidden. */
+const seatHudEl=document.getElementById("seatHud");
+const _seatV=new THREE.Vector3();
+function updateSeatHud(){
+  if(!seatHudEl)return;
+  if(!seatMarker.visible||markerA<.08){seatHudEl.style.display="none";return;}
+  _seatV.set(GUEST_SEAT.x,1.1,GUEST_SEAT.z).project(camera);
+  const behind=_seatV.z>1;
+  const W=innerWidth,H=innerHeight;
+  /* NDC → PIXELS before anything else. Doing the edge hit and the angle
+     in NDC treats the screen as square: on a 16:9 frame that lands the
+     arrow off the border and points it up to ~20° wide of the target. */
+  let dx=_seatV.x*.5*W,dy=-_seatV.y*.5*H;      /* offset from centre, y down */
+  if(behind){dx=-dx;dy=-dy;}                   /* behind: mirror, or it points backwards */
+  const hw=W/2-40,hh=H/2-40;
+  if(!behind&&Math.abs(dx)<hw&&Math.abs(dy)<hh){seatHudEl.style.display="none";return;}
+  const len=Math.hypot(dx,dy)||1;
+  const nx=dx/len,ny=dy/len;
+  const t=Math.min(hw/Math.max(1e-4,Math.abs(nx)),hh/Math.max(1e-4,Math.abs(ny)));
+  seatHudEl.style.display="block";
+  /* the SVG points up at 0deg; CSS rotates clockwise with y down, so a
+     rotation of θ aims it at (sin θ, −cos θ) → θ = atan2(nx, −ny) */
+  seatHudEl.style.transform="translate(-50%,-50%) translate("+
+    (W/2+nx*t)+"px,"+(H/2+ny*t)+"px) rotate("+
+    (Math.atan2(nx,-ny)*57.29578)+"deg)";
+  seatHudEl.style.opacity=String(.55+.45*Math.abs(Math.sin(performance.now()/380)));
+}
 const guest=makeAgent("guest","guest",{});
 guest.rig.root.visible=false;guest.blob.visible=false;
 guest.state="off";           /* off | walk | sit | seated */
@@ -2241,7 +2440,7 @@ guest.mode="auto";           /* auto (path) | manual (arrow keys) */
 guest.idleT=0;guest.ctl=null;
 guest.collide=collideGuest;  /* walkLayer's hook — the guest alone has one */
 guest.vPauseT=0;             /* walkLayer's gate reads it — must be a number */
-let simonLook=0;             /* Simon's head yaw toward the guest, eased in animate() */
+let simonLook=0,simonEyeY=0,simonEyeP=0;   /* Simon's head + eye aim, eased in animate() */
 
 /* --- the walk is PLAYABLE: arrows (or physical WASD, which lands on
    ZQSD for an AZERTY keyboard) steer him, screen-relative — the camera
@@ -2278,10 +2477,14 @@ function guestCtl(){
    his own circle — the T1 one stops 1 cm short of his chair, and walking
    INTO the man you came to meet is the one clip nobody would forgive. */
 const GUEST_BLOCKERS=[[2.65,1.81,.8],[5.19,-2.38,.85],[5.03,2.18,.8],[.48,3.19,.8],
-  [0,-.15,.92],[0,-1.12,.52]];
+  [0,-.15,.88],[0,-1.12,.52]];   /* T1 at .88: the tabletop is .715, and the
+                                    seat opposite has to be standable */
 function collideGuest(a){
+  /* the south of the room is dressed for the wide shot, not for standing
+     in: keeping the player out of it keeps the chase camera off the
+     fourth wall AND out of its own z clamp (see FOLLOW.zmax) */
   a.pos.x=Math.max(-1.35,Math.min(6.85,a.pos.x));
-  a.pos.z=Math.max(-2.35,Math.min(3.75,a.pos.z));
+  a.pos.z=Math.max(-2.35,Math.min(1.9,a.pos.z));
   for(let i=0;i<GUEST_BLOCKERS.length;i++){
     const b=GUEST_BLOCKERS[i];
     const dx=a.pos.x-b[0],dz=a.pos.z-b[1];
@@ -2291,6 +2494,7 @@ function collideGuest(a){
 }
 function startSit(a){
   a.state="sit";a.walkTarget=null;
+  showSeatMarker(false);          /* you are in it: the marker has done its job */
   a.sit={k:0,fx:a.pos.x,fz:a.pos.z,rY:.56-.855*a.rig.root.scale.x};
   playShot(a,1.05,(k,buf)=>{           /* brace on the way down */
     const p=pulse(k);
@@ -2536,8 +2740,9 @@ function tickVisitor(a,dtT){
 function tickGuest(a,dtT){
   if(a.state==="walk"){
     /* the chair claims him — same trigger whether he walked himself or
-       the autopilot did: this ring is the ONLY way the dialogue starts */
-    if(Math.hypot(GUEST_SEAT.x-a.pos.x,GUEST_SEAT.z-a.pos.z)<.55){startSit(a);return;}
+       the autopilot did: this ring is the ONLY way the dialogue starts,
+       and SEAT_TRIGGER is the radius drawn on the floor */
+    if(Math.hypot(GUEST_SEAT.x-a.pos.x,GUEST_SEAT.z-a.pos.z)<SEAT_TRIGGER){startSit(a);return;}
     if(a.mode==="manual"){
       a.walkTarget=null;
       /* "idle" means NO KEY DOWN, not "no keydown event": the OS only
@@ -2563,11 +2768,20 @@ function tickGuest(a,dtT){
     a.walkTarget=[wp[0],wp[1]];
     return;
   }
-  /* settling in / seated: watch Simon whenever he talks (and while
-     sitting down — he is being greeted); otherwise the free gaze system
-     wanders, résumé included via a.prop */
-  if(a.state==="sit"||a.state==="seated")
-    a.gazeLock=(a.state==="sit"||speaking)?{obj:simonHead}:null;
+  /* Seated, he HOLDS Simon's gaze. Handing him back to the free gaze
+     system between sentences is what made him look shifty — a listener
+     who keeps scanning the room reads as bored, not alive. He still
+     drops his eyes to the résumé for a beat every ~9 s, which is what a
+     real listener does and what keeps him from staring. */
+  if(a.state==="sit"||a.state==="seated"){
+    /* seeded on the first tick, or an undefined timer fires immediately
+       and he spends the whole greeting reading the résumé */
+    if(a.glanceT===undefined)a.glanceT=jit(9,.35);
+    a.glanceT-=dtT;
+    if(a.glanceT<=0){a.glanceT=jit(9,.35);a.glanceFor=1.2;}
+    if(a.glanceFor>0){a.glanceFor-=dtT;a.gazeLock=(a.prop&&a.prop.visible)?{obj:a.prop}:{obj:simonHead};}
+    else a.gazeLock={obj:simonHead};
+  }
 }
 
 /* --- 60 Hz layers --- */
@@ -2684,7 +2898,7 @@ function behaviourTick(dtT){
     a.gazeT-=dtT;
     if(a.gazeT<=0){
       a.gaze=pickGazeTarget(a);
-      a.gazeT=jit(3.2,.55);
+      a.gazeT=jit(4.6,.5);          /* longer holds: darting eyes read as shifty */
       a.blinkQueue=true;
     }
     switch(a.kind){
@@ -3032,18 +3246,74 @@ function clearCues(){cues=[];cueIdx=-1;showCue("");}
    createMediaElementSource is once-per-element — speak() makes a fresh
    Audio each call, so that holds. The AudioContext resumes on the
    enter-button click, the required user gesture. */
-let lipCtx=null,lipAnalyser=null,lipData=null,jawOpen=0;
+let lipCtx=null,lipAnalyser=null,lipData=null,jawOpen=0,lipGain=null,audioRouted=false;
 function attachAnalyser(el){
   if(!lipCtx)lipCtx=new (window.AudioContext||window.webkitAudioContext)();
   if(lipCtx.state==="suspended")lipCtx.resume();
+  if(!lipGain){                       /* one master gain for the page */
+    lipGain=lipCtx.createGain();
+    lipGain.connect(lipCtx.destination);
+  }
+  lipGain.gain.value=muted?0:1;
+  /* one source + analyser per speak(); without this the old branches
+     stay wired to the master gain for the life of the page */
+  if(lipAnalyser){try{lipAnalyser.disconnect();}catch(_){}}
   const src=lipCtx.createMediaElementSource(el);
   lipAnalyser=lipCtx.createAnalyser();
   lipAnalyser.fftSize=256;
   lipAnalyser.smoothingTimeConstant=.55;
   lipData=new Uint8Array(lipAnalyser.frequencyBinCount);
   src.connect(lipAnalyser);
-  lipAnalyser.connect(lipCtx.destination);
+  /* the mute sits AFTER the analyser on purpose: silenced, Simon still
+     moves his mouth and the subtitles still run — he is talking, you
+     just cannot hear him. Cutting the element instead would freeze his
+     jaw and make the whole café look broken. */
+  lipAnalyser.connect(lipGain);
 }
+
+/* ---------------- MUTE ----------------
+   Sound off is a first-class way to use this page (the subtitles carry
+   every word), so the choice is remembered between visits. */
+let muted=false,ttsInterrupt=false,ttsCode="en-GB",ttsVoice=null;
+try{muted=localStorage.getItem("vc:muted")==="1";}catch(_){}
+const muteBtn=document.getElementById("muteBtn");
+function applyMute(){
+  if(lipGain)lipGain.gain.value=muted?0:1;
+  /* an element that never made it into the graph has to be cut directly */
+  if(audioEl&&!audioRouted)audioEl.muted=muted;
+  /* the mp3 path keeps playing at gain 0 so captions and lipsync live;
+     TTS has no gain to turn down, so the sentence in flight is cut and
+     the chain is explicitly rearmed at volume 0 (see ttsResume) */
+  if(muted&&"speechSynthesis"in window&&speechSynthesis.speaking){
+    ttsInterrupt=true;
+    speechSynthesis.cancel();
+    setTimeout(ttsResume,140);
+  }
+  if(muteBtn){
+    muteBtn.setAttribute("aria-pressed",muted?"true":"false");
+    muteBtn.setAttribute("aria-label",muted?"Unmute Simon's voice":"Mute Simon's voice");
+    muteBtn.title=(muted?"Unmute the voice":"Mute the voice")+" (M)";
+  }
+}
+function setMuted(v){
+  muted=!!v;
+  try{localStorage.setItem("vc:muted",muted?"1":"0");}catch(_){}
+  applyMute();
+}
+if(muteBtn){
+  muteBtn.hidden=false;            /* the scene is alive: the toggle is real */
+  muteBtn.addEventListener("click",()=>setMuted(!muted));
+  applyMute();
+}
+addEventListener("keydown",e=>{
+  /* e.key, not e.code: KeyM is a POSITION, and on the AZERTY keyboards
+     this café was built on that position is the comma. e.repeat guards
+     against a held key machine-gunning the toggle. */
+  if(e.repeat||e.metaKey||e.ctrlKey||e.altKey)return;
+  if((e.key||"").toLowerCase()!=="m")return;
+  if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;
+  setMuted(!muted);
+});
 function selectSection(key){
   if(beerMode)setBeerMode(false);
   current=key;drawResume();
@@ -3074,8 +3344,21 @@ function ttsStart(text){
   if(!("speechSynthesis"in window)){endSpeech();return;}
   const code="en-GB";
   const v=bestVoice(code)||bestVoice("en");
+  ttsCode=code;ttsVoice=v;
   queue=text.match(/[^.!?…]+[.!?…]+["']?|\S[^.!?…]*$/g)||[text];
   next(code,v);
+}
+/* Resume the caption chain after a mute interrupted an utterance.
+   cancel() on a sentence already being spoken fires `error` on
+   spec-conformant engines, `end` on some, and NOTHING on Firefox — all
+   three used to strand the section: dead voice, dead subtitles, nothing
+   rearmed on unmute. Whichever arrives first wins, the flag makes sure
+   only one continuation runs, and the timer covers the silent case. */
+function ttsResume(){
+  if(!ttsInterrupt)return;
+  ttsInterrupt=false;
+  if(queue.length)setTimeout(()=>next(ttsCode,ttsVoice),60);
+  else endSpeech();
 }
 /* `el` (optional): a pre-made Audio for the same file — the entrance
    blesses the welcome element inside the click gesture, then hands it
@@ -3085,7 +3368,8 @@ function speak(text,key,el){
   const f=key&&AUDIO[lang][key];
   if(f){
     audioEl=el||new Audio(f);
-    try{attachAnalyser(audioEl);}catch(_){lipAnalyser=null;}
+    try{attachAnalyser(audioEl);audioRouted=true;}catch(_){lipAnalyser=null;audioRouted=false;}
+    applyMute();
     /* a blessed element may have its metadata already — the event
        won't refire, so build the cues from what's there */
     if(audioEl.readyState>=1&&audioEl.duration)cues=buildCues(text,audioEl.duration);
@@ -3113,13 +3397,16 @@ function next(code,v){
   const sentence=queue.shift().trim();
   const u=new SpeechSynthesisUtterance(sentence);
   u.lang=code;u.rate=.98;if(v)u.voice=v;
+  /* volume 0 rather than skipping: onend still fires, so the captions
+     keep their pacing with the sound off */
+  u.volume=muted?0:1;
   showCue(sentence);
-  u.onend=()=>setTimeout(()=>next(code,v),140);
-  u.onerror=()=>endSpeech();
+  u.onend=()=>{if(ttsInterrupt){ttsResume();return;}setTimeout(()=>next(code,v),140);};
+  u.onerror=()=>{if(ttsInterrupt){ttsResume();return;}endSpeech();};
   speechSynthesis.speak(u);
 }
 function endSpeech(){speaking=false;clearCues();}
-function stopSpeaking(){queue=[];speaking=false;clearCues();
+function stopSpeaking(){queue=[];speaking=false;ttsInterrupt=false;clearCues();
   if("speechSynthesis"in window)speechSynthesis.cancel();
   if(audioEl){audioEl.pause();audioEl=null;}}
 
@@ -3242,9 +3529,10 @@ function startEntrance(){
                        GUEST_PATH[s+1][1]-GUEST_PATH[s][1]);
   guest.state="walk";
   guest.mode="auto";guest.idleT=0;guestKeys.clear();
+  showSeatMarker(true);           /* the arrow says where the coffee is */
   /* the walk is yours to drive (desktop); on touch the autopilot walks */
   if(TOUCH)promptEl.style.display="none";
-  else promptEl.textContent="Arrow keys to walk in — your seat is at the table ☕";
+  else promptEl.textContent="Arrow keys — walk into the arrow to sit down ☕";
   /* the stroller yields the entrance beat — unless he's already inside */
   if(!visitor.active)visitor.vTimer=Math.max(visitor.vTimer,16);
 }
@@ -3305,6 +3593,7 @@ function closeCafe(){
      switches off. The key spot and the two other pendants go dark — and
      the animation loop has to stop driving them, or the next frame turns
      them straight back on (see below). */
+  if(muteBtn)muteBtn.hidden=true;   /* nothing left to mute in an empty room */
   keySpot.intensity=0;
   winDir.intensity=.04;
   hemi.intensity=.07;
@@ -3360,8 +3649,55 @@ const SHOTS={
   /* Pulled back from the table (z 1.62 → 2.6, fov 47 → 52): the café —
      counter, register, chalkboard, window bar — is part of the shot now,
      not a backdrop glimpsed behind Simon's shoulders. */
-  gameplay: {pos:[.42,1.42,2.6], look:[0,1.12,-.95], fov:52,focus:3.5, range:1.75, roll:.006, shake:1}
+  gameplay: {pos:[.42,1.42,2.6], look:[0,1.12,-.95], fov:52,focus:3.5, range:1.75, roll:.006, shake:1},
+  /* Third-person chase for the walk in — the arrays below are rewritten
+     every frame by updateFollowShot(). Nothing else changes: the same
+     damping that used to blend between fixed setups now trails the
+     character, which is exactly the lag a chase camera wants. */
+  follow: {pos:[3,1.95,1.2], look:[3,1.35,0], fov:58, focus:2.8, range:2.4, roll:0, shake:.5}
 };
+/* Behind him — but only ever from the audience side.
+   A true orbit-behind camera swings round to the fourth wall, and this
+   café is a SET: it is modelled to be seen from the customer's chair, so
+   from behind you get the blue backdrop slab, an unlit ceiling and black
+   void. So the chase vector is blended 62% toward +z before it is used:
+   the camera still swings when you turn (it reads as a chase), but its
+   +z component can never drop below ~.27, which keeps the dressed room —
+   counter, chalkboard, shopfront — behind the character at all times. */
+/* zmax vs the player's own z clamp (1.9) sets the CLOSEST the chase can
+   get: 3.6 − 1.9 = 1.7 m. Let the player walk further south than that
+   and the camera jams against the wall clamp, collapsing into a
+   nose-to-nose close-up pitched steeply down. */
+const FOLLOW={dist:2.7,height:1.9,lookH:1.3,ahead:.4,bias:.62,
+  xmin:-2.6,xmax:6.2,zmin:-1.1,zmax:3.6};
+function updateFollowShot(){
+  const fx=Math.sin(guest.yaw),fz=Math.cos(guest.yaw);
+  /* Where the camera stands is half "behind his back" and half "on the
+     far side of him FROM THE CHAIR" — a pure over-the-shoulder puts the
+     objective behind the lens the moment he turns away from it, which is
+     precisely when the player needs to see where they are going. */
+  let gx=guest.pos.x-GUEST_SEAT.x,gz=guest.pos.z-GUEST_SEAT.z;
+  let gl=Math.hypot(gx,gz);
+  if(gl<.8){gx=-fx;gz=-fz;gl=1;}         /* already on it: back to his shoulder */
+  const bx=-fx*.5+(gx/gl)*.5,bz=-fz*.5+(gz/gl)*.5;
+  let dx=bx*(1-FOLLOW.bias),dz=bz*(1-FOLLOW.bias)+FOLLOW.bias;
+  const dl=Math.hypot(dx,dz)||1;dx/=dl;dz/=dl;
+  const px=Math.max(FOLLOW.xmin,Math.min(FOLLOW.xmax,guest.pos.x+dx*FOLLOW.dist));
+  const pz=Math.max(FOLLOW.zmin,Math.min(FOLLOW.zmax,guest.pos.z+dz*FOLLOW.dist));
+  const s=SHOTS.follow;
+  s.pos[0]=px;s.pos[1]=FOLLOW.height;s.pos[2]=pz;
+  /* and the frame leads TOWARD the chair rather than at the back of his
+     head — up to 1.4 m of it, so he stays the subject either way */
+  let ax=GUEST_SEAT.x-guest.pos.x,az=GUEST_SEAT.z-guest.pos.z;
+  const al=Math.hypot(ax,az);
+  /* .75 m of lead, no more: at 2.7 m back and a 44° horizontal frame,
+     anything past ~1 m pushes the player himself out of shot */
+  const lead=al>.05?Math.min(.75,al*.5)/al:0;
+  s.look[0]=guest.pos.x+(lead?ax*lead:fx*FOLLOW.ahead);
+  s.look[1]=FOLLOW.lookH;
+  s.look[2]=guest.pos.z+(lead?az*lead:fz*FOLLOW.ahead);
+  s.focus=Math.max(1.2,Math.hypot(s.look[0]-px,s.look[2]-pz));
+}
 let shot=SHOTS.gameplay,shotName="gameplay",hardCut=false;
 const camPos=new THREE.Vector3().fromArray(SHOTS.gameplay.pos);
 const camLook=new THREE.Vector3().fromArray(SHOTS.gameplay.look);
@@ -3376,6 +3712,13 @@ function cutTo(name,hard){
   }
 }
 function updateDirection(t){
+  /* the chase camera owns the walk; the moment he sits, the damping
+     carries the frame back to the interview shot on its own */
+  if(!RM&&!cafeClosed&&guest.state==="walk"){
+    updateFollowShot();
+    if(shotName!=="follow")cutTo("follow",false);
+    return;
+  }
   if(shotName!=="gameplay")cutTo("gameplay",false);
 }
 function dampV3(v,target,k,dt){
@@ -3455,13 +3798,30 @@ function animate(){
   /* Simon */
   simonHead.position.y=1.6+Math.sin(t*1.2)*.008;
   simonHead.rotation.z=Math.sin(t*.9)*.02;
-  /* he clocks you coming in and stays with you through the welcome —
-     head yaw only, capped at a natural turn; back to camera afterwards */
-  const watchGuest=guest.state==="walk"||guest.state==="sit"||
-    (speaking&&lastKey==="welcome"&&guest.state!=="off");
-  simonLook+=((watchGuest?clampN(Math.atan2(guest.pos.x,guest.pos.z+1.08),1):0)
-    -simonLook)*Math.min(1,dt*2.2);
+  /* SIMON LOOKS AT YOU — at the person, not past them.
+     His pupils used to be painted straight ahead and never moved, so any
+     head turn pointed his eyes into the middle distance: a shifty stare
+     on the one page where he is supposed to hold your gaze. Now the
+     target is the avatar in the chair (the camera until you have one),
+     the head takes the first 35° of it and the EYES cover the rest —
+     eyes lead, head follows, the same rule the café's extras use. */
+  const hasGuest=guest.state!=="off";
+  const tYaw=hasGuest?Math.atan2(guest.pos.x,guest.pos.z+1.08)
+                     :Math.atan2(camera.position.x,camera.position.z+1.08);
+  const tgtY=hasGuest?(guest.state==="walk"?1.5:1.34):camera.position.y;
+  const tPit=Math.atan2(tgtY-1.6,
+    Math.hypot(hasGuest?guest.pos.x:camera.position.x,
+               (hasGuest?guest.pos.z:camera.position.z)+1.08));
+  simonLook=damp(simonLook,clampN(tYaw,.62),.055,dt);
   simonHead.rotation.y=simonLook;
+  /* the eye groups pivot on the eyeball centre, so only the pupil
+     travels across the white — which is exactly how an eye reads */
+  simonEyeY=damp(simonEyeY,clampN(tYaw-simonLook,.34),.4,dt);
+  simonEyeP=damp(simonEyeP,clampN(tPit,.26),.4,dt);
+  for(let i=0;i<eyeGroups.length;i++){
+    eyeGroups[i].rotation.y=simonEyeY;
+    eyeGroups[i].rotation.x=-simonEyeP;
+  }
   const blinkT=t%3.7;
   const eyeS=blinkT<.12?.12:1;
   eyeGroups.forEach(g=>g.scale.y=eyeS);
@@ -3490,6 +3850,27 @@ function animate(){
     if(simon.userData.rShoulder)
       simon.userData.rShoulder.rotation.z+=(.32-simon.userData.rShoulder.rotation.z)*.1;
   }
+  /* the seat marker: bob, slow spin, breathing ring — and a fade so it
+     leaves the frame instead of blinking out when he sits down */
+  {
+    const want=seatMarker.userData.want||0;
+    markerA=damp(markerA,want,.10,dt);
+    if(markerA<.012&&!want)seatMarker.visible=false;
+    if(seatMarker.visible){
+      const puls=RM?1:.78+Math.sin(t*3.1)*.22;
+      const base=seatMarker.userData.base,mats=seatMarker.userData.mats;
+      /* the arrow and the sign hold steady; only the ground and the beam
+         breathe — a pulsing label is unreadable */
+      for(let i=0;i<mats.length;i++)
+        mats[i].opacity=base[i]*markerA*((i===2||i===4)?1:puls);
+      const arrow=seatMarker.userData.arrow;
+      arrow.position.y=1.5+(RM?0:Math.sin(t*2.2)*.1);
+      if(!RM)arrow.rotation.y=t*.9;
+      arrow.scale.setScalar(.6+markerA*.4);
+    }
+    updateSeatHud();
+  }
+
   for(const s of steam){
     const ph=(t*.5+s.userData.phase)%1.6;
     s.position.set(.44+Math.sin((ph+s.userData.phase)*4)*.02,.95+ph*.35,-.62);

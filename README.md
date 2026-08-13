@@ -2,15 +2,18 @@
 
 An interactive 3D résumé. "Take a seat" spawns your character by the door and
 **the arrow keys are yours** (physical WASD works too, which lands on ZQSD for
-AZERTY): walk him across the room to the chair at Simon's table — the welcome
-(and the clickable CV) waits until you are actually seated. An autopilot walks
-him in until you touch a key, and takes over again after nine idle seconds, so
-touch devices and idle visitors still end up in the chair. The CV is lying on
-the table, and tapping a section makes Simon tell you about it out loud — in
-his own recorded voice. Tap Simon himself and he orders a round of beers for
-the off-the-record version. English only (the FR mode was retired in favour of
-the recorded voice). Under `prefers-reduced-motion` the walk is skipped: you
-appear seated and the welcome starts at once.
+AZERTY): a third-person camera follows you across the room to the chair at
+Simon's table, marked by a ring on the floor and an arrow above it. Step into
+the ring and the interview starts — the welcome, and the clickable CV with it,
+waits until you are actually in the chair. An autopilot walks you in until you
+touch a key, and takes over again after nine idle seconds, so touch devices and
+idle visitors still end up seated. The CV is lying on the table, and tapping a
+section makes Simon tell you about it out loud — in his own recorded voice,
+while he looks you in the eye. Tap Simon himself and he orders a round of beers
+for the off-the-record version. There is a mute pill (or `M`) for the voice;
+the subtitles carry every word without it. English only (the FR mode was
+retired in favour of the recorded voice). Under `prefers-reduced-motion` the
+walk is skipped: you appear seated and the welcome starts at once.
 
 **Live** : <https://ndashiz.be/virtualcoffee/>
 
@@ -373,6 +376,21 @@ AUDIO.en.skills = "audio/en/skills.mp3";
 
 A missing key falls back to TTS, and so does a file that fails to load
 (`audioEl.onerror`), so a broken path degrades rather than going silent.
+
+### Mute
+
+The pill next to "Text résumé" (or the `M` key) cuts the voice, and the choice
+is remembered in `localStorage["vc:muted"]` — sound off is a first-class way to
+read this page, not a failure state.
+
+It is **not** `audioEl.muted`. The lipsync drives Simon's jaw from the real
+audio amplitude through an `AnalyserNode`, so cutting the element would freeze
+his mouth mid-sentence and make the café look broken. Instead a single master
+`GainNode` sits **after** the analyser: muted, the analyser still sees the full
+signal, so he keeps talking and the subtitles keep running — you just cannot
+hear him. The element is only muted directly in the fallback where
+`createMediaElementSource` threw and there is no graph at all (`audioRouted`),
+and the TTS path sets `utterance.volume` so `onend` still paces the captions.
 
 ### Subtitles
 
