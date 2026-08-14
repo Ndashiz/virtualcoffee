@@ -3398,72 +3398,280 @@ for(let i=0;i<3;i++){
 }
 
 /* ---------------- RÉSUMÉ SHEET ---------------- */
-const CW=1024,CH=1400;
+/* ---------------- RÉSUMÉ SHEET ----------------
+   A faithful repaint of Simon's actual CV (CV_Simon_Goffin_2026_5.pdf):
+   navy sidebar with photo, contact, skills, certifications and languages;
+   white column with the profile, three jobs on a timeline and three
+   degrees. True A4 proportions, and laid out as a FLOW rather than fixed
+   coordinates — every block advances a cursor and records its own
+   rectangle, which is what the clickable ZONES are built from, so the
+   hit areas can never drift away from the text they belong to. */
+const CW=1240,CH=1754;                      /* A4, 1:1.414 */
 const cnv=document.createElement("canvas");cnv.width=CW;cnv.height=CH;
 const ctx=cnv.getContext("2d");
 const tex=new THREE.CanvasTexture(cnv);tex.anisotropy=maxAniso;tex.encoding=THREE.sRGBEncoding;
 let ZONES=[];
-function wrapTxt(lines,x,y,lh,font,color){
+/* his actual portrait, lifted straight out of the PDF (420x420, 33 kB).
+   Same-origin, so no CSP question; if it fails to arrive the drawn head
+   below stands in and nobody is any the wiser. */
+const cvPhoto=new Image();let cvPhotoOK=false;
+cvPhoto.onload=function(){cvPhotoOK=true;drawResume();};
+cvPhoto.src="photo.jpg";
+const CV={
+  name:["GOFFIN","SIMON"],
+  role:"PRODUCT MANAGER · DIGITAL ONBOARDING & CRM · BUSINESS & IT",
+  /* [text, bold] runs — the CV emphasises these words in the paragraph */
+  profile:[["Product Manager in private banking, fluent in both languages spoken in the room: business and IT. After three years in a ",0],["Big 4",1],[", I now own two ",0],["digital products",1],[": the bank's ",0],["CRM",1],[", and the client platform behind its execution-only and discretionary mandates, where ",0],["AML",1],[", ",0],["MiFID",1],[" and ",0],["user experience",1],[" all have to meet. Solvay graduate with a full-stack developer background, I turn business requirements into backlogs engineers can build, and technical constraints into decisions the business can own.",0]],
+  jobs:[
+    {t:"Product Manager",c:"Degroof Petercam",d:"2024 – Present",
+     s:"Product Owner · CRM (Dynamics 365) & Client Lifecycle Management",
+     b:["Product Owner of two digital products: the bank's CRM (Microsoft Dynamics 365) and Client Lifecycle Management for the digital investment platform, leading two cross-functional squads of 10+ business, IT and compliance experts",
+        "Own CLM end to end for execution-only and discretionary mandates, covering onboarding, client data and regulatory questionnaires across the bank's investment product range",
+        "Built the digital onboarding journey covering AML and MiFID questionnaires, digital identity (itsme) and e-signature in one paperless flow, activating a new client end to end in under 15 minutes",
+        "Launched self-service CLM, letting clients update their own personal and regulatory data digitally and removing manual back-office maintenance",
+        "Set the CRM roadmap and backlog priorities for the platform used daily by private bankers and client-facing teams, acting as the single point of translation between business, engineering and risk"]},
+    {t:"Senior Financial Services Consultant",c:"EY",d:"2021 – 2024",
+     s:"Banking industry · private banking clients",
+     b:["Functional Analyst on a strategic digital transformation for a private bank: gathered business requirements, wrote functional specifications and BPMN process flows, and steered delivery with the IT teams",
+        "Designed and rolled out the Client Center operating model for the Mass Affluent segment, aligning commercial targets with system and data capabilities",
+        "AML Analyst across first and second line of defence, bringing hands-on control knowledge into the design of the tooling that supports it",
+        "Bridged business stakeholders and technical teams on scope, dependencies and testing throughout the delivery cycle"]},
+    {t:"AML Analyst",c:"Degroof Petercam",d:"2020 (4 months)",s:"",
+     b:["SPOC for Private Banking on AML file reviews and source-of-funds analysis, and pushed KYC/KYT process improvements, the operational pain points that shaped my later product work"]}
+  ],
+  edu:[
+    {t:"Junior Full Stack Developer",c:"Le Wagon",d:"2020",
+     b:"9-week intensive program: built and shipped a production web app. ",i:"Ruby on Rails, JavaScript, HTML/CSS, PostgreSQL, Git."},
+    {t:"Master of Management Science",c:"Solvay",d:"2018 – 2020",
+     b:"Major in econometrics. Thesis: business plan for a unified LMS consolidating the university's digital interfaces, covering financials and rollout strategy.",i:""},
+    {t:"Bachelor in Economics",c:"Solvay",d:"2014 – 2018",b:"Minor in statistics.",i:""}
+  ],
+  contact:["+32 479 48 76 08","goffin.simon@gmail.com","Avenue de Roodebeek 291","1030 Bruxelles"],
+  skills:[
+    ["PRODUCT & DELIVERY","Agile / Scrum · Backlog & roadmap · User stories & acceptance criteria · Jira, Confluence, Monday"],
+    ["BUSINESS ANALYSIS","Functional specifications · BPMN & process design (Visio, Lucidchart) · Requirements gathering · UX flows (Figma, Adobe XD)"],
+    ["TECHNICAL","SQL & PostgreSQL · Ruby on Rails · JavaScript, HTML/CSS · Git · System integration · Power BI · Dynamics 365 (CRM) · Azure · AI dev tools (Codex, Claude Code)"],
+    ["DOMAIN","Private banking · Execution-only & discretionary mandates · Client Lifecycle Management · Digital onboarding (end-to-end) · Self-service CLM · AML / KYC / KYT · MiFID · Digital identity & e-signature"]
+  ],
+  certs:["Professional Scrum Product Owner™ I (PSPO I)","Professional Scrum Master™ I (PSM I)",
+         "Microsoft Certified: Dynamics 365 Fundamentals (CRM)","Microsoft Certified: Azure Fundamentals"],
+  langs:[["French","Native"],["English","Fluent"],["Dutch","Intermediate"]]
+};
+const INK="#2b3138",NAVY="#1d3557",STEEL="#6b7683",SIDE="#22344a";
+/* plain wrap; returns the y just below the last line */
+function wrapAt(text,x,y,maxW,lh,font,color){
   ctx.font=font;ctx.fillStyle=color;ctx.textAlign="left";
-  lines.forEach((l,i)=>ctx.fillText(l,x,y+i*lh));
+  const words=String(text).split(" ");let line="";
+  for(let i=0;i<words.length;i++){
+    const t=line?line+" "+words[i]:words[i];
+    if(ctx.measureText(t).width>maxW&&line){ctx.fillText(line,x,y);y+=lh;line=words[i];}
+    else line=t;
+  }
+  if(line){ctx.fillText(line,x,y);y+=lh;}
+  return y;
+}
+/* the same, but for [text,bold] runs — the profile paragraph needs its
+   emphasised words inline, so the wrap has to measure word by word */
+function wrapRuns(runs,x,y,maxW,lh,size,cNorm,cBold){
+  ctx.textAlign="left";
+  /* tokenise KEEPING the whitespace: the spaces live inside the runs
+     ("MiFID" + " and "), so synthesising them instead glues the bold
+     word to the next one */
+  const toks=[];
+  runs.forEach(function(r){
+    r[0].split(/(\s+)/).forEach(function(t){
+      if(t!=="")toks.push([t,r[1],/^\s+$/.test(t)]);
+    });
+  });
+  let cx=x;
+  for(let i=0;i<toks.length;i++){
+    const t=toks[i];
+    ctx.font=(t[1]?"600 ":"400 ")+size+"px 'Inter',sans-serif";
+    const w=ctx.measureText(t[0]).width;
+    if(t[2]){if(cx>x)cx+=w;continue;}          /* a space never opens a line */
+    if(cx+w>x+maxW&&cx>x&&!/^[,.;:!?)]/.test(t[0])){y+=lh;cx=x;}
+    ctx.fillStyle=t[1]?cBold:cNorm;
+    ctx.fillText(t[0],cx,y);cx+=w;
+  }
+  return y+lh;
+}
+function rounded(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+/* a block the visitor can tap: remembered for the raycast, and tinted
+   like a highlighter pen when hovered or playing */
+function zoneBox(key,x,y,w,h){
+  ZONES.push({key:key,x:x,y:y,w:w,h:h});
+  const act=key===current,hov=key===hoverKey;
+  if(!act&&!hov)return;
+  ctx.fillStyle=act?"rgba(244,183,64,.26)":"rgba(244,183,64,.13)";
+  rounded(x-14,y-10,w+28,h+20,12);ctx.fill();
+  if(act){ctx.fillStyle="#f4b740";ctx.fillRect(x-22,y-6,6,h+12);}
+  ctx.textAlign="right";ctx.font="400 22px 'Inter',sans-serif";
+  ctx.fillStyle="rgba(20,38,61,.5)";ctx.fillText("☝",x+w+18,y+14);
 }
 function drawResume(){
-  const d=DATA[lang];ZONES=[];
+  ZONES=[];
   ctx.fillStyle="#f7f4ed";ctx.fillRect(0,0,CW,CH);
-  /* paper grain */
-  for(let i=0;i<900;i++){
-    ctx.fillStyle=`rgba(120,100,70,${Math.random()*.05})`;
-    ctx.fillRect(Math.random()*CW,Math.random()*CH,1.4,1.4);
+  for(let i=0;i<900;i++){                       /* paper grain */
+    ctx.fillStyle="rgba(120,100,70,"+(Math.random()*.05)+")";
+    ctx.fillRect(Math.random()*CW,Math.random()*CH,1.6,1.6);
   }
-  const grad=ctx.createLinearGradient(0,0,0,CH);
-  grad.addColorStop(0,"#183050");grad.addColorStop(1,"#14263d");
-  ctx.fillStyle=grad;ctx.fillRect(0,0,348,CH);
-  ctx.save();ctx.beginPath();ctx.arc(174,150,82,0,7);ctx.clip();
-  ctx.fillStyle="#e8b58c";ctx.fillRect(92,68,164,164);
-  ctx.fillStyle="#2c2c36";ctx.beginPath();ctx.arc(174,118,52,Math.PI,0);ctx.fill();
-  ctx.fillRect(122,100,104,26);
-  ctx.fillStyle="#2c4a6e";ctx.beginPath();ctx.arc(174,232,62,Math.PI,0);ctx.fill();
+  /* ---------------- sidebar ---------------- */
+  const SW=392;
+  ctx.fillStyle=SIDE;ctx.fillRect(0,0,SW,CH);
+  const px=SW/2,py=178,pr=90;
+  ctx.save();ctx.beginPath();ctx.arc(px,py,pr,0,7);ctx.clip();
+  if(cvPhotoOK){
+    ctx.drawImage(cvPhoto,px-pr,py-pr,pr*2,pr*2);
+  }else{                                    /* stand-in until it loads */
+    ctx.fillStyle="#c8d3de";ctx.fillRect(px-pr,py-pr,pr*2,pr*2);
+    ctx.fillStyle="#e8b58c";ctx.beginPath();ctx.arc(px,py+16,54,0,7);ctx.fill();
+    ctx.fillStyle="#2c2c36";ctx.beginPath();ctx.arc(px,py-14,50,Math.PI,0);ctx.fill();
+    ctx.fillRect(px-50,py-20,100,22);
+    ctx.fillStyle="#1c2b3a";ctx.beginPath();ctx.arc(px,py+108,72,Math.PI,0);ctx.fill();
+  }
   ctx.restore();
-  ctx.strokeStyle="#33547c";ctx.lineWidth=6;
-  ctx.beginPath();ctx.arc(174,150,84,0,7);ctx.stroke();
-  ctx.textAlign="center";
-  ctx.font="700 52px 'Space Grotesk',sans-serif";
-  ctx.fillStyle="#ffffff";ctx.fillText("GOFFIN",174,300);
-  ctx.fillStyle="#f4b740";ctx.fillText("SIMON",174,352);
-  ctx.font="500 19px 'Inter',sans-serif";ctx.fillStyle="#9db3c9";
-  ctx.fillText("PRODUCT MANAGER · DIGITAL",174,388);
-  function rounded(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);
-    ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
-    ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
-  const zone=(key,x,y,w,h,side)=>{
-    ZONES.push({key,x,y,w,h});
-    const active=key===current,hov=key===hoverKey;
-    if(active||hov){
-      ctx.fillStyle=active?"rgba(244,183,64,.30)":"rgba(244,183,64,.15)";
-      rounded(x-8,y-34,w+16,h,10);ctx.fill();
-      if(active){ctx.fillStyle="#f4b740";ctx.fillRect(x-14,y-30,6,h-10);}
-    }
+  ctx.strokeStyle="#8fa6bd";ctx.lineWidth=5;ctx.beginPath();ctx.arc(px,py,pr+3,0,7);ctx.stroke();
+  const SX=42,SWD=SW-84;
+  function sideHead(txt,y){
+    ctx.textAlign="left";ctx.font="700 27px 'Space Grotesk',sans-serif";
+    ctx.fillStyle="#ffffff";
+    ctx.fillText(txt,SX,y);
+    ctx.strokeStyle="rgba(255,255,255,.35)";ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(SX,y+14);ctx.lineTo(SX+SWD,y+14);ctx.stroke();
+    return y+46;
+  }
+  let y=sideHead("CONTACT",330);
+  ctx.font="400 20px 'Inter',sans-serif";ctx.fillStyle="#d5dee8";
+  const ic=["✆","✉","⌂"];
+  [CV.contact[0],CV.contact[1],CV.contact[2]].forEach((t,i)=>{
+    ctx.textAlign="left";ctx.fillStyle="#8fa9c4";ctx.font="400 19px 'Inter',sans-serif";
+    ctx.fillText(ic[i],SX+2,y+i*44);
+    ctx.fillStyle="#d5dee8";ctx.font="400 20px 'Inter',sans-serif";
+    ctx.fillText(t,SX+34,y+i*44);
+  });
+  ctx.fillText(CV.contact[3],SX+34,y+2*44+26);
+  const contactTop=y-30;
+  y=y+2*44+26+34;
+  zoneBox("contact",SX,contactTop,SWD,y-contactTop-30);
+  y=sideHead("SKILLS",y+16);
+  const skillsTop=y-30;
+  CV.skills.forEach(function(sk){
+    ctx.font="700 19px 'Space Grotesk',sans-serif";ctx.fillStyle="#8fb0d4";
+    ctx.textAlign="left";ctx.fillText(sk[0],SX,y);y+=26;
+    y=wrapAt(sk[1],SX,y,SWD,25,"400 19px 'Inter',sans-serif","#cdd8e4")+16;
+  });
+  zoneBox("skills",SX,skillsTop,SWD,y-skillsTop-30);
+  y=sideHead("CERTIFICATIONS",y+8);
+  const certTop=y-30;
+  CV.certs.forEach(function(c){
+    ctx.fillStyle="#8fa9c4";ctx.font="400 18px 'Inter',sans-serif";
+    ctx.textAlign="left";ctx.fillText("▪",SX,y);
+    y=wrapAt(c,SX+22,y,SWD-22,25,"400 19px 'Inter',sans-serif","#cdd8e4")+10;
+  });
+  zoneBox("certifications",SX,certTop,SWD,y-certTop-30);
+  y=sideHead("LANGUAGES",y+16);
+  const langTop=y-30;
+  CV.langs.forEach(function(l){
     ctx.textAlign="left";
-    ctx.font="700 27px 'Space Grotesk',sans-serif";
-    ctx.fillStyle=side?"#f4b740":"#14263d";
-    ctx.fillText(DATA[lang].labels[key],x,y);
-    wrapTxt(d.body[key],x,y+38,31,"400 22px 'Inter',sans-serif",side?"#cfdcea":"#37424e");
-    ctx.font="400 20px 'Inter',sans-serif";
-    ctx.fillStyle=side?"rgba(244,183,64,.8)":"rgba(20,38,61,.55)";
-    ctx.textAlign="right";ctx.fillText("☝",x+w,y);
-  };
-  zone("skills",34,486,282,160,true);
-  zone("certifications",34,682,282,130,true);
-  zone("languages",34,858,282,130,true);
-  zone("contact",34,1034,282,130,true);
-  zone("intro",404,96,566,130,false);
-  zone("experience",404,282,566,300,false);
-  zone("education",404,650,566,190,false);
-  ZONES.push({key:"outro",x:404,y:1296,w:566,h:70});
+    ctx.font="600 20px 'Inter',sans-serif";ctx.fillStyle="#ffffff";
+    ctx.fillText(l[0],SX,y);
+    const w=ctx.measureText(l[0]).width;
+    ctx.font="400 20px 'Inter',sans-serif";ctx.fillStyle="#9fb3c9";
+    ctx.fillText(" · "+l[1],SX+w,y);
+    y+=32;
+  });
+  zoneBox("languages",SX,langTop,SWD,y-langTop-30);
+
+  /* ---------------- main column ---------------- */
+  const MX=452,MW=CW-MX-64;
+  ctx.textAlign="center";
+  ctx.font="700 56px 'Space Grotesk',sans-serif";
+  const cxm=MX+MW/2;
+  const w1=ctx.measureText(CV.name[0]).width;
+  ctx.font="300 56px 'Space Grotesk',sans-serif";
+  const w2=ctx.measureText(" "+CV.name[1]).width;
+  ctx.textAlign="left";
+  ctx.font="700 56px 'Space Grotesk',sans-serif";ctx.fillStyle="#3b444e";
+  ctx.fillText(CV.name[0],cxm-(w1+w2)/2,116);
+  ctx.font="300 56px 'Space Grotesk',sans-serif";ctx.fillStyle="#7b8794";
+  ctx.fillText(" "+CV.name[1],cxm-(w1+w2)/2+w1,116);
+  ctx.textAlign="center";
+  ctx.font="400 19px 'Inter',sans-serif";ctx.fillStyle="#5b6570";
+  ctx.fillText(CV.role,cxm,152);
+  ctx.strokeStyle=NAVY;ctx.lineWidth=4;
+  ctx.beginPath();ctx.moveTo(cxm-72,172);ctx.lineTo(cxm+72,172);ctx.stroke();
+  function mainHead(txt,yy){
+    ctx.textAlign="left";ctx.font="700 28px 'Space Grotesk',sans-serif";
+    ctx.fillStyle=NAVY;ctx.fillText(txt,MX,yy);
+    ctx.strokeStyle="rgba(29,53,87,.55)";ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(MX,yy+16);ctx.lineTo(MX+MW,yy+16);ctx.stroke();
+    return yy+44;
+  }
+  let m=mainHead("PROFILE",226);
+  const introTop=m-30;
+  m=wrapRuns(CV.profile,MX,m,MW,25,19,INK,NAVY);
+  zoneBox("intro",MX,introTop,MW,m-introTop-32);
+  m=mainHead("WORK EXPERIENCE",m+26);
+  const expTop=m-30;
+  const railX=MX+7;
+  const railTop=m-18;
+  CV.jobs.forEach(function(j){
+    ctx.beginPath();ctx.arc(railX,m-8,7,0,7);ctx.fillStyle=NAVY;ctx.fill();
+    ctx.textAlign="left";
+    ctx.font="700 21px 'Inter',sans-serif";ctx.fillStyle="#26303a";
+    ctx.fillText(j.t,MX+30,m);
+    let w=ctx.measureText(j.t).width;
+    ctx.font="400 21px 'Inter',sans-serif";ctx.fillStyle=STEEL;
+    ctx.fillText(" · ",MX+30+w,m);w+=ctx.measureText(" · ").width;
+    ctx.font="700 21px 'Inter',sans-serif";ctx.fillStyle="#2b4c7e";
+    ctx.fillText(j.c,MX+30+w,m);
+    ctx.textAlign="right";ctx.font="400 20px 'Inter',sans-serif";ctx.fillStyle=STEEL;
+    ctx.fillText(j.d,MX+MW,m);
+    m+=24;
+    if(j.s){
+      ctx.textAlign="left";ctx.font="italic 400 19px 'Inter',sans-serif";ctx.fillStyle="#5b6570";
+      ctx.fillText(j.s,MX+30,m);m+=24;
+    }
+    j.b.forEach(function(b){
+      ctx.textAlign="left";ctx.font="400 16px 'Inter',sans-serif";ctx.fillStyle="#8b95a1";
+      ctx.fillText("▪",MX+34,m);
+      m=wrapAt(b,MX+56,m,MW-56,23,"400 18px 'Inter',sans-serif",INK)+5;
+    });
+    m+=10;
+  });
+  ctx.strokeStyle="rgba(29,53,87,.28)";ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(railX,railTop);ctx.lineTo(railX,m-30);ctx.stroke();
+  zoneBox("experience",MX,expTop,MW,m-expTop-40);
+  m=mainHead("EDUCATION",m+6);
+  const eduTop=m-30;
+  const eRail=m-18;
+  CV.edu.forEach(function(e){
+    ctx.beginPath();ctx.arc(railX,m-8,7,0,7);ctx.fillStyle=NAVY;ctx.fill();
+    ctx.textAlign="left";
+    ctx.font="700 22px 'Inter',sans-serif";ctx.fillStyle="#26303a";
+    ctx.fillText(e.t,MX+30,m);
+    let w=ctx.measureText(e.t).width;
+    ctx.font="400 22px 'Inter',sans-serif";ctx.fillStyle=STEEL;
+    ctx.fillText(" · ",MX+30+w,m);w+=ctx.measureText(" · ").width;
+    ctx.font="700 22px 'Inter',sans-serif";ctx.fillStyle="#2b4c7e";
+    ctx.fillText(e.c,MX+30+w,m);
+    ctx.textAlign="right";ctx.font="400 20px 'Inter',sans-serif";ctx.fillStyle=STEEL;
+    ctx.fillText(e.d,MX+MW,m);
+    m+=26;
+    m=wrapAt(e.b+e.i,MX+30,m,MW-30,23,"400 18px 'Inter',sans-serif",INK)+12;
+  });
+  ctx.strokeStyle="rgba(29,53,87,.28)";ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(railX,eRail);ctx.lineTo(railX,m-34);ctx.stroke();
+  zoneBox("education",MX,eduTop,MW,m-eduTop-40);
+
+  /* the outro, in Simon's handwriting, at the foot of the sheet */
+  ZONES.push({key:"outro",x:MX,y:CH-92,w:MW,h:70});
   const oAct=current==="outro",oHov=hoverKey==="outro";
-  ctx.textAlign="center";ctx.font="700 26px 'Caveat',cursive";
+  ctx.textAlign="center";ctx.font="700 30px 'Caveat',cursive";
   ctx.fillStyle=oAct?"#b8860b":(oHov?"rgba(184,134,11,.85)":"rgba(20,38,61,.45)");
-  ctx.fillText("— and to wrap up, tap here ☕ —",686,1330);
+  ctx.fillText("— and to wrap up, tap here ☕ —",MX+MW/2,CH-52);
   tex.needsUpdate=true;
 }
 drawResume();
@@ -3471,11 +3679,16 @@ drawResume();
    once the real webfonts are in — see VC.fontsReady for why this matters. */
 VC.fontsReady.then(()=>{drawResume();drawMenu();});
 
-const paper=new THREE.Mesh(new THREE.PlaneGeometry(.62,.85),
+const paper=new THREE.Mesh(new THREE.PlaneGeometry(.62,.877),
   new THREE.MeshStandardMaterial({map:tex,roughness:.85}));
 paper.castShadow=true;paper.receiveShadow=true;
 scene.add(paper);
-const paperRest={pos:new THREE.Vector3(0,.802,.24),rot:-Math.PI/2+.16};
+/* z=0, not .24: the sheet used to sit 24 cm toward the visitor, which
+   hung its near corners 16 cm off a tabletop that is round and only
+   .715 m in radius. Centred on the wood it clears the edge by 6 cm and
+   still misses the cup, the plate and the pen, which all live out at
+   |x| > .44. */
+const paperRest={pos:new THREE.Vector3(0,.802,0),rot:-Math.PI/2+.16};
 const paperUp ={pos:new THREE.Vector3(0,1.00,.50),rot:-.85};
 let paperT=0;
 paper.position.copy(paperRest.pos);paper.rotation.x=paperRest.rot;
@@ -3506,7 +3719,10 @@ function pick(e){
   }
   paperHover=true;
   const u=hit.uv.x*CW,v=(1-hit.uv.y)*CH;
-  const z=ZONES.find(z=>u>=z.x-14&&u<=z.x+z.w+16&&v>=z.y-34&&v<=z.y+z.h-34);
+  /* the rects ARE the blocks now (the old painter passed a text baseline
+     and leaned on a -34 fudge); a little slack on each side so the gap
+     between two sections is not a dead strip */
+  const z=ZONES.find(z=>u>=z.x-16&&u<=z.x+z.w+16&&v>=z.y-14&&v<=z.y+z.h+14);
   const k=z?z.key:null;
   if(k!==hoverKey){hoverKey=k;drawResume();}
   document.body.style.cursor=k?"pointer":"default";
@@ -4296,7 +4512,7 @@ function applyStaging(){
     camFov=SHOTS.gameplay.fov;
     camera.fov=camFov;camera.updateProjectionMatrix();
   }
-  paperRest.pos.set(0,.802,portrait?.20:.24);
+  paperRest.pos.set(0,.802,portrait?-.02:0);
   /* the camera sits ~1 m further back: the lifted sheet meets it halfway
      up the table, or it would drop to postage-stamp size */
   paperUp.pos.set(0,portrait?1.16:1.08,portrait?1.3:.95);
