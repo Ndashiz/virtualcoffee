@@ -98,11 +98,28 @@ procedural: the conversation survives on a bare parquet.
 
 The map also carries what the room could never show before: a **front wall**
 with Simon's trophy cabinet (PSPO, PSM I, Dynamics 365, Azure, the Solvay
-diploma, Le Wagon) and three framed clippings, and a **real outside** — a
-parking lot with a van and a car, and a treeline — visible through the
-storefront. The trophy labels ship as baked PNG under `tex/` because they carry
-awarded titles and vendor marks; everything else stays procedural. The clippings
-are repainted by `drawPress()` so they stay English and font-aware.
+diploma, Le Wagon), and a **real outside** — a parking lot with a van and a
+car, and a treeline — visible through the storefront. The trophy labels ship as
+baked PNG under `tex/` because they carry awarded titles and vendor marks;
+everything else stays procedural.
+
+The map's three framed press clippings are **dropped** in the preprocessor
+(`DROP_NAMES`), and the pair `drawPress()` used to paint on the back wall went
+with them: a café papered with invented headlines about its own owner reads as
+bragging. What hangs on that wall now is one small plaque — *Employee of the
+Month*, awarded to a man nobody in the room has ever met — painted by
+`drawEotm()`. The preprocessor also squares up the eight wheels (the export
+mounts them sideways), copies the ICE CUBE lettering onto the van's rear doors,
+moves the plant off the one run of wall a toilet door fits on, and clones the
+van one parking bay over for a second firm — BravoReno the electrician, whose
+livery the scene paints (`drawBravo()`).
+
+**Two televisions, one feed**, on a business channel with the sound off: four
+stories on an eight-second loop, a presenter whose mouth moves, and a ticker
+that never stops. Both are **clickable**, and so is the plaque: `openZoom()`
+re-runs the painter at 2× into a full-screen canvas rather than blowing up the
+wall texture, so the ticker is actually legible — and the television carries on
+broadcasting while you read it. One big arrow sends it back.
 
 `person.obj` is currently **retired** (`USE_PERSON_MESH=false` in the scene):
 the segmented base-mesh bodies read as ragged mannequins next to the capsule

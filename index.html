@@ -132,6 +132,32 @@
   .cvnote{margin:30px 0 0;padding:14px 16px;border-radius:12px;background:#1d2a35;
     border:1px solid #2b3a46;color:#9fb4bc;font-size:14px;}
 
+  /* ZOOM — the wall, read properly.
+     The way out is one big arrow. A 24 px × in a corner is not a way out
+     on a phone, and this is the only screen the visitor can get stuck on. */
+  .zoom{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;padding:84px 18px 32px;
+    background:rgba(9,13,18,.94);}
+  .zoom[hidden]{display:none;}
+  .zoomback{position:absolute;top:18px;left:18px;display:flex;align-items:center;gap:9px;
+    background:var(--gold);color:#20303a;border:0;border-radius:999px;
+    padding:11px 22px 11px 15px;font-family:"Space Grotesk",sans-serif;font-weight:700;
+    font-size:15px;cursor:pointer;box-shadow:0 6px 22px rgba(0,0,0,.45);
+    transition:transform .12s ease;}
+  .zoomback:hover{transform:scale(1.05);}
+  .zoomfig{margin:0;display:flex;flex-direction:column;align-items:center;gap:13px;
+    max-width:100%;min-height:0;}
+  .zoomfig canvas{max-width:min(1080px,94vw);max-height:calc(100dvh - 190px);
+    width:auto;height:auto;border-radius:5px;border:13px solid #14161a;
+    box-shadow:0 24px 70px rgba(0,0,0,.62);}
+  .zoomfig figcaption{color:var(--gold);font-family:"Space Grotesk",sans-serif;
+    font-weight:600;font-size:13px;letter-spacing:2.4px;text-transform:uppercase;}
+  @media (max-width:640px){
+    .zoom{padding:76px 10px 22px;}
+    .zoomback{top:14px;left:14px;padding:10px 17px 10px 12px;font-size:14px;}
+    .zoomfig canvas{border-width:8px;max-height:calc(100dvh - 158px);}
+  }
+
   /* Reachable by screen readers and crawlers, invisible on screen. */
   .visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
     overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;}
@@ -227,6 +253,22 @@
   </svg>
 </div>
 <div class="prompt" id="prompt">Hover the résumé on the table &amp; tap a section&nbsp;☕</div>
+
+<!-- Anything on a wall you can click comes off the wall and fills this. -->
+<div class="zoom" id="zoom" hidden>
+  <button class="zoomback" id="zoomBack" type="button"
+          aria-label="Close and go back to the café">
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+         stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20 12H4"/><path d="M10.5 5.5 4 12l6.5 6.5"/>
+    </svg>
+    <span>Back to the café</span>
+  </button>
+  <figure class="zoomfig">
+    <canvas id="zoomC"></canvas>
+    <figcaption id="zoomTitle"></figcaption>
+  </figure>
+</div>
 
 <!-- ════════════════════════════════════════════════════════════════
      TEXT RÉSUMÉ
@@ -1236,155 +1278,122 @@ function artTex(kind){return ctex(256,320,(x,w,h)=>{
   }
   x.strokeStyle="rgba(0,0,0,.15)";x.lineWidth=12;x.strokeRect(0,0,w,h);
 });}
-/* ---------------- FRAMED PRESS CLIPPINGS ----------------
-   Two of Simon's own headlines, framed on the wall the way a café frames
-   its one good review. The cartoon is the point: a CV that says "fast
-   track" is a bullet, a drawing of a man taking the stairs three at a
-   time while the queue shuffles is a story you remember. Painted to
-   canvas like the chalkboard, and repainted on VC.fontsReady — text
-   baked before the webfont lands falls back to a system face. */
-const PRESS=[
-  {year:"2022",paper:"THE CONSULTING TIMES",
-   head:"Fast-tracked at EY: Senior in one year, not two",
-   sub:"Colleagues report a man visibly skipping steps",
-   art:"stairs"},
-  {year:"2024",paper:"THE BRUSSELS PRODUCT REVIEW",
-   head:"Made product owner of two teams at Degroof Petercam",
-   sub:"Sources confirm he now attends two stand-ups before nine",
-   art:"juggle"},
-  /* the third only hangs on the front wall, which the model added. The map
-     ships baked art for these three, in French — the page has been EN-only
-     since the wide shot landed, so they get repainted here instead: same
-     painter as the pair above, and 506 KB of PNG never leaves the repo. */
-  {year:"2025",paper:"THE PRODUCT DIGEST",
-   head:"Six months a business analyst, then handed the backlog",
-   sub:"Two teams, one roadmap, and nobody has taken it back",
-   art:"juggle"}
-];
-const PRESS_TEX=[];
-function drawPress(c,a){
-  const x=c.getContext("2d"),w=c.width,h=c.height;
-  x.fillStyle="#efe7d5";x.fillRect(0,0,w,h);
-  /* paper tooth */
-  for(let i=0;i<700;i++){
-    x.fillStyle="rgba(120,100,70,"+(Math.random()*.045)+")";
+/* ---------------- THINGS YOU CAN ACTUALLY READ ----------------
+   The plaque and the televisions are each one canvas on a quad, hung two
+   metres up a wall the player can only get so close to: from the floor
+   they read as "a frame" and "a screen", never as words. Anything
+   registered here is clickable, and comes off the wall full size. Nothing
+   is blown up from a bitmap: each one hands over its own painter and the
+   overlay re-runs it at 2x, so the ticker is actually legible — which is
+   the entire reason for opening it. `live` ones repaint every frame, so a
+   television carries on broadcasting while you read it. See openZoom(). */
+const READABLES=[];
+function addReadable(mesh,title,w,h,redraw,live){
+  mesh.userData.readable=READABLES.length;
+  READABLES.push({mesh:mesh,title:title,w:w,h:h,redraw:redraw,live:!!live});
+}
+
+/* ---------------- EMPLOYEE OF THE MONTH ----------------
+   What used to live here: three framed press clippings on the front wall
+   and a repainted pair of them on the back wall. Simon's call — a café
+   papered with invented headlines about its own owner reads as bragging,
+   not as scenery. The map's three are dropped in the preprocessor
+   (DROP_NAMES), and the back-wall pair went with the painter.
+   What the front wall keeps instead is the one frame every café really
+   has, hung beside the trophy cabinet: the plaque nobody in the room has
+   ever met. Painted to canvas like the chalkboard, and repainted on
+   VC.fontsReady — text baked before the webfont lands falls back to a
+   system face. */
+const EOTM_NAME="Tonio Salfari";
+/* Painted in LOGICAL units (400x500) into whatever context it is handed,
+   so the same code fills the 2x texture on the wall and the bigger canvas
+   the zoom overlay opens — scale lives in the caller's transform. */
+const EOTM_W=400,EOTM_H=500;
+function drawEotm(x){
+  const w=EOTM_W,h=EOTM_H;
+  x.fillStyle="#f2ead6";x.fillRect(0,0,w,h);
+  for(let i=0;i<420;i++){                       /* paper tooth */
+    x.fillStyle="rgba(120,100,70,"+(Math.random()*.05)+")";
     x.fillRect(Math.random()*w,Math.random()*h,1.5,1.5);
   }
-  const ink="#1b2a33",dim="rgba(27,42,51,.42)";
-  /* masthead */
-  x.fillStyle=ink;x.textAlign="center";
-  x.font='700 25px "Space Grotesk", sans-serif';
-  x.fillText(a.paper,w/2,44);
-  x.strokeStyle=ink;x.lineWidth=3;
-  x.beginPath();x.moveTo(26,58);x.lineTo(w-26,58);x.stroke();
-  x.font='400 15px "Space Grotesk", sans-serif';
-  x.fillStyle=dim;
-  x.textAlign="left";x.fillText(a.year,28,80);
-  x.textAlign="right";x.fillText("BRUSSELS",w-28,80);
-  /* headline, wrapped by hand */
-  x.fillStyle=ink;x.textAlign="left";
-  x.font='700 30px "Space Grotesk", sans-serif';
-  const words=a.head.split(" ");let line="",y=120;
-  for(let i=0;i<words.length;i++){
-    const t=line?line+" "+words[i]:words[i];
-    if(x.measureText(t).width>w-56&&line){x.fillText(line,28,y);y+=34;line=words[i];}
-    else line=t;
+  const ink="#22303a",gold="#a8802e",dim="rgba(34,48,58,.55)";
+  x.strokeStyle=gold;x.lineWidth=4;x.strokeRect(17,17,w-34,h-34);
+  x.lineWidth=1.4;x.strokeRect(27,27,w-54,h-54);
+  x.textAlign="center";
+  x.fillStyle=gold;x.font='500 14px "Space Grotesk", sans-serif';
+  x.fillText("V I R T U A L   C O F F E E",w/2,62);
+  x.fillStyle=ink;x.font='700 33px "Space Grotesk", sans-serif';
+  x.fillText("EMPLOYEE",w/2,112);
+  x.fillText("OF THE MONTH",w/2,150);
+  /* a star in a laurel wreath — the whole vocabulary of a plaque, in
+     twenty lines of canvas */
+  x.save();x.translate(w/2,212);
+  x.fillStyle=gold;
+  x.beginPath();
+  for(let i=0;i<10;i++){
+    const r=i%2?10:24,a=-Math.PI/2+i*Math.PI/5;
+    x[i?"lineTo":"moveTo"](Math.cos(a)*r,Math.sin(a)*r);
   }
-  x.fillText(line,28,y);y+=26;
-  x.font='italic 400 17px "Space Grotesk", sans-serif';
-  x.fillStyle=dim;x.fillText(a.sub,28,y);y+=20;
-  /* the cartoon, boxed like a press photo */
-  const bx=28,by=y+4,bw=w-56,bh=h-by-58;
-  x.fillStyle="#e2d8c2";x.fillRect(bx,by,bw,bh);
-  x.strokeStyle=dim;x.lineWidth=2;x.strokeRect(bx,by,bw,bh);
-  x.save();x.beginPath();x.rect(bx,by,bw,bh);x.clip();
-  const cx=bx+bw/2,cy=by+bh/2;
-  function guy(gx,gy,s,col,arms){
-    x.fillStyle=col;
-    x.beginPath();x.arc(gx,gy-30*s,11*s,0,7);x.fill();       /* head */
-    x.fillRect(gx-9*s,gy-19*s,18*s,26*s);                     /* body */
-    x.lineWidth=4*s;x.strokeStyle=col;
-    x.beginPath();                                            /* legs */
-    x.moveTo(gx-4*s,gy+7*s);x.lineTo(gx-10*s,gy+26*s);
-    x.moveTo(gx+4*s,gy+7*s);x.lineTo(gx+11*s,gy+26*s);
-    if(arms){x.moveTo(gx-9*s,gy-12*s);x.lineTo(gx-22*s,gy-24*s);
-             x.moveTo(gx+9*s,gy-12*s);x.lineTo(gx+22*s,gy-24*s);}
-    x.stroke();
-  }
-  if(a.art==="stairs"){
-    /* the gag has to be ONE picture: a staircase climbing across the
-       whole frame, two colleagues plodding up it a step at a time, and
-       Simon airborne over the top with the speed lines still behind him */
-    const sw=Math.round(bw*.11),base=by+bh-14,rise=30;
-    x.fillStyle="#c9bda3";
-    for(let i=0;i<4;i++){
-      const top=base-(i+1)*rise;
-      x.fillRect(bx+12+i*sw,top,sw+1,base-top);
+  x.closePath();x.fill();
+  /* the wreath: two branches off the bottom, five leaves each, every leaf
+     tangent to its branch and pointing out */
+  x.strokeStyle=gold;x.lineWidth=2.6;
+  const R=46,CY=8;
+  for(const s of[-1,1]){
+    const a0=Math.PI*(.5+s*.04),a1=Math.PI*(.5+s*.52);
+    x.beginPath();x.arc(0,CY,R,Math.min(a0,a1),Math.max(a0,a1));x.stroke();
+    for(let i=1;i<=5;i++){
+      const a=a0+(a1-a0)*i/5.5;
+      x.save();
+      x.translate(Math.cos(a)*R,CY+Math.sin(a)*R);
+      x.rotate(a+Math.PI/2);
+      x.beginPath();x.ellipse(0,-7,4.5,9,0,0,7);x.fill();
+      x.restore();
     }
-    const px0=bx+12+4*sw,ptop=base-4*rise;
-    x.fillRect(px0,ptop,bx+bw-12-px0,base-ptop);
-    guy(bx+12+sw*.5,base-rise,.5,"#8a8272",false);
-    guy(bx+12+sw*1.5,base-rise*2,.5,"#8a8272",false);
-    x.strokeStyle="#f4b740";x.lineWidth=3;x.lineCap="round";
-    for(let i=0;i<3;i++){                       /* trailing, not floating */
-      const yy=ptop-46+i*13;
-      x.beginPath();x.moveTo(bx+12+sw*1.9,yy);x.lineTo(bx+12+sw*2.7,yy-3);x.stroke();
-    }
-    guy(bx+12+sw*3.25,ptop-34,.82,"#14263d",true);
-    x.fillStyle="#14263d";x.font='700 17px "Space Grotesk", sans-serif';
-    x.textAlign="center";x.fillText("EY",(px0+bx+bw-12)/2,ptop+30);
-  }else{
-    /* one man, two teams orbiting him like juggled cups */
-    guy(cx,cy+16,1.05,"#14263d",true);
-    [[-1,"#f4b740"],[1,"#4fd1c5"]].forEach(function(p,k){
-      const ox=cx+p[0]*74;
-      x.strokeStyle=p[1];x.lineWidth=3;
-      x.beginPath();x.ellipse(ox,cy-6,34,26,0,0,7);x.stroke();
-      for(let i=0;i<3;i++)guy(ox-18+i*18,cy+2,.42,p[1],false);
-      x.fillStyle=p[1];x.font='700 13px "Space Grotesk", sans-serif';
-      x.textAlign="center";x.fillText("TEAM "+(k+1),ox,cy+46);
-    });
-    x.strokeStyle="#14263d";x.lineWidth=2;
-    x.beginPath();x.arc(cx,cy-34,30,3.5,6.0);x.stroke();      /* juggling arc */
   }
   x.restore();
-  x.fillStyle=dim;x.font='400 14px "Space Grotesk", sans-serif';
-  x.textAlign="left";
-  x.fillText("Photo: our correspondent",bx,h-24);
-  x.textAlign="right";x.fillText("p.1",w-28,h-24);
-  /* a whisper of a fold, so it reads as newsprint under glass */
-  x.strokeStyle="rgba(0,0,0,.06)";x.lineWidth=8;
-  x.beginPath();x.moveTo(w*.52,0);x.lineTo(w*.5,h);x.stroke();
+  x.fillStyle=dim;x.font='italic 500 17px "Space Grotesk", sans-serif';
+  x.fillText("attributed to",w/2,300);
+  x.fillStyle=ink;x.font='700 52px "Caveat", cursive';
+  x.fillText(EOTM_NAME,w/2,352);
+  x.strokeStyle=gold;x.lineWidth=1.6;
+  x.beginPath();x.moveTo(w/2-92,368);x.lineTo(w/2+92,368);x.stroke();
+  x.fillStyle=dim;x.font='500 14px "Space Grotesk", sans-serif';
+  x.fillText("for outstanding service behind the counter",w/2,396);
+  /* the signature, and the joke: nobody has ever seen him work */
+  x.fillStyle="rgba(34,48,58,.75)";x.font='600 30px "Caveat", cursive';
+  x.textAlign="right";x.fillText("S. Goffin",w-52,h-58);
+  x.fillStyle=dim;x.font='500 12px "Space Grotesk", sans-serif';
+  x.fillText("the management",w-52,h-40);
 }
-PRESS.forEach(function(a,i){
-  const c=document.createElement("canvas");c.width=640;c.height=470;
-  drawPress(c,a);
+{
+  const SS=2;                       /* the plaque is small and full of type */
+  const c=document.createElement("canvas");
+  c.width=EOTM_W*SS;c.height=EOTM_H*SS;
+  const cx=c.getContext("2d");cx.setTransform(SS,0,0,SS,0,0);
+  drawEotm(cx);
   const tex=new THREE.CanvasTexture(c);
   tex.encoding=THREE.sRGBEncoding;tex.anisotropy=maxAniso;
-  VC.fontsReady.then(function(){drawPress(c,a);tex.needsUpdate=true;});
-  PRESS_TEX.push(tex);           /* the model's front-wall frames reuse these */
-  /* only the first two hang on the back wall: the third exists for the
-     model's front wall, which the café loader dresses from PRESS_TEX */
-  if(i>1)return;
-  /* back wall, left of the counter — the one stretch of plaster with
-     nothing in front of it, and well inside the seated wide shot */
+  VC.fontsReady.then(function(){drawEotm(cx);tex.needsUpdate=true;});
   const g=new THREE.Group();
   /* a plain material, NOT stdMat(): its cache is a const declared far
      below this line, so calling it here would hit the temporal dead
      zone and take the whole scene down at load */
-  const frame=new THREE.Mesh(new THREE.BoxGeometry(1.22,.94,.045),
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(.38,.47,.04),
     new THREE.MeshStandardMaterial({color:0x241a12,roughness:.55,envMapIntensity:.7}));
   frame.castShadow=true;g.add(frame);
-  const sheet=new THREE.Mesh(new THREE.PlaneGeometry(1.14,.86),
+  const sheet=new THREE.Mesh(new THREE.PlaneGeometry(.33,.42),
     new THREE.MeshStandardMaterial({map:tex,roughness:.82,
       emissive:0x2a2418,emissiveMap:tex,emissiveIntensity:.22}));
-  sheet.position.z=.024;g.add(sheet);
-  /* above the counter line and clear of the trio's heads; the pair sits
-     left of the chalkboard, which is the one stretch of this wall with
-     nothing standing in front of it */
-  g.position.set(i===0?-2.92:-1.66,1.66,-4.72);
+  sheet.position.z=.021;g.add(sheet);
+  addReadable(sheet,"Employee of the Month",EOTM_W,EOTM_H,drawEotm,false);
+  /* front wall (face at z=3.81), just right of the trophy cabinet, which
+     ends at x=.92 — and dead ahead of anyone who now walks the length of
+     the room to see what the far wall holds */
+  g.position.set(1.52,1.78,3.788);
+  g.rotation.y=Math.PI;
   scene.add(g);
-});
+}
 
 /* glow sprite + shaft */
 const glowTex=ctex(128,128,(x)=>{
@@ -1433,6 +1442,53 @@ const signTex=ctex(512,96,(x,w,h)=>{
   x.textAlign="center";x.textBaseline="middle";
   x.fillText("VIRTUAL COFFEE",w/2,h/2+2);
   x.restore();
+});
+
+/* ---------------- THE OTHER VAN ----------------
+   The preprocessor clones the ICE CUBE van one bay over for a second firm;
+   the map has no lettering for it, so it is painted here. 3.3:1, the aspect
+   of the quads it lands on (both flanks and the rear doors share one
+   texture). Note the flip: the map's own baked liveries are stored upside
+   down and loaded with flipY=false, the glTF convention — a CanvasTexture
+   keeps three.js's default flipY, so the same UVs come out the right way up
+   from artwork painted the right way up. */
+function drawBravo(x,w,h){
+  const navy="#12314e",volt="#f5b915",pale="#eaf2fb";
+  x.fillStyle=navy;x.fillRect(0,0,w,h);
+  /* the bolt */
+  x.fillStyle=volt;
+  x.beginPath();
+  x.moveTo(118,38);x.lineTo(38,166);x.lineTo(88,166);x.lineTo(56,272);
+  x.lineTo(146,132);x.lineTo(96,132);x.closePath();x.fill();
+  x.fillStyle=pale;x.font='700 104px "Space Grotesk", sans-serif';
+  x.textAlign="left";x.fillText("BRAVORENO",180,152);
+  x.fillStyle=volt;x.fillRect(182,168,640,4);
+  x.fillStyle="rgba(234,242,251,.9)";
+  /* the slogan is the longest line on the van and it is not mine to cut:
+     shrink the type until it fits inside the panel */
+  const tag="votre électricien avec qui le courant passe";
+  let ts=33;
+  x.font='italic 500 '+ts+'px "Space Grotesk", sans-serif';
+  while(ts>19&&x.measureText(tag).width>w-208){
+    ts-=1;x.font='italic 500 '+ts+'px "Space Grotesk", sans-serif';
+  }
+  x.fillText(tag,184,212);
+  /* the url, on a plate — a van without a phone number or a site is a van
+     nobody can call */
+  const uw=356;
+  x.fillStyle=volt;
+  x.beginPath();
+  const ux=184,uy=234,uh=52,ur=26;
+  x.moveTo(ux+ur,uy);x.arcTo(ux+uw,uy,ux+uw,uy+uh,ur);
+  x.arcTo(ux+uw,uy+uh,ux,uy+uh,ur);x.arcTo(ux,uy+uh,ux,uy,ur);
+  x.arcTo(ux,uy,ux+uw,uy,ur);x.closePath();x.fill();
+  x.fillStyle=navy;x.font='700 30px "Space Grotesk", sans-serif';
+  x.textAlign="center";x.fillText("www.bravoreno.be",ux+uw/2,uy+35);
+}
+const bravoTex=ctex(1024,310,drawBravo);
+VC.fontsReady.then(function(){
+  drawBravo(bravoTex.userData.canvas.getContext("2d"),1024,310);
+  bravoTex.needsUpdate=true;
 });
 
 /* baked label textures — the trophy plaques, the two diplomas, the van's
@@ -1515,6 +1571,44 @@ function groupGeometry(g){
     geo.setAttribute("uv",new THREE.BufferAttribute(new Float32Array(g.uv),2));
   return geo;
 }
+/* ---------------- THE SHOPFRONT DOOR SWINGS ----------------
+   The map models the leaf ajar and in one piece with the rest of the
+   glass, so nothing could ever move it — and a visitor who "comes in"
+   through a door welded shut is a visitor who teleports. Its parts are
+   SPECIAL now (parsed one mesh each instead of merged by material) and
+   hang off a pivot at the hinge stile, porte_montant_gond (7.04, .213),
+   which is the one part that stays put. Anyone arriving pushes it; it
+   falls shut on its own, damped, the way a sprung café door does.
+   Model geometry is in world coordinates, so the meshes sit at the
+   origin: put the pivot on the hinge and step each mesh back by the same
+   amount, and nothing has moved until the pivot turns. */
+const DOOR={pivot:null,k:0,t:0};
+const DOOR_HINGE=[7.04,.213],DOOR_SWING=.62;   /* 35°, outward onto the pavement */
+const DOOR_PARTS=["porte_battant_vitre.0","porte_cadre_bas.0","porte_cadre_haut.0",
+  "porte_cadre_milieu.0","porte_montant_libre.0","porte_vitrophanie.0",
+  "porte_barre_poignee.0","porte_poignee_attache.0","porte_poignee_attache_bas.0"];
+function buildDoorPivot(){
+  const g=new THREE.Group();
+  g.position.set(DOOR_HINGE[0],0,DOOR_HINGE[1]);
+  let n=0;
+  for(let i=0;i<DOOR_PARTS.length;i++){
+    const m=CAFE.meshes.get(DOOR_PARTS[i]);
+    if(!m)continue;
+    m.position.set(-DOOR_HINGE[0],0,-DOOR_HINGE[1]);
+    g.add(m);n++;                 /* add() re-parents: it leaves the scene */
+  }
+  if(!n)return;                   /* map renamed the door: it just stays shut */
+  scene.add(g);DOOR.pivot=g;
+}
+function openDoor(){DOOR.t=1.6;}  /* somebody is coming through */
+function updateDoor(dt){
+  if(!DOOR.pivot)return;
+  if(DOOR.t>0)DOOR.t-=dt;
+  /* pushed open fast, closes slow — the asymmetry is the spring */
+  DOOR.k=damp(DOOR.k,DOOR.t>0?1:0,DOOR.t>0?.22:.055,dt);
+  DOOR.pivot.rotation.y=DOOR.k*DOOR_SWING;
+}
+
 (function loadCafe(){
   /* material table, keyed by the model's usemtl names */
   function phys(o){return new THREE.MeshPhysicalMaterial(o);}
@@ -1575,11 +1669,8 @@ function groupGeometry(g){
     face_trophee_azure:         std({map:labelTex("face_trophee_azure"),roughness:.65,side:THREE.DoubleSide}),
     parch_diplome_solvay:       std({map:labelTex("parch_diplome_solvay"),roughness:.65,side:THREE.DoubleSide}),
     parch_certification_le_wagon:std({map:labelTex("parch_certification_le_wagon"),roughness:.65,side:THREE.DoubleSide}),
-    /* the three framed clippings on that wall are painted, not baked —
-       same canvases as the pair on the back wall, English and font-aware */
-    article_ey_fast_track:   new THREE.MeshBasicMaterial({map:PRESS_TEX[0],side:THREE.DoubleSide}),
-    article_product_owner:   new THREE.MeshBasicMaterial({map:PRESS_TEX[1],side:THREE.DoubleSide}),
-    article_deuxieme_equipe: new THREE.MeshBasicMaterial({map:PRESS_TEX[2],side:THREE.DoubleSide}),
+    /* the three framed clippings that hung on this wall are gone — the
+       preprocessor drops them, and drawEotm() paints what replaced them */
 
     /* --- beyond the glass: the street, the van, the treeline --- */
     trottoir:   std({color:0x7a7263,roughness:.9}),
@@ -1591,6 +1682,8 @@ function groupGeometry(g){
     van_blanc:  std({color:0xe0dcd0,metalness:.15,roughness:.42}),
     van_bleu:   std({color:0x072957,metalness:.2,roughness:.4}),
     lettrage_ice_cube:std({map:labelTex("lettrage_ice_cube"),roughness:.5,side:THREE.DoubleSide}),
+    lettrage_bravoreno:std({map:bravoTex,roughness:.5,side:THREE.DoubleSide}),
+    van_jaune:  std({color:0xf2b21e,metalness:.2,roughness:.4}),
     chrome:     std({color:0x9fa4ab,metalness:.4,roughness:.25,envMapIntensity:1.4}),
     pneu:       std({color:0x040405,roughness:.95}),
     phare:      std({color:0x1a1610,emissive:0xffe7ab,emissiveIntensity:1.6,roughness:.2}),
@@ -1609,7 +1702,8 @@ function groupGeometry(g){
      around the room, so these cast into nothing at full price; and the
      light on them is the sky, not the three bulbs over the counter. */
   const OUTSIDE=new Set(["trottoir","bordure","bitume","bitume_rue","marquage",
-    "carrosserie","van_blanc","van_bleu","lettrage_ice_cube","chrome","pneu",
+    "carrosserie","van_blanc","van_bleu","van_jaune","lettrage_ice_cube",
+    "lettrage_bravoreno","chrome","pneu",
     "phare","feu_rouge","herbe","sous_bois","tronc_foret","tronc_clair",
     "feuillu_1","feuillu_2","feuillu_3","resineux","fougere"]);
   /* structure never casts (the window light must get in, the floor has
@@ -1620,13 +1714,12 @@ function groupGeometry(g){
     "etq_azure","etq_solvay","etq_wagon","etq_parcours",
     "face_trophee_dynamics_365","face_trophee_azure",
     "parch_diplome_solvay","parch_certification_le_wagon",
-    "article_ey_fast_track","article_product_owner","article_deuxieme_equipe",
     ...OUTSIDE]);
   const NO_RECEIVE=new Set(["verre","emballage","vitrophanie","enseigne_porte",
-    "ampoule","article_ey_fast_track","article_product_owner",
-    "article_deuxieme_equipe","lettrage_ice_cube",...OUTSIDE]);
+    "ampoule","lettrage_ice_cube",...OUTSIDE]);
   /* objects the scene drives one by one — everything else merges by material */
-  const SPECIAL=new Set(["ampoule.0","ampoule.1","ampoule.2","paillasson.0"]);
+  const SPECIAL=new Set(["ampoule.0","ampoule.1","ampoule.2","paillasson.0",
+    ...DOOR_PARTS]);
 
   function parseCafe(text){
     const groups=parseOBJGroups(text,function(name,mat){
@@ -1653,6 +1746,7 @@ function groupGeometry(g){
     CAFE.bulbs=[CAFE.meshes.get("ampoule.0"),CAFE.meshes.get("ampoule.1"),
                 CAFE.meshes.get("ampoule.2")];
     CAFE.ready=true;
+    buildDoorPivot();
     /* late links: pendant records exist since parse time, their bulb
        meshes only now — and the café may already be closed */
     for(let i=0;i<pendants.length;i++){
@@ -1794,6 +1888,12 @@ function humanizeRig(rig){
     if(c.userData.acc==="mouth"){
       c.position.set(0,HUMAN.mouthY,HUMAN.mouthZ);
       c.scale.set(.75,.75,.75);
+    }else if(c.userData.acc==="nose"){
+      c.position.set(0,HUMAN.eyeY-.03,HUMAN.eyeZ+.008);
+      c.scale.set(.7,.8,.8);
+    }else if(c.userData.acc==="brow"){
+      c.position.set(Math.sign(c.position.x)*HUMAN.eyeX,HUMAN.eyeY+.036,HUMAN.eyeZ-.004);
+      c.scale.set(.8,.8,.8);
     }else if(c.userData.acc==="apron"){
       c.position.z=.13;
     }else if(c.userData.slot==="hair"&&c.parent===J.head){
@@ -1922,7 +2022,7 @@ pendant(1.642,2.045,-3.477,true);
 
 /* ---------------- NEON, left end of the back wall ----------------
    The chalkboard owns the right of the wall now — the neon balances it
-   over the framed print on the left. */
+   over the wall art on the left. */
 const neonTube=new THREE.Mesh(
   new THREE.CylinderGeometry(.028,.028,2.2,12,1,false),
   new THREE.MeshStandardMaterial({color:0x2a1c10,emissive:0xff9d4a,
@@ -1943,8 +2043,8 @@ scene.add(neonPt);
    Floor, walls, storefront and window all come from cafe.obj.txt (walls
    top out at y=3.44, back wall face z=-4.75, window wall face x=-3.25).
    The scene keeps what the model has none of: a ceiling with beams, the
-   city backdrop behind the window glass, the light shafts, the dust and
-   two framed prints on the back wall.
+   city backdrop behind the window glass, the sky traffic that crosses
+   it, the light shafts, the dust and the toilet door.
 
    The backdrop is behind the LEFT window only. The storefront on +x now
    opens onto real geometry — parking, van, treeline — so it must stay
@@ -1994,11 +2094,389 @@ scene.add(dust);
   a.position.set(p[0],p[1],p[2]);a.rotation.y=p[3];scene.add(a);
 });
 
+/* ---------------- THE TOILET DOOR ----------------
+   The window wall has one stretch with no window in it — z 2.35..3.94,
+   between the bay and the front wall — and it read as a blank panel, which
+   from that corner reads as a hole in the set. Every café has exactly one
+   thing on that wall. Procedural: the map has no interior door, and its own
+   shopfront door is merged into the glass by material like everything else.
+   The plant that stood here moved along the front wall to make room (see
+   preprocess_cafe_glb.py) — a door behind a ficus is not a door. */
+{
+  const paint=new THREE.MeshStandardMaterial({color:0xe6dccb,roughness:.72,envMapIntensity:.4});
+  const wood =new THREE.MeshStandardMaterial({color:0x5c3f2a,roughness:.62,envMapIntensity:.5});
+  const panel=new THREE.MeshStandardMaterial({color:0x4a3121,roughness:.7,envMapIntensity:.4});
+  const brass=new THREE.MeshStandardMaterial({color:0xc9a25a,metalness:.85,roughness:.32,envMapIntensity:1.3});
+  const W=.86,H=2.06,J=.07,D=.058,ST=.13;   /* leaf, casing, stile widths */
+  const g=new THREE.Group();
+  for(const s of[-1,1]){                    /* casing: two jambs and a head */
+    const jamb=new THREE.Mesh(new THREE.BoxGeometry(J,H+J,D),paint);
+    jamb.position.set(s*(W+J)/2,(H+J)/2,D/2);jamb.castShadow=true;g.add(jamb);
+  }
+  const head=new THREE.Mesh(new THREE.BoxGeometry(W+J*2,J,D),paint);
+  head.position.set(0,H+J/2,D/2);head.castShadow=true;g.add(head);
+  /* The leaf is built as joinery — two stiles, three rails, one recessed
+     panel. A single slab at this size reads as a cupboard door. */
+  function part(w,h,x,y,z,mat){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,.042),mat||wood);
+    m.position.set(x,y,z===undefined?.021:z);
+    m.castShadow=true;m.receiveShadow=true;g.add(m);return m;
+  }
+  for(const s of[-1,1])part(ST,H,s*(W-ST)/2,H/2);
+  const inner=W-ST*2;
+  part(inner,.14,0,H-.07);                  /* top rail */
+  part(inner,.16,0,1.02);                   /* lock rail */
+  part(inner,.20,0,.10);                    /* bottom rail */
+  const p1=new THREE.Mesh(new THREE.BoxGeometry(inner,H-.07*2-1.02-.08+.02,.022),panel);
+  p1.position.set(0,(H-.14+1.10)/2,.011);g.add(p1);
+  const p2=new THREE.Mesh(new THREE.BoxGeometry(inner,.74,.022),panel);
+  p2.position.set(0,.57,.011);g.add(p2);
+  /* lever and rose, on the side the room walks up to */
+  const rose=new THREE.Mesh(new THREE.CylinderGeometry(.028,.028,.014,14),brass);
+  rose.rotation.x=Math.PI/2;rose.position.set(-.31,1.04,.048);g.add(rose);
+  const lever=new THREE.Mesh(new THREE.BoxGeometry(.115,.022,.022),brass);
+  lever.position.set(-.365,1.04,.062);lever.castShadow=true;g.add(lever);
+  /* the plate. No wording: the pictogram is the one sign every country
+     already agrees on, and this page is EN-only anyway. */
+  const wcTex=ctex(256,256,(x,w,h)=>{
+    x.fillStyle="#1d2a30";
+    x.beginPath();
+    const r=26;x.moveTo(r,0);x.arcTo(w,0,w,h,r);x.arcTo(w,h,0,h,r);
+    x.arcTo(0,h,0,0,r);x.arcTo(0,0,w,0,r);x.closePath();x.fill();
+    x.strokeStyle="#c9a25a";x.lineWidth=6;x.stroke();
+    x.fillStyle="#e8dcc0";
+    function head(cx,cy){x.beginPath();x.arc(cx,cy,17,0,7);x.fill();}
+    /* him: shoulders and two legs */
+    head(84,72);
+    x.beginPath();x.moveTo(66,98);x.lineTo(102,98);x.lineTo(108,152);
+    x.lineTo(60,152);x.closePath();x.fill();
+    x.fillRect(68,152,13,44);x.fillRect(87,152,13,44);
+    /* her: the same, in a dress */
+    head(172,72);
+    x.beginPath();x.moveTo(154,98);x.lineTo(190,98);x.lineTo(206,158);
+    x.lineTo(138,158);x.closePath();x.fill();
+    x.fillRect(156,158,12,38);x.fillRect(176,158,12,38);
+    x.fillStyle="#c9a25a";x.fillRect(52,214,152,4);
+  });
+  wcTex.anisotropy=maxAniso;
+  const plate=new THREE.Mesh(new THREE.PlaneGeometry(.17,.17),
+    new THREE.MeshBasicMaterial({map:wcTex,transparent:true}));
+  plate.position.set(0,1.63,.0435);g.add(plate);
+  /* window wall, face at x=-3.25, clear of the bar's front end (z=2.72) */
+  g.position.set(-3.248,0,3.15);
+  g.rotation.y=Math.PI/2;
+  scene.add(g);
+}
+
+/* ---------------- SKY TRAFFIC ----------------
+   The city behind the glass is a painting, and it stays a painting until
+   something crosses it. A plane every half-minute is the cheapest weather
+   there is: you catch it at the edge of your eye while Simon talks, and the
+   window stops being wallpaper.
+   Once in a while what crosses is not a plane. Small, far, gone in seven
+   seconds — you are never quite sure you saw it, which is the whole joke.
+   Both fly BETWEEN the painted plate (x=-3.9) and the wall (x=-3.25), so
+   the bay masks them in and out on its own: no fades, the wall does it.
+   Unlit basic materials — out there the light belongs to the plate, and
+   nothing beyond the glass should answer the pendants. */
+const SKY_LANE=-3.72;
+const skyPlane=new THREE.Group();
+{
+  const body=new THREE.MeshBasicMaterial({color:0xdfe4ea});
+  const wing=new THREE.MeshBasicMaterial({color:0xc2cad4});
+  const dark=new THREE.MeshBasicMaterial({color:0x8b97a5});
+  /* banked a touch. Crossing your line of sight dead level, an airliner is
+     a stick — a quarter turn of roll is what puts the wings on screen. */
+  const bank=new THREE.Group();bank.rotation.z=.44;skyPlane.add(bank);
+  const fus=new THREE.Mesh(new THREE.CylinderGeometry(.014,.009,.30,8),body);
+  fus.rotation.x=Math.PI/2;bank.add(fus);
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(.014,.05,8),body);
+  nose.rotation.x=Math.PI/2;nose.position.z=.172;bank.add(nose);
+  const wings=new THREE.Mesh(new THREE.BoxGeometry(.40,.005,.055),wing);
+  wings.position.z=-.01;bank.add(wings);
+  const tailp=new THREE.Mesh(new THREE.BoxGeometry(.15,.004,.035),wing);
+  tailp.position.z=-.135;bank.add(tailp);
+  const fin=new THREE.Mesh(new THREE.BoxGeometry(.005,.07,.05),wing);
+  fin.position.set(0,.036,-.138);bank.add(fin);
+  for(const s of[-1,1]){
+    const eng=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.05,8),dark);
+    eng.rotation.x=Math.PI/2;eng.position.set(s*.115,-.015,.012);bank.add(eng);
+  }
+}
+skyPlane.visible=false;scene.add(skyPlane);
+const skyHero=new THREE.Group();
+{
+  const suit=new THREE.MeshBasicMaterial({color:0x33539f});
+  const skin=new THREE.MeshBasicMaterial({color:0xe0ab80});
+  const hair=new THREE.MeshBasicMaterial({color:0x1a1520});
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.023,.017,.10,8),suit);
+  torso.rotation.x=Math.PI/2;skyHero.add(torso);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.021,10,8),skin);
+  head.position.z=.072;skyHero.add(head);
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(.022,10,8),hair);
+  cap.scale.set(1,.82,.7);cap.position.set(0,.007,.067);skyHero.add(cap);
+  /* one fist out front, the other tucked in — the pose everybody draws */
+  const arm=new THREE.Mesh(new THREE.CylinderGeometry(.009,.009,.09,6),suit);
+  arm.rotation.x=Math.PI/2;arm.position.set(-.021,.008,.10);skyHero.add(arm);
+  const fist=new THREE.Mesh(new THREE.SphereGeometry(.012,8,8),skin);
+  fist.position.set(-.021,.008,.148);skyHero.add(fist);
+  const armB=new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.07,6),suit);
+  armB.rotation.x=Math.PI/2;armB.position.set(.026,-.006,.05);skyHero.add(armB);
+  for(const s of[-1,1]){
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(.011,.008,.11,6),suit);
+    leg.rotation.x=Math.PI/2;leg.position.set(s*.011,-.004,-.104);skyHero.add(leg);
+  }
+  /* the cape faces the room, not the sky: a plane in the travel axis would
+     be edge-on from in here, which is one pixel of red and no cape at all */
+  const cloak=new THREE.Mesh(new THREE.PlaneGeometry(.22,.105),
+    new THREE.MeshBasicMaterial({color:0xb02a2a,side:THREE.DoubleSide}));
+  cloak.rotation.y=Math.PI/2;cloak.position.set(0,-.012,-.155);
+  skyHero.add(cloak);skyHero.userData.cape=cloak;
+}
+skyHero.visible=false;scene.add(skyHero);
+/* one crossing at a time, and an empty sky most of the time */
+const SKY={obj:null,t:0,dur:0,z0:0,z1:0,y:0,bob:1,next:8+Math.random()*9};
+function updateSkyTraffic(dt){
+  if(RM)return;                            /* reduced motion: nothing flies */
+  if(SKY.obj){
+    SKY.t+=dt;
+    const k=SKY.t/SKY.dur;
+    if(k>=1){SKY.obj.visible=false;SKY.obj=null;SKY.next=jit(26,.4);return;}
+    const o=SKY.obj;
+    o.position.z=SKY.z0+(SKY.z1-SKY.z0)*k;
+    o.position.y=SKY.y+Math.sin(k*Math.PI*SKY.bob)*.055;
+    if(o.userData.cape)o.userData.cape.rotation.x=Math.sin(SKY.t*7.5)*.22;
+    return;
+  }
+  SKY.next-=dt;
+  if(SKY.next>0)return;
+  const hero=Math.random()<.25;            /* three planes for every cape */
+  const o=hero?skyHero:skyPlane;
+  const east=Math.random()<.5;             /* which way it crosses the bay */
+  o.position.x=SKY_LANE;
+  o.rotation.y=east?0:Math.PI;
+  SKY.z0=east?-5.4:4.8;SKY.z1=east?4.8:-5.4;
+  /* under 2.20: the bay's top rail (fenetre_cadre_haut) starts at 2.40 and
+     a banked wing reaches .09 above the hub, so anything higher clips into
+     the frame instead of crossing the sky */
+  SKY.y=hero?1.86+Math.random()*.2:2.02+Math.random()*.16;
+  SKY.dur=hero?jit(7.5,.18):jit(13,.18);
+  SKY.bob=hero?3:1;
+  SKY.t=0;o.position.y=SKY.y;o.position.z=SKY.z0;o.visible=true;SKY.obj=o;
+}
+
+/* ---------------- THE TELEVISION ----------------
+   Every café that opens before nine has one of these on, sound off, tuned
+   to a business channel nobody is watching. It goes on the one bare
+   stretch of the green back wall — between the neon and the chalkboard,
+   over the far end of the counter — which puts it just past Simon's
+   shoulder from the chair: you catch the ticker while he talks, which is
+   exactly how you catch it in real life.
+   The screen is one 512x288 canvas repainted 15 times a second: a
+   presenter whose mouth moves, a headline that turns over, and a ticker
+   that never stops. Unlit material — a screen is a light source, it must
+   not dim with the room. */
+const TV_TICKER=["MSCI WORLD +9.7%","SEMICONDUCTORS +8.0%",
+  "ATOS +40% AFTER STOCK SPLIT","NDABANK -6.2%","EURO STOXX 50 +1.2%",
+  "BEL 20 +0.4%","ARABICA FUTURES +2.3%","GOLD -0.6%","EUR/USD 1.0914"];
+/* Four stories on an eight-second loop. Three are the tape. The fourth is
+   the one this room is quietly in: NdaBank's chief executive is the man on
+   the plaque by the trophy cabinet — employee of the month, and nobody
+   here has ever met him either. His graph is the only one that goes down,
+   which is the whole gag: same name, two walls, opposite directions. */
+const TV_STORIES=[
+  {head:"MSCI World closes at a record",
+   sub:"Third session running in the green",
+   tag:"MSCI WORLD",val:"+9.7%"},
+  {head:"Chips lead the rally",
+   sub:"Semiconductors up 8.0% on the week",
+   tag:"SEMICONDUCTORS",val:"+8.0%"},
+  {head:"ATOS +40% after the stock split",
+   sub:"Volumes at four times the daily average",
+   tag:"ATOS",val:"+40%"},
+  {head:"NdaBank fined over anti-money-laundering failures",
+   sub:"“We will reinforce the internal compliance department” "+
+       "— Tonio Salfari, CEO",
+   tag:"NDABANK",val:"–6.2%",down:true,stamp:"€ 34 M FINE"}
+];
+const TV={tex:null,ctx:null,acc:0};
+function drawTV(t){
+  const x=TV.ctx,w=512,h=288,SH=208;          /* SH: where the studio ends */
+  const st=TV_STORIES[((t/8)|0)%TV_STORIES.length];
+  const down=!!st.down;
+  const line=down?"#e2707a":"#5fd39a";
+  const fill=down?"rgba(212,92,102,.30)":"rgba(90,190,140,.30)";
+  /* --- studio --- */
+  const bg=x.createLinearGradient(0,0,0,SH);
+  bg.addColorStop(0,"#0b1524");bg.addColorStop(1,"#17293d");
+  x.fillStyle=bg;x.fillRect(0,0,w,SH);
+  /* the panel on the wall behind him. It is the same graph every time —
+     only the direction changes, and on one story out of four it is the
+     wrong one. */
+  x.fillStyle="rgba(8,16,26,.72)";x.fillRect(250,22,236,138);
+  x.strokeStyle="rgba(120,170,220,.18)";x.lineWidth=1;
+  for(let i=1;i<4;i++){
+    x.beginPath();x.moveTo(250,22+i*33);x.lineTo(486,22+i*33);x.stroke();
+  }
+  x.fillStyle=fill;
+  for(let i=0;i<11;i++){
+    const k=down?10-i:i;
+    const bh=14+k*7+Math.sin(i*1.7+t*.35)*6;
+    x.fillRect(260+i*20,152-bh,13,bh);
+  }
+  x.strokeStyle=line;x.lineWidth=2.4;x.beginPath();
+  for(let i=0;i<11;i++){
+    const k=down?10-i:i;
+    const py=138-k*8.4+Math.sin(i*1.7+t*.35)*6;
+    x[i?"lineTo":"moveTo"](266+i*20,py);
+  }
+  x.stroke();
+  x.fillStyle=line;x.font='700 13px "Space Grotesk", sans-serif';
+  x.textAlign="left";x.fillText(st.tag,258,40);
+  x.textAlign="right";x.fillText(st.val,478,40);
+  /* the penalty, stamped across the graph the way a channel does it */
+  if(st.stamp){
+    x.save();x.translate(368,112);x.rotate(-.11);
+    x.strokeStyle="#e2707a";x.lineWidth=2.6;x.strokeRect(-76,-18,152,36);
+    x.fillStyle="rgba(178,40,50,.22)";x.fillRect(-76,-18,152,36);
+    x.fillStyle="#f0919a";x.font='700 20px "Space Grotesk", sans-serif';
+    x.textAlign="center";x.textBaseline="middle";x.fillText(st.stamp,0,1);
+    x.restore();x.textBaseline="alphabetic";
+  }
+  /* --- the presenter --- */
+  const bob=Math.sin(t*1.3)*1.6, cx=132, hy=104+bob;
+  x.fillStyle="#101c2c";x.fillRect(0,176,w,SH-176);      /* the desk */
+  x.fillStyle="#2b3550";                                  /* suit */
+  x.beginPath();
+  x.moveTo(cx-62,180);x.quadraticCurveTo(cx-46,146+bob,cx-16,138+bob);
+  x.lineTo(cx+16,138+bob);x.quadraticCurveTo(cx+46,146+bob,cx+62,180);
+  x.closePath();x.fill();
+  x.fillStyle="#eef2f6";                                  /* shirt */
+  x.beginPath();x.moveTo(cx-15,139+bob);x.lineTo(cx,180);
+  x.lineTo(cx+15,139+bob);x.closePath();x.fill();
+  x.fillStyle="#b0202a";                                  /* tie */
+  x.beginPath();x.moveTo(cx-5,144+bob);x.lineTo(cx+5,144+bob);
+  x.lineTo(cx+3,176);x.lineTo(cx-3,176);x.closePath();x.fill();
+  x.fillStyle="#e0b48a";                                  /* neck + head */
+  x.fillRect(cx-9,128+bob,18,14);
+  x.beginPath();x.arc(cx,hy,27,0,7);x.fill();
+  x.fillStyle="#241c16";                                  /* hair */
+  x.beginPath();x.arc(cx,hy-5,27,Math.PI*1.03,Math.PI*1.97);x.fill();
+  x.fillStyle="#1b1b22";                                  /* eyes */
+  x.beginPath();x.arc(cx-9,hy-2,2.6,0,7);x.arc(cx+9,hy-2,2.6,0,7);x.fill();
+  /* the mouth is the whole trick: a talking head that does not talk is a
+     photograph, and you read that in half a second */
+  const jaw=1.6+Math.abs(Math.sin(t*6.1))*5.2*(Math.sin(t*.7)>-.55?1:.15);
+  x.fillStyle="#8a3f3a";
+  x.beginPath();x.ellipse(cx,hy+13,6.5,jaw,0,0,7);x.fill();
+  /* LIVE, and the channel bug */
+  x.fillStyle="#d8242e";x.beginPath();x.arc(26,28,6,0,7);x.fill();
+  x.fillStyle="#eef2f6";x.font='700 15px "Space Grotesk", sans-serif';
+  x.textAlign="left";x.fillText("LIVE",38,33);
+  x.fillStyle="rgba(238,242,246,.5)";x.font='600 12px "Space Grotesk", sans-serif';
+  x.fillText("VC BUSINESS",22,50);
+  /* --- lower third: headline over a strap --- */
+  x.fillStyle=down?"#8d1a22":"#b0202a";x.fillRect(0,SH,w,26);
+  x.fillStyle="#f4f0e6";x.font='700 15px "Space Grotesk", sans-serif';
+  x.textAlign="left";x.fillText(st.head,14,SH+18);
+  x.fillStyle="#0e1a27";x.fillRect(0,SH+26,w,18);
+  x.fillStyle="rgba(222,232,242,.86)";
+  /* the quote is the longest line the strap ever carries — squeeze the
+     type rather than let a CEO run off the end of his own screen */
+  let sub=st.sub,fs=12;
+  x.font='italic 500 12px "Space Grotesk", sans-serif';
+  while(fs>9&&x.measureText(sub).width>w-28){
+    fs-=.5;x.font='italic 500 '+fs+'px "Space Grotesk", sans-serif';
+  }
+  x.fillText(sub,14,SH+39);
+  /* --- ticker --- */
+  x.fillStyle="#080d14";x.fillRect(0,SH+44,w,h-SH-44);
+  x.font='600 18px "Space Grotesk", sans-serif';
+  let total=0;const wid=[];
+  for(let i=0;i<TV_TICKER.length;i++){
+    wid.push(x.measureText(TV_TICKER[i]).width+54);total+=wid[i];
+  }
+  const off=(t*46)%total;
+  x.textAlign="left";
+  for(let pass=0;pass<2;pass++){
+    let px=w-off+pass*total;
+    for(let i=0;i<TV_TICKER.length;i++){
+      if(px>-wid[i]&&px<w){
+        const s=TV_TICKER[i];
+        x.fillStyle=s.indexOf("-")>0?"#e2707a":
+                    s.indexOf("+")>0?"#6fd8a4":"#d8dee6";
+        x.fillText(s,px,SH+70);
+        x.fillStyle="rgba(216,222,230,.28)";
+        x.fillText("•",px+wid[i]-32,SH+70);
+      }
+      px+=wid[i];
+    }
+  }
+  /* scanline sheen, so it reads as a screen and not as a poster */
+  x.fillStyle="rgba(255,255,255,.028)";
+  for(let y=0;y<h;y+=4)x.fillRect(0,y,w,1);
+}
+{
+  const c=document.createElement("canvas");c.width=512;c.height=288;
+  TV.ctx=c.getContext("2d");
+  const tex=new THREE.CanvasTexture(c);
+  tex.encoding=THREE.sRGBEncoding;tex.anisotropy=maxAniso;
+  TV.tex=tex;
+  drawTV(0);
+  VC.fontsReady.then(function(){drawTV(0);tex.needsUpdate=true;});
+  const bezelMat=new THREE.MeshStandardMaterial({color:0x14161a,roughness:.45,
+    metalness:.35,envMapIntensity:.9});
+  const armMat=new THREE.MeshStandardMaterial({color:0x1a1c20,roughness:.65});
+  const screenMat=new THREE.MeshBasicMaterial({map:tex});
+  /* Two sets, one feed — which is what a café with two screens does.
+     · the small one over the far end of the counter: 1.30 m is the whole
+       width there (wall art stops at -1.97, the chalkboard frame starts
+       at -.47), and from the chair it lands just past Simon's shoulder;
+     · the big one on the bare green stretch right of the fridge, under
+       the jar shelf (bottom of the shelf: y=2.25). Nothing else has ever
+       hung there and the room reads empty on that side. */
+  [{w:1.30,h:.77,pos:[-1.24,2.46,-4.7],rot:[.06,.13,0],glow:.32},
+   {w:2.06,h:1.19,pos:[5.68,1.56,-4.7],rot:[0,-.10,0],glow:.5}]
+  .forEach(function(d){
+    const g=new THREE.Group();
+    const bezel=new THREE.Mesh(new THREE.BoxGeometry(d.w,d.h,.05),bezelMat);
+    bezel.castShadow=true;g.add(bezel);
+    /* 16:9 inside the bezel, with a 3.5 cm frame all round */
+    const sw=d.w-.085,sh=sw*9/16;
+    const screen=new THREE.Mesh(new THREE.PlaneGeometry(sw,sh),screenMat);
+    screen.position.z=.026;g.add(screen);
+    /* the painter draws into whatever context it is given: hand it the
+       overlay's and it broadcasts there instead, at twice the resolution */
+    addReadable(screen,"VC Business — live",512,288,function(g){
+      const keep=TV.ctx;TV.ctx=g;drawTV(clock.elapsedTime);TV.ctx=keep;
+    },true);
+    const arm=new THREE.Mesh(new THREE.BoxGeometry(.18,.18,.08),armMat);
+    arm.position.z=-.06;g.add(arm);
+    /* the wash a screen throws on the wall either side of it */
+    const glow=new THREE.PointLight(0x8fb6ff,d.glow,2.4+d.w,2);
+    glow.position.set(0,0,.42);g.add(glow);
+    /* back wall, face z=-4.75 — turned into the room, and the small one
+       tipped down at the tables the way every one of these is hung */
+    g.position.set(d.pos[0],d.pos[1],d.pos[2]);
+    g.rotation.set(d.rot[0],d.rot[1],d.rot[2]);
+    scene.add(g);
+  });
+}
+
+function updateTV(dt){
+  if(RM)return;                     /* reduced motion: a still frame */
+  TV.acc+=dt;
+  if(TV.acc<1/15)return;            /* 15 Hz is plenty for a 1 m screen */
+  TV.acc=0;
+  drawTV(clock.elapsedTime);
+  TV.tex.needsUpdate=true;
+}
+
 /* COUNTER ZONE, TABLES, CHAIRS, RUG, PLANTS: all cafe.obj.txt now —
    counter with espresso machine, register and pastry case at z≈-3.7, four
    bar stools in front of it, a high table with six stools along the
    window, the rug, the plant. Plus, since the map grew a front wall: the
-   trophy cabinet and its three framed clippings at z≈3.5. Rug and plant
+   trophy cabinet at z≈3.5. Rug and plant
    sit where the map puts them, not where the old preprocessor shoved
    them — the staging is the map's job now, bar the three gestures the
    rig depends on (see preprocess_cafe_glb.py). */
@@ -2177,11 +2655,28 @@ function buildPerson(opts){
   put(head,new THREE.SphereGeometry(.15,18,16),mSk,0,0,0,true,"skin");
   const hair=put(head,new THREE.SphereGeometry(.155,18,14),mH,0,.06,-.015,false,"hair");
   hair.scale.set(1,.72,1);
+  /* A FACE, not two dots. Two eyes and a mouth on a bare egg read as a
+     mannequin from any angle that is not dead-on — the cast kept turning
+     up faceless in the wide shot. What fixes it is what fixes it on
+     Simon: a nose to catch the key light and brows to give the eyes a
+     top edge. Six more triangles a head, and everybody has a face. */
+  const nose=put(head,new THREE.SphereGeometry(.025,10,8),mSk,0,-.012,.144,false,"skin");
+  nose.scale.set(.85,1,.95);
+  nose.userData.acc="nose";        /* survives humanizeRig's skull strip */
+  for(const e of[-1,1]){
+    /* clear of the hair cap in front (it stops around y=.03 at x=0) and
+       sitting ON the skull, .022 above the eye it belongs to */
+    const brow=put(head,new THREE.BoxGeometry(.05,.011,.013),mH,.052*e,.044,.135,false,"hair");
+    brow.rotation.z=-.14*e;
+    brow.userData.acc="brow";      /* not the hair cap: do not rescale it */
+  }
   const eyes=[];
   for(const e of[-1,1]){
     const eg=new THREE.Group();
-    /* .132: the eyeball must break the skull surface (r=.15) to be seen */
-    eg.position.set(.052*e,.022,.132);
+    /* .136: the eyeball must break the skull surface (r=.15) to be seen,
+       and a whole millimetre of white is the difference between an eye
+       and a freckle */
+    eg.position.set(.052*e,.022,.136);
     head.add(eg);
     put(eg,new THREE.SphereGeometry(.019,10,10),stdMat(0xf3efe7,.35),0,0,0,false);
     put(eg,new THREE.SphereGeometry(.011,8,8),stdMat(0x23232b,.4),0,0,.013,false);
@@ -2512,11 +3007,16 @@ let bookPages=null;
 reader.prop=bookG;
 reader.pageT=jit(40,.35);
 
-/* Visitors: episodic — spawn out of frame by the door (x≈6.5), walk in
-   past the tables, stop in front of the pastry case to read the
-   chalkboard, walk back out, despawn. No U-turn ever happens in the
-   middle of the frame: both ends of the path are off-screen. */
-const VISIT_PATH=[[6.5,-1.5],[4.5,-1.62],[2.85,-2.25]];
+/* Visitors: episodic — in through the DOOR, past the tables, a stop in
+   front of the pastry case to read the chalkboard, then back out and
+   gone. The old path started him at (6.5,-1.5), which is not the door but
+   the shopfront glass two metres to the left of it: he appeared out of a
+   wall, which is exactly what you notice. He starts on the mat now
+   (paillasson x 5.89..6.84, z .06..1.44), the leaf swings for him (see
+   openDoor), and the two waypoints after it walk him down the entrance
+   lane rather than straight through table 4. No U-turn ever happens in
+   the middle of the frame: both ends of the path are at the door. */
+const VISIT_PATH=[[6.52,.75],[6.3,-.9],[4.5,-1.62],[2.85,-2.25]];
 const PALETTES={
   shirt:[0x8a5540,0x51606e,0x35543f,0x6e4a63,0xc9973c,0x2c4a6e,0x7d3b3b,0xa86b4a],
   pants:[0x2e2e38,0x3a3230,0x23232b,0x453b33],
@@ -2782,18 +3282,38 @@ function guestCtl(){
    (0,-.5) r 1.15 it swallows the tabletop and Simon, and still leaves the
    seat (1.20 out) and its trigger ring standable. */
 const GUEST_BLOCKERS=[[2.65,1.81,.8],[5.19,-2.38,.85],[5.03,2.18,.8],[.48,3.19,.8],
-  [0,-.5,1.15]];
+  [0,-.5,1.15],[3.9,3.45,.62]];
+/* RECTANGLES, for the two fixtures no circle describes: the window bar
+   with the metre of floor behind it (it runs the length of the room), and
+   the left half of the trophy cabinet — the right half is the circle at
+   (.48,3.19) above, and the two are TANGENT, never overlapping. Overlap
+   is what leaves a pocket: pushed out of one you land in the other, and a
+   walk order aimed past them pins you there for good. */
+const GUEST_RECTS=[[-3.6,-3.62,-1.35,2.5],[-2.16,3.02,-.32,4.05]];
 function collideGuest(a){
-  /* the south of the room is dressed for the wide shot, not for standing
-     in: keeping the player out of it keeps the chase camera off the
-     fourth wall AND out of its own z clamp (see FOLLOW.zmax) */
-  a.pos.x=Math.max(-1.35,Math.min(6.85,a.pos.x));
-  a.pos.z=Math.max(-2.35,Math.min(1.9,a.pos.z));
+  /* The room is walkable end to end now. It was fenced at z=1.9 for a
+     wide shot that no longer holds: the map grew a front wall, and the
+     cabinet, the plaque and the toilet door all live on it — being
+     stopped two metres short of them was the bug. What still fences him
+     is the shell, half a metre off each wall, so the chase camera keeps
+     its standoff and stays inside CAM.xmin/zmax. */
+  a.pos.x=Math.max(-2.82,Math.min(6.85,a.pos.x));
+  a.pos.z=Math.max(-2.35,Math.min(3.32,a.pos.z));
   for(let i=0;i<GUEST_BLOCKERS.length;i++){
     const b=GUEST_BLOCKERS[i];
     const dx=a.pos.x-b[0],dz=a.pos.z-b[1];
     const d=Math.hypot(dx,dz);
     if(d<b[2]&&d>1e-4){a.pos.x=b[0]+dx/d*b[2];a.pos.z=b[1]+dz/d*b[2];}
+  }
+  for(let i=0;i<GUEST_RECTS.length;i++){
+    const r=GUEST_RECTS[i],p=a.pos;
+    if(p.x<=r[0]||p.x>=r[2]||p.z<=r[1]||p.z>=r[3])continue;
+    /* out by the shortest of the four ways, which is what makes a slab
+       behave like a wall however you walk into it */
+    const wl=p.x-r[0],wr=r[2]-p.x,wd=p.z-r[1],wu=r[3]-p.z;
+    const m=Math.min(wl,wr,wd,wu);
+    if(m===wl)p.x=r[0];else if(m===wr)p.x=r[2];
+    else if(m===wd)p.z=r[1];else p.z=r[3];
   }
 }
 function startSit(a){
@@ -3014,6 +3534,11 @@ function tickVisitor(a,dtT){
       a.rig.root.visible=true;a.blob.visible=true;
       a.vLeg=0;a.vDir=1;a.vPauseT=0;
       a.pos.set(VISIT_PATH[0][0],0,VISIT_PATH[0][1]);
+      /* already facing where he is going: one frame of a man staring at
+         the shopfront is one frame of a man who materialised there */
+      a.yaw=Math.atan2(VISIT_PATH[1][0]-VISIT_PATH[0][0],
+                       VISIT_PATH[1][1]-VISIT_PATH[0][1]);
+      openDoor();
     }
     return;
   }
@@ -3027,6 +3552,7 @@ function tickVisitor(a,dtT){
   if(!wp){                                    /* walked off both ends */
     a.active=false;a.rig.root.visible=false;a.blob.visible=false;
     a.vTimer=25+Math.random()*35;
+    openDoor();                    /* and out he goes, same leaf */
     return;
   }
   const dx=wp[0]-a.pos.x,dz=wp[1]-a.pos.z;
@@ -3037,6 +3563,7 @@ function tickVisitor(a,dtT){
     if(a.vDir<0&&a.vLeg<0){
       a.active=false;a.rig.root.visible=false;a.blob.visible=false;
       a.vTimer=25+Math.random()*35;
+      openDoor();                  /* and out he goes, same leaf */
     }
     return;
   }
@@ -3362,6 +3889,20 @@ window.__groups=()=>groups.map(g=>({members:g.members.length,
   laughing:+g.laughing.toFixed(2)}));
 window.__cafe=()=>({ready:CAFE.ready,groups:Array.from(CAFE.meshes.keys()),
   bulbs:CAFE.bulbs.map(b=>!!b),pendants:pendants.map(p=>({lit:p.lit,pt:!!p.point}))});
+/* everything the wall lets you open, with where it currently is on screen */
+window.__readables=()=>{
+  const r=renderer.domElement.getBoundingClientRect(),v=new THREE.Vector3();
+  return READABLES.map(o=>{
+    o.mesh.getWorldPosition(v).project(camera);
+    return {title:o.title,onScreen:Math.abs(v.x)<1&&Math.abs(v.y)<1&&v.z<1,
+      x:Math.round(r.left+(v.x*.5+.5)*r.width),
+      y:Math.round(r.top+(-v.y*.5+.5)*r.height)};
+  });
+};
+/* the shopfront leaf: hung? open? — __door().rot must move when somebody
+   comes through, and settle back to 0 a few seconds later */
+window.__door=()=>DOOR.pivot?{hung:true,k:+DOOR.k.toFixed(3),
+  t:+DOOR.t.toFixed(2),rot:+DOOR.pivot.rotation.y.toFixed(3)}:{hung:false};
 
 /* ---------------- SIMON ---------------- */
 const simon=new THREE.Group();simon.position.set(0,0,-1.08);scene.add(simon);
@@ -3848,9 +4389,22 @@ function pick(e){
   document.body.style.cursor=k?"pointer":"default";
   return k?k:"__paper";
 }
-addEventListener("pointermove",e=>{if(TOUCH)return;pick(e);});
+addEventListener("pointermove",e=>{
+  if(TOUCH)return;
+  /* pick() owns the cursor over the résumé and Simon; the wall is the
+     one thing it does not know about */
+  if(!pick(e)&&!zoomItem&&pickReadable(e.clientX,e.clientY))
+    document.body.style.cursor="pointer";
+});
 addEventListener("pointerdown",e=>{
   const k=pick(e);
+  /* Seated, the camera is parked and tap-to-walk is off, so walkOrder
+     never sees this click — but the television is right over Simon's
+     shoulder from that chair, which is exactly when you want to read it. */
+  if(k===null&&!zoomItem&&!lookActive()){
+    const rd=pickReadable(e.clientX,e.clientY);
+    if(rd){openZoom(rd);return;}
+  }
   if(k==="__simon"){selectAbout();return;}
   if(TOUCH){
     if(k===null){paperLifted=false;return;}      /* tap away -> lay it back down */
@@ -4486,7 +5040,57 @@ function updateFollowShot(dt){
    and duration, not by which element was hit. */
 const _tapRay=new THREE.Raycaster(),_tapPt=new THREE.Vector2();
 const _floor=new THREE.Plane(new THREE.Vector3(0,1,0),0),_tapHit=new THREE.Vector3();
+/* ---------------- ZOOM ----------------
+   Click the television or the plaque and it comes off the wall. The
+   painter is re-run at 2x into the overlay canvas rather than the wall
+   texture being blown up: at 512 px wide the ticker is a smear, and
+   reading the ticker is the only reason anyone clicks a television. */
+const _rdRay=new THREE.Raycaster(),_rdPt=new THREE.Vector2();
+const zoomEl=document.getElementById("zoom");
+const zoomC=document.getElementById("zoomC");
+const zoomCap=document.getElementById("zoomTitle");
+let zoomItem=null;
+function pickReadable(cx,cy){
+  /* NOT gated on `entered` the way pick() is: the résumé only exists once
+     you are in the chair, but the wall is the whole reason to walk the
+     room BEFORE sitting down. */
+  if(!READABLES.length||!CAFE.ready)return null;
+  const r=renderer.domElement.getBoundingClientRect();
+  _rdPt.x=((cx-r.left)/r.width)*2-1;
+  _rdPt.y=-((cy-r.top)/r.height)*2+1;
+  _rdRay.setFromCamera(_rdPt,camera);
+  const hit=_rdRay.intersectObjects(READABLES.map(o=>o.mesh),false)[0];
+  return hit?READABLES[hit.object.userData.readable]:null;
+}
+function paintZoom(){
+  if(!zoomItem)return;
+  const k=2,g=zoomC.getContext("2d");
+  if(zoomC.width!==zoomItem.w*k){zoomC.width=zoomItem.w*k;zoomC.height=zoomItem.h*k;}
+  g.setTransform(k,0,0,k,0,0);
+  zoomItem.redraw(g);
+  g.setTransform(1,0,0,1,0,0);
+}
+function openZoom(it){
+  zoomItem=it;
+  zoomCap.textContent=it.title;
+  paintZoom();
+  zoomEl.hidden=false;
+  document.body.style.cursor="default";
+  document.getElementById("zoomBack").focus();
+}
+function closeZoom(){
+  if(!zoomItem)return;
+  zoomItem=null;zoomEl.hidden=true;
+}
+document.getElementById("zoomBack").addEventListener("click",closeZoom);
+/* the backdrop closes too, but not the picture itself */
+zoomEl.addEventListener("pointerdown",e=>{if(e.target===zoomEl)closeZoom();});
+addEventListener("keydown",e=>{if(e.key==="Escape")closeZoom();});
+
 function walkOrder(cx,cy){
+  /* a tap on something you can read is not a walk order */
+  const rd=pickReadable(cx,cy);
+  if(rd){openZoom(rd);return;}
   const r=renderer.domElement.getBoundingClientRect();
   _tapPt.x=((cx-r.left)/r.width)*2-1;
   _tapPt.y=-((cy-r.top)/r.height)*2+1;
@@ -4501,6 +5105,7 @@ function walkOrder(cx,cy){
 let dragId=null,dragX=0,dragY=0,dragT=0,dragMoved=0,dragSX=0,dragSY=0;
 function lookActive(){
   if(guest.state!=="walk"||RM||cafeClosed)return false;
+  if(zoomItem)return false;          /* something is open over the room */
   /* the text résumé is a scrollable panel over the whole page: while it
      is open the wheel belongs to it, not to the camera */
   const cv=document.getElementById("cv-text");
@@ -4508,7 +5113,7 @@ function lookActive(){
 }
 addEventListener("pointerdown",e=>{
   if(!lookActive()||e.button!==0)return;
-  if(e.target&&e.target.closest&&e.target.closest(".tools,.howto,.cv"))return;
+  if(e.target&&e.target.closest&&e.target.closest(".tools,.howto,.cv,.zoom"))return;
   dragId=e.pointerId;dragX=e.clientX;dragY=e.clientY;CAM.yawV=0;
   dragT=e.timeStamp;dragMoved=0;dragSX=e.clientX;dragSY=e.clientY;
 });
@@ -4648,6 +5253,10 @@ function animate(){
     guest.ctl=guestCtl();      /* read the arrows at frame rate, not tick rate */
     tickClosing(dt);
     updateLife(dt);
+    updateSkyTraffic(dt);
+    updateDoor(dt);
+    updateTV(dt);
+    if(zoomItem&&zoomItem.live)paintZoom();   /* it keeps broadcasting */
     if(!RM)fan.rotation.y+=dt*1.6;
   }
 
