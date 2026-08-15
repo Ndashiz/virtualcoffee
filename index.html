@@ -225,6 +225,83 @@
     text-shadow:0 2px 10px rgba(0,0,0,.7);pointer-events:none;animation:floaty 3s ease-in-out infinite;white-space:nowrap;}
   @keyframes floaty{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-4px)}}
 
+  /* ── Dialogue box ──────────────────────────────────────────────
+     A quest menu, not a modal: it sits down the left so the subtitle
+     track (bottom centre) and Simon's face (centre right) stay clear.
+     It fades out while he talks — that is a cutscene, and the letterbox
+     already says so — and comes back the moment he stops. */
+  .talk{position:fixed;z-index:23;left:calc(20px + env(safe-area-inset-left));
+    bottom:calc(11vh + 34px);width:min(300px,44vw);
+    display:flex;flex-direction:column;gap:7px;
+    /* unlocked, it is ten lines and two links tall — on a short window
+       that runs off the top of the screen, so it scrolls instead */
+    max-height:calc(100dvh - 190px);overflow-y:auto;overscroll-behavior:contain;
+    scrollbar-width:thin;scrollbar-color:rgba(159,180,188,.35) transparent;}
+  .talk[hidden]{display:none;}
+  /* The menu steps aside while he talks — but the two links do NOT: the
+     outro names them out loud ("there's a download button…") and they
+     have to be there when he says it. Same reason the box keeps its
+     space: fading it out of the layout would make the links jump. */
+  .tlead,.topts{transition:opacity .3s ease,transform .3s ease;}
+  body.talking .tlead,body.talking .topts{opacity:0;transform:translateY(8px);
+    pointer-events:none;}
+  .tlead{margin:0 0 3px;font-family:"Caveat",cursive;font-weight:700;font-size:23px;
+    line-height:1.15;color:#f5e6c4;text-shadow:0 2px 10px rgba(0,0,0,.75);}
+  .topts{display:flex;flex-direction:column;gap:6px;}
+  .topt{display:flex;align-items:center;gap:9px;width:100%;text-align:left;cursor:pointer;
+    border:1px solid #3a4d56;border-left:3px solid #3a4d56;border-radius:9px;
+    background:rgba(19,25,31,.86);backdrop-filter:blur(3px);
+    color:#dfe8f2;padding:9px 13px;font-family:"Space Grotesk",sans-serif;
+    font-size:14px;font-weight:500;transition:.15s;}
+  .topt:hover{border-color:var(--gold);border-left-color:var(--gold);color:#fff;
+    transform:translateX(3px);}
+  .topt:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+  .topt .tnum{font-size:11px;color:#7f93a1;font-variant-numeric:tabular-nums;min-width:9px;}
+  .topt .tmark{margin-left:auto;font-size:13px;color:#5fbf87;opacity:0;transition:opacity .3s;}
+  /* the green marker: heard it, all the way through */
+  .topt.done{color:#9fb4bc;border-left-color:#5fbf87;}
+  .topt.done .tmark{opacity:1;}
+  /* the second tier, and the wrap-up, arrive later — they should read as
+     something that opened up, not as buttons that were always there */
+  .topt.late{animation:tpop .34s cubic-bezier(.16,1,.3,1) both;}
+  .topt.wrap{border-color:rgba(244,183,64,.55);border-left-color:var(--gold);color:#f5e0b0;}
+  .thead{margin:9px 0 1px;font-family:"Space Grotesk",sans-serif;font-size:10px;
+    letter-spacing:2.2px;text-transform:uppercase;color:#8fa2b0;
+    text-shadow:0 2px 8px rgba(0,0,0,.8);}
+  @keyframes tpop{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  .tlinks{display:flex;gap:7px;margin-top:5px;flex-wrap:wrap;}
+  .tlinks[hidden]{display:none;}
+  .tlink{border:1px solid var(--gold);border-radius:999px;background:rgba(244,183,64,.12);
+    color:var(--gold);padding:8px 14px;text-decoration:none;
+    font-family:"Space Grotesk",sans-serif;font-size:13px;font-weight:600;transition:.15s;}
+  .tlink:hover{background:var(--gold);color:#20303a;}
+
+  .skip{position:fixed;z-index:25;right:calc(18px + env(safe-area-inset-right));
+    bottom:calc(11vh + 16px);border:1px solid #3a4d56;border-radius:999px;
+    background:rgba(19,25,31,.86);backdrop-filter:blur(3px);color:#9fb4bc;
+    padding:8px 15px;cursor:pointer;font-family:"Space Grotesk",sans-serif;font-size:13px;
+    opacity:0;transition:opacity .3s;pointer-events:none;}
+  .skip[hidden]{display:none;}
+  body.talking .skip{opacity:1;pointer-events:auto;}
+  .skip:hover{color:var(--gold);border-color:var(--gold);}
+
+  @media(max-width:640px){
+    /* a phone has no room for a side panel: the box becomes a sheet
+       across the bottom, and the subtitles move above it (see .subs) */
+    .talk{left:0;right:0;width:auto;bottom:calc(11vh + 10px);padding:0 12px;
+      max-height:52dvh;}
+    .tlead{font-size:19px;}
+    .topts{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+    .topt{padding:8px 10px;font-size:12.5px;}
+    .topt .tnum{display:none;}
+    .thead{grid-column:1/-1;margin:5px 0 0;}
+    .skip{bottom:auto;top:calc(60px + env(safe-area-inset-top));}
+  }
+  @media(prefers-reduced-motion:reduce){
+    .topt.late{animation:none;}
+    .talk,.topt{transition:none;}
+  }
+
   .howto{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
     background:rgba(10,8,8,.72);backdrop-filter:blur(6px);transition:opacity .4s;}
   .howto.hide{opacity:0;pointer-events:none;}
@@ -289,6 +366,27 @@
   </svg>
 </div>
 <div class="prompt" id="prompt">Hover the résumé on the table &amp; tap a section&nbsp;☕</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     THE DIALOGUE BOX
+     Opens once the visitor has read the sheet and it has gone back on
+     the table. It is the ONLY way to pick a section now — the résumé is
+     something you read, not a menu you click. Built from TALK at run
+     time; empty in the markup so a no-WebGL visitor never sees a dead
+     panel (the text résumé is their version of this).
+     ════════════════════════════════════════════════════════════════ -->
+<div class="talk" id="talk" hidden aria-hidden="true">
+  <p class="tlead" id="talkLead"></p>
+  <div class="topts" id="talkOpts" role="group" aria-label="What Simon can tell you about"></div>
+  <div class="tlinks" id="talkLinks" hidden>
+    <a class="tlink" id="cvDl" href="#" download>⬇ Download the résumé</a>
+    <a class="tlink" id="liLink" href="#" target="_blank" rel="noopener">in — LinkedIn</a>
+  </div>
+</div>
+<!-- Hushing him mid-sentence is a keyboard trick (space) on a desktop and
+     nothing at all on a phone: this is the phone's version, and it only
+     exists while he is actually talking. -->
+<button class="skip" id="skipBtn" hidden type="button">⏭ Skip</button>
 
 <!-- Anything on a wall you can click comes off the wall and fills this. -->
 <div class="readhint" id="readHint" aria-hidden="true"></div>
@@ -658,8 +756,12 @@ if(typeof THREE==="undefined"){ VC.textOnly("three.js failed to load"); return; 
 const DATA={
  en:{
   sign:["Virtual Coffee","discussion with Simon"],
-  prompt:"Hover the résumé on the table & tap a section\u00A0☕",
-  promptTouch:"Tap the résumé to lift it, then tap a section\u00A0☕",
+  /* the beat between sitting down and the first section: the sheet is up,
+     near full-screen, and nothing else may compete with it */
+  promptRead:"Read it — then click anywhere to put it back on the table",
+  promptReadTouch:"Read it — then tap anywhere to put it back on the table",
+  prompt:"Pick a section — I'll fill in the gaps\u00A0☕",
+  promptTouch:"Pick a section — I'll fill in the gaps\u00A0☕",
   labels:{intro:"ABOUT ME",experience:"WORK EXPERIENCE",education:"EDUCATION",
           skills:"SKILLS",certifications:"CERTIFICATIONS",languages:"LANGUAGES",contact:"CONTACT"},
   body:{
@@ -670,18 +772,31 @@ const DATA={
    certifications:["PSPO I · PSM I","Dynamics 365 · Azure"],
    languages:["FR native · EN fluent","NL intermediate"],
    contact:["goffin.simon@gmail.com","Brussels, Belgium"]},
+  /* ── The scripts (v2) ────────────────────────────────────────────
+     One entry per recorded clip: the key IS the mp3 name under
+     audio/en/. This text is three things at once — the recording
+     script, the subtitle track (pro-rata over the clip's duration) and
+     the browser-voice fallback for anything not recorded yet. So it has
+     to match the mp3 word for word: change one, re-record the other.
+     The running order lives in TALK/sectionClips(), not here. */
   speech:{
-   intro:`Hey, thanks for sitting down with me. I'm Simon, a product manager in private banking here in Brussels. My whole job, really, is being the person who speaks both business and IT without needing a translator in the room. I take heavy, messy processes and turn them into digital journeys people actually enjoy using. And clearly I don't stop at nine to five, since you're currently sitting in a cafe I built for fun. Tap a section, let's get into it.`,
-   experience:`So, today I'm product owner of two digital products at Degroof Petercam: the bank's CRM, and the client platform behind our execution-only and discretionary mandates. Two cross-functional squads, more than ten sharp people across business, IT and compliance, and me in the middle keeping everyone speaking the same language. The one I'm proudest of: a fully digital onboarding, anti-money-laundering checks, MiFID, digital ID, e-signature, all in one paperless flow that opens an account in under fifteen minutes. Then we launched self-service, so clients update their own data and the back office stops drowning in paperwork. Before all that, three years at EY consulting for private banks, and I actually started my career as an anti-money-laundering analyst, which is where I learned exactly which problems were worth solving.`,
-   skills:`Right, the toolbox. On the product side I live in Jira, Confluence and Monday. For design and process, Figma, plus BPMN in Visio and Lucidchart. I build my own dashboards in Power BI. And on the technical side I'm genuinely hands-on: SQL, Ruby on Rails, JavaScript, a bit of everything, plus AI tools like Codex and Claude Code, which, again, is how this whole cafe exists. The point isn't that I do all these myself, it's that when an engineer explains a constraint, I actually understand it.`,
-   education:`So, I did Solvay Business School, management science with a focus on econometrics. Solid grounding, but by the end I had this itch, I felt I needed to understand the IT side properly. Not to become a developer, that was never the goal, but to get a real foot in the digital world before it left me behind. I also just wanted to go abroad for a bit after my studies. So I went to Amsterdam and did Le Wagon, a nine-week full-stack bootcamp, and ended up staying six months in total before starting work. Now, let's be honest, nine weeks doesn't turn you into some genius developer. But it did something more useful, it taught me exactly how the whole thing gets built, step by step. And that's the reason I can sit with engineers today and actually follow the conversation.`,
-   certifications:`On paper: I'm a certified Scrum Product Owner and Scrum Master, and I've got Microsoft certifications in Dynamics 365 and Azure. In plain terms, that means I can hold my own with an engineering team and with a management committee in the same afternoon, without either side feeling like I'm bluffing.`,
-   languages:`French is my mother tongue. English, fluent, clearly, since I've been talking your ear off. And Dutch, intermediate, which in Brussels is basically a survival skill and a daily act of courage.`,
-   contact:`So, if any of this resonated, the easiest way to reach me is email: goffin dot simon at gmail dot com. I'm here in Brussels. And look, the virtual coffee was nice, but I'm always up for a real one. Just say the word.`,
-   about:`Ah, you want to explore the personal stuff? Then this isn't really a virtual coffee anymore. Hang on, let me order us a couple of beers, one for you, one for me. There we go. Much better. So, off the clock, I'm a builder, and I mean that literally. I bought a place in Brussels and I've spent the last year and a half renovating it with my own hands, the woodwork, the electricity, all of it. I said "a weekend project" out loud once. The house heard me and laughed. I own two of the four floors, and I'm also the syndic for the building, which is a fancy way of saying I volunteered to manage everyone's problems, including my own. The other thing I can't leave alone is AI. Honestly, this whole place you're sitting in? I built it just to play with the tech, because I really believe if you're not learning to work with AI right now, you'll be outdated by Tuesday. I'd rather be early than obsolete. Beyond that, I'm a people person, I get my energy from a full room. And I run, a few challenge races a year that I actually train for, mostly so the finish line stays a goal and not a medical event.`,
-   walkin:`Hey! Yes, you, by the door. If you fancy a chat, come and sit with me — just walk over using your arrow keys. The chair with the arrow over it is yours.`,
-   walkinTouch:`Hey! Yes, you, by the door. If you fancy a chat, come and sit with me — just tap the floor and you'll walk over. The chair with the arrow over it is yours.`,
-   outro:`Well, that's about everything I can tell you about myself. You've reached the end. And look, I'm aware this has been a bit of a one-way street, me talking, you listening, which is not really my style, I promise. In real life I'm much more fun, mostly because you get to talk back. So if any of this landed with you, don't be a stranger. Drop me a message on LinkedIn and let's turn this virtual coffee into a real one. I'd genuinely love the actual conversation. See you on the other side.`},
+   welcome:`Hey — there you are. Good to finally have the time for that coffee together. Look, before we sit down, have a wander. This place is mine — and I don't just mean I rent it. I did the plumbing, the wiring, all of it. Every detail in here I put there myself, which explains both the good bits and the odd bits. So take a look around. When you're ready, the chair with the green cushion is yours, and we'll talk properly.`,
+   seated:`There it is. Take a proper look — it's all there in black and white. But a résumé only tells you what I did, not how, or why, or whether I was any good at it. So pick a section and I'll fill in the gaps. Wherever you want to start.`,
+   reclick:`Ah, you weren't listening. No worries, happens to the best of us — here it is again.`,
+   education:`So, economics at Solvay — bachelor then master. I went there because I'm genuinely a fan of macro, of geopolitics, of the way political decisions land in an economy. And I liked that it runs on mathematics. Not always a fun game, that part, but a real one. After my studies I had this nagging feeling I needed to do something about coding. I'd taken a few courses on the side, basic SQL, a bit of Python. But I also wanted to go abroad before starting work. So I went to Amsterdam for Le Wagon — a full-stack bootcamp, backend and frontend. Nine weeks doesn't make you a developer. It makes you someone engineers can't bluff, and that's exactly what I wanted. Then COVID happened, I started my first job remotely from Amsterdam, and stayed a few extra months. No regrets there.`,
+   /* Work experience has two openings — see sectionClips(). Both run
+      straight into the body, which is why neither ends on a full stop. */
+   experience_open_a:`Right, my career. But to make this a proper story, let me give you thirty seconds of background first. Economics at Solvay, bachelor and master — macro, geopolitics, the maths underneath it. Then a deliberate detour: a full-stack bootcamp in Amsterdam, because I wanted a foot in the digital world without becoming a developer. That combination is basically the whole explanation for everything that follows. So — 2020…`,
+   experience_open_b:`Right, my career. And since you already know the academic side — economics, then the Amsterdam bootcamp — you've got the setup. Let's pick it up from there. So — 2020…`,
+   experience_body:`So, 2020. Four months at Degroof Petercam as an AML analyst, and I started it remotely from Amsterdam, which was a strange way to join a bank. I was the point of contact for private banking on file reviews and source-of-funds analysis. What I really learned there was how to read data against a regulation — the new AML rules were landing, and my job was making the link between what the text demanded and what the files actually showed. It gave me something I still use: I know exactly where the pain sits in that process, because I was the one feeling it. Then three years at EY as a consultant, working almost entirely for the private banking sector — that was my patch, and it's where I built the depth I have now. Functional analyst on a large digital transformation: requirements, functional specifications, BPMN flows, steering delivery with the IT teams. I helped set up and support the Client Center for the mass affluent segment, supporting private bankers in their daily work and analysing their processes to improve them. I also worked as an AML analyst across first and second line of defence, bringing hands-on control knowledge into the design of the tooling meant to support it. And now, back at Degroof Petercam as product manager. I own two digital products: the bank's CRM on Dynamics 365, and Client Lifecycle Management for the digital investment platform. I work with cross-functional squads — more than ten people altogether, across business, IT and compliance. The piece I'm proudest of is the digital onboarding journey, and it's worth explaining what that actually covers, because "onboarding" hides a lot. It runs the client through the AML questionnaire, the MiFID suitability questionnaire and the associated tests, then digital identification through itsme, then contract signature by e-signature — all integrated in one paperless flow. And crucially, at the end of it, all the objects get created automatically in the core banking system. No one re-keying anything. Which means end-to-end digital client activation and account activation in under twenty minutes. If you know how hard that is in a private bank, you'll know why I'm proud of it. We also launched self-service CLM, so clients update their own personal and regulatory data instead of the back office doing it by hand. So that's the shape of it. I saw the problem as an analyst, learned how to fix things properly as a consultant, and came back to own the fix. I'd love to tell you I planned that at twenty-five. I didn't. But it makes a rather tidy story now.`,
+   skills:`I could read you a list of tools, but you'd stop listening around item four, and the list isn't the point. So let me tell you what I actually do. The core of it is that I'm fluent in both languages spoken in the room. Business people describe an outcome, engineers describe a constraint, and the two rarely translate cleanly. My job is doing that translation without either side feeling misrepresented — writing a specification an engineer respects, with proper user stories, real acceptance criteria, and BPMN flows that reflect the actual process rather than the one in the policy document. And the real value sits there, in the middle. I've spent my whole career around technical people, representing business interests. So I understand their world and their constraints — what's genuinely hard, what's risky, what a dependency actually costs. Which means when the business asks for something, I don't just pass the request along and hope. I can push back with a reason, or take the problem to the engineers framed in a way they can actually solve. I can also go and look at the data myself rather than waiting three days for someone to send me a number. That's the job: keeping both sides free. The business gets decisions it owns, the engineers get requirements that make sense, and nobody ends up building the wrong thing politely. On the delivery side it's the standard kit — Agile, Scrum, backlog and roadmap ownership, Jira, Confluence. Technically, SQL, Dynamics 365, Power BI, Azure, and these days AI development tools, which I use constantly. And the domain, which matters as much as any of it: private banking, execution-only and discretionary mandates, Client Lifecycle Management, digital onboarding end to end, AML, KYC, MiFID, digital identity and e-signature. And I'm not the type to sit at a distance and hand things over. I like getting my hands dirty, and I like results. If something needs doing, I'd rather be in it than describe it from the outside.`,
+   certifications:`Short section, and I'll be honest about what these are worth. I've got the Professional Scrum Product Owner and Professional Scrum Master certifications, plus Microsoft Dynamics 365 Fundamentals and Azure Fundamentals. The Scrum ones matter because the framework is the shared language my squads work in — worth having the theory straight rather than improvised. The Microsoft ones exist for a simpler reason: I own a platform built on Dynamics, and it seemed reasonable to actually understand the thing I'm responsible for. None of these make anyone good at the job. They're proof I did the homework — and that when I pick up a new tool, my instinct is to learn it properly rather than by osmosis.`,
+   languages:`French is my mother tongue, so no issues there. English I use daily at work — meetings, documentation, technical teams — so it's a working language for me, not a school subject. Dutch is intermediate. I studied it for ten years, so my comprehension is solid — I follow a conversation or a meeting without difficulty. And working in Brussels, in a bank with clients across the country, it keeps getting used.`,
+   personal:`Right, the personal one. So: I own a place in Brussels and I'm slowly renovating it — two of the four floors so far. I'm also the volunteer syndic for the building, which is unpaid, occasionally thankless, and has taught me more about stakeholder management than any course ever did. Outside that, I run challenge races three or four times a year — the muddy kind, not the elegant kind. And I build things. Small apps, tools, whatever's itching at the time. I'm a people person, honestly. I get my energy from rooms with other humans in them. Which is slightly ironic, given you're currently talking to a recording.`,
+   ai:`Honestly? I think it's one of the biggest revolutions my generation will live through. Genuinely disruptive, across every industry. From a business perspective, what it does is automate the low-value work — the boring, repetitive tasks that eat the day — so people can put their brain juice on the things that actually add value. That's the real gain. And beyond efficiency, it lets people be creative in ways they couldn't before. Which is exactly what I'm doing in my evenings, building this café you're sitting in. And from a client perspective — take banking. A huge number of checks that were done manually can now be automated. Which means the client gets bothered less, because we can derive and cross-check information far more easily than ever before. Fewer documents to chase, fewer questions we already know the answer to. That's the shift I care about. Not the flashy demos — the fifty small manual steps that quietly disappear.`,
+   banking:`It started with Monopoly, which is a slightly embarrassing origin story for a banking career, but there it is. I worked out fairly young that you don't build anything on that board without the bank — and that the person handling the money was quietly having the best time. That idea stuck: for an individual, the financial system is genuinely the most powerful mechanism there is for building something. So I studied economics, and the parts I actually enjoyed were monetary theory, banking theory, macro. Not the fashionable subjects. I'm still the person who reads central bank decisions on a Thursday evening, which I'm told is not normal. But what keeps me here is something else. In a bank, it doesn't matter which department you're in — you can walk up to almost anyone and talk about the markets, the news, what a rate decision means. There's a shared language running through the whole building, and I've worked in places where that doesn't exist. It's flatter. That common spirit is rare, and it's the reason I'd struggle to leave. Also the coffee is terrible everywhere in this industry, and somehow nobody minds. Which tells you something about us.`,
+   howibuilt:`Fair question, and I'll admit something first: I'm hyperactive. I can't sit still in front of a television doing nothing. So my evenings go into making things — either with my hands, renovating, working with wood, or projects like this one. This café was built entirely in the evenings. About a month, mostly while sitting with my family with the TV on. I used Claude, ElevenLabs, Kimi and Emergence AI, all working together. And it's not just what you see. The site runs on my own backend, which I call Jarvis, on a server I built myself — a Raspberry Pi 5 — with AI helping me set it up. Now — am I an IT guy? No. But I know how to prompt, and I know how to use AI by borrowing exactly what I do at work. Defining the key features and the user stories. Setting acceptance criteria. Defining the non-regression tests the AI has to run after every feature I ask for. Working across separate environments, so I test before I release anything. So it was never about knowing how to code. It's about knowing how to use these tools properly — and that turns out to be the same discipline as the day job.`,
+   outro:`And that's the lot. You've been more patient than most, so thank you for that. Two things before you go. There's a download button for the résumé, if you want it on paper — or on a screen, more likely. And there's a link to my LinkedIn. Now, if you listened at all, you'll have picked up that I'm a social animal. The more people I'm around, the more alive I am — that's just how I'm wired. So this whole thing has been me talking at you, which is a fairly one-sided way to have coffee. If any of it resonated, get in touch. I'm always happy to widen the circle. Let's see if we can turn this into a real coffee. Who knows.`},
   /* ── Closed café ─────────────────────────────────────────────────
      Every word the closed state puts on screen lives here, beside the
      open copy, for one reason: applyLang() repaints the sign, the
@@ -698,27 +813,61 @@ const DATA={
           hand:"— Simon"}}
  }
 };
-/* Simon's real voice (EN). Missing keys (e.g. skills, all FR) fall back to browser TTS. */
+/* Simon's real voice (EN), one file per key in DATA.speech. A key whose
+   file is missing (404) falls back to the browser voice with the same
+   subtitles, so the café is complete before a single clip is recorded.
+
+   The v1 recordings are NOT here: they are parked in audio/en/v1/ because
+   they carry the old, shorter scripts. Same filenames, different words —
+   left in place they would have played under v2 subtitles. Drop the new
+   ElevenLabs clips straight into audio/en/ and each key stops falling
+   back, one at a time, with nothing else to change. */
 const AUDIO={
  en:{
   welcome:"audio/en/welcome.mp3",
-  intro:"audio/en/intro.mp3",
-  about:"audio/en/about.mp3",
-  experience:"audio/en/experience.mp3",
+  seated:"audio/en/seated.mp3",
+  reclick:"audio/en/reclick.mp3",
+  experience_open_a:"audio/en/experience_open_a.mp3",
+  experience_open_b:"audio/en/experience_open_b.mp3",
+  experience_body:"audio/en/experience_body.mp3",
   education:"audio/en/education.mp3",
+  skills:"audio/en/skills.mp3",
   certifications:"audio/en/certifications.mp3",
   languages:"audio/en/languages.mp3",
-  contact:"audio/en/contact.mp3",
+  personal:"audio/en/personal.mp3",
+  ai:"audio/en/ai.mp3",
+  banking:"audio/en/banking.mp3",
+  howibuilt:"audio/en/howibuilt.mp3",
   outro:"audio/en/outro.mp3"
 }
 };
+
+/* ── The running order ───────────────────────────────────────────────
+   Two tiers. The five that make up the résumé come first; the four that
+   make up the person unlock once all five have been heard through. The
+   outro unlocks with them and is the only way to end the visit.
+   `k` is both the mp3 key and the counter event. */
+const TALK={
+ tier1:[["experience","Work experience"],["education","Education"],
+        ["skills","Skills"],["certifications","Certifications"],
+        ["languages","Languages"]],
+ tier2:[["personal","Off the clock"],["ai","AI, long term"],
+        ["banking","Why banking"],["howibuilt","How I built this"]],
+ outro:["outro","And to wrap up… ☕"]
+};
+/* Where the outro sends you. The download is built from the résumé
+   canvas — the sheet on the table IS the CV, at 1240×1754 — so there is
+   no PDF to keep in step with it. Point CV_FILE at a real file and the
+   button links to that instead. */
+const LINKEDIN_URL="https://www.linkedin.com/in/ndashiz/";
+const CV_FILE="";
 
 /* The ping lives in a separate <script> on purpose (see its header). If that
    block never ran, the café simply goes uncounted and always open — it must
    not be able to throw in here. */
 const PING=window.VCPing||{tap(){},whenClosed(){}};
 
-let lang=VC.lang, current=null, hoverKey=null, speaking=false, audioEl=null, queue=[], lastKey=null;
+let lang=VC.lang, current=null, speaking=false, audioEl=null, queue=[], lastKey=null;
 const RM=matchMedia("(prefers-reduced-motion: reduce)").matches;
 const TOUCH=matchMedia("(pointer: coarse)").matches;
 var paperLifted=false;      /* touch: sheet stays up until you tap away */
@@ -3274,6 +3423,12 @@ const SEAT_TRIGGER=.55;      /* stand inside this and the interview starts */
     const slat=new THREE.Mesh(new THREE.BoxGeometry(.4,.075,.028),wood);
     slat.position.set(0,y,-.2);slat.castShadow=true;ch.add(slat);
   }
+  /* The welcome names this cushion as the way to find the chair
+     ("the chair with the green cushion is yours"), so it is the one
+     thing in the room that has to stay recognisable from the door. */
+  const cushion=new THREE.Mesh(new THREE.BoxGeometry(.4,.05,.4),
+    stdMat(0x3f7d55,.92,0,.35));
+  cushion.position.y=.527;cushion.castShadow=true;ch.add(cushion);
   ch.position.set(GUEST_SEAT.x,0,GUEST_SEAT.z);
   ch.rotation.y=GUEST_SEAT.yaw;
   scene.add(ch);
@@ -4084,6 +4239,23 @@ window.__readables=()=>{
    comes through, and settle back to 0 a few seconds later */
 window.__door=()=>DOOR.pivot?{hung:true,k:+DOOR.k.toFixed(3),
   t:+DOOR.t.toFixed(2),rot:+DOOR.pivot.rotation.y.toFixed(3)}:{hung:false};
+/* Skip the walk in. Everything worth testing — the reading beat, the
+   dialogue box, the second tier, the outro — sits behind ~20 s of
+   crossing the room, and the reduced-motion path already proves the
+   chair can be taken without walking to it. Same fields, same
+   arriveAtTable(). */
+window.__sit=()=>{
+  if(!entering&&!entered)startEntrance();
+  guest.pos.set(GUEST_SEAT.x,0,GUEST_SEAT.z);
+  guest.yaw=GUEST_SEAT.yaw;
+  guest.rootY=.56-.855*guest.rig.root.scale.x;
+  guest.sit={k:1,fx:GUEST_SEAT.x,fz:GUEST_SEAT.z,rY:guest.rootY};
+  guest.state="seated";
+  guest.moveTo=null;guest.walkTarget=null;
+  showSeatMarker(false);
+  arriveAtTable();
+  return "seated";
+};
 
 /* ---------------- SIMON ---------------- */
 const simon=new THREE.Group();simon.position.set(0,0,-1.08);scene.add(simon);
@@ -4246,13 +4418,12 @@ for(let i=0;i<3;i++){
    white column with the profile, three jobs on a timeline and three
    degrees. True A4 proportions, and laid out as a FLOW rather than fixed
    coordinates — every block advances a cursor and records its own
-   rectangle, which is what the clickable ZONES are built from, so the
-   hit areas can never drift away from the text they belong to. */
+   rectangle, which is what zoneBox() highlights while Simon talks, so
+   the lit block can never drift away from the text it belongs to. */
 const CW=1240,CH=1754;                      /* A4, 1:1.414 */
 const cnv=document.createElement("canvas");cnv.width=CW;cnv.height=CH;
 const ctx=cnv.getContext("2d");
 const tex=new THREE.CanvasTexture(cnv);tex.anisotropy=maxAniso;tex.encoding=THREE.sRGBEncoding;
-let ZONES=[];
 /* his actual portrait, lifted straight out of the PDF (420x420, 33 kB).
    Same-origin, so no CSP question; if it fails to arrive the drawn head
    below stands in and nobody is any the wiser. */
@@ -4340,20 +4511,17 @@ function wrapRuns(runs,x,y,maxW,lh,size,cNorm,cBold){
 function rounded(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);
   ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
   ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
-/* a block the visitor can tap: remembered for the raycast, and tinted
-   like a highlighter pen when hovered or playing */
+/* The block Simon is currently talking about, tinted like a highlighter
+   pen. Nothing here is clickable any more: the dialogue box owns the
+   picking, and the sheet went back to being a sheet. This is it keeping
+   up with what he is saying — glance down and you see where you are. */
 function zoneBox(key,x,y,w,h){
-  ZONES.push({key:key,x:x,y:y,w:w,h:h});
-  const act=key===current,hov=key===hoverKey;
-  if(!act&&!hov)return;
-  ctx.fillStyle=act?"rgba(244,183,64,.26)":"rgba(244,183,64,.13)";
+  if(key!==current)return;
+  ctx.fillStyle="rgba(244,183,64,.26)";
   rounded(x-14,y-10,w+28,h+20,12);ctx.fill();
-  if(act){ctx.fillStyle="#f4b740";ctx.fillRect(x-22,y-6,6,h+12);}
-  ctx.textAlign="right";ctx.font="400 22px 'Inter',sans-serif";
-  ctx.fillStyle="rgba(20,38,61,.5)";ctx.fillText("☝",x+w+18,y+14);
+  ctx.fillStyle="#f4b740";ctx.fillRect(x-22,y-6,6,h+12);
 }
 function drawResume(){
-  ZONES=[];
   ctx.fillStyle="#f7f4ed";ctx.fillRect(0,0,CW,CH);
   for(let i=0;i<900;i++){                       /* paper grain */
     ctx.fillStyle="rgba(120,100,70,"+(Math.random()*.05)+")";
@@ -4508,12 +4676,12 @@ function drawResume(){
   ctx.beginPath();ctx.moveTo(railX,eRail);ctx.lineTo(railX,m-34);ctx.stroke();
   zoneBox("education",MX,eduTop,MW,m-eduTop-40);
 
-  /* the outro, in Simon's handwriting, at the foot of the sheet */
-  ZONES.push({key:"outro",x:MX,y:CH-92,w:MW,h:70});
-  const oAct=current==="outro",oHov=hoverKey==="outro";
+  /* his own hand at the foot of the sheet — decoration, not a button:
+     the wrap-up is the last line of the dialogue box now. It still
+     brightens while he reads it out. */
   ctx.textAlign="center";ctx.font="700 30px 'Caveat',cursive";
-  ctx.fillStyle=oAct?"#b8860b":(oHov?"rgba(184,134,11,.85)":"rgba(20,38,61,.45)");
-  ctx.fillText("— and to wrap up, tap here ☕ —",MX+MW/2,CH-52);
+  ctx.fillStyle=current==="outro"?"#b8860b":"rgba(20,38,61,.45)";
+  ctx.fillText("— and then, a real coffee? ☕ —",MX+MW/2,CH-52);
   tex.needsUpdate=true;
 }
 drawResume();
@@ -4532,14 +4700,19 @@ scene.add(paper);
    |x| > .44. */
 const paperRest={pos:new THREE.Vector3(0,.802,0),rot:-Math.PI/2+.16};
 const paperUp ={pos:new THREE.Vector3(0,1.00,.50),rot:-.85};
-let paperT=0;
+/* The reading pose: the sheet held up square to the lens, close enough
+   to actually read the 18 px body copy. Both fields are solved from the
+   shot in applyStaging() — a hand-tuned pose would be right in one
+   aspect ratio and wrong in the other. */
+const paperRead={pos:new THREE.Vector3(0,1.32,1.45),rot:-.085};
+let paperT=0,paperGoal=paperUp;
 paper.position.copy(paperRest.pos);paper.rotation.x=paperRest.rot;
 
 /* ---------------- INTERACTION ----------------
    `entering` covers the walk from the door to the chair; `entered` only
    flips once the guest is IN the chair — pick() and the keyboard hang off
    it, so nothing is clickable (and nothing talks) before he sits. */
-var entered=false,entering=false,welcomeEl=null,welcomeUsed=false;
+var entered=false,entering=false;
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();
 let paperHover=false;
 function pick(e){
@@ -4550,25 +4723,17 @@ function pick(e){
   ray.setFromCamera(pointer,camera);
   const hits=ray.intersectObjects([paper,simonBox]);
   const hit=hits[0];
-  if(!hit){paperHover=false;
-    if(hoverKey){hoverKey=null;drawResume();}
-    document.body.style.cursor="default";return null;}
+  if(!hit){paperHover=false;document.body.style.cursor="default";return null;}
   if(hit.object===simonBox){
     paperHover=false;
-    if(hoverKey){hoverKey=null;drawResume();}
     document.body.style.cursor="pointer";
     return "__simon";
   }
+  /* the sheet is one object again — hovering lifts it so you can read it,
+     and that is all it does */
   paperHover=true;
-  const u=hit.uv.x*CW,v=(1-hit.uv.y)*CH;
-  /* the rects ARE the blocks now (the old painter passed a text baseline
-     and leaned on a -34 fudge); a little slack on each side so the gap
-     between two sections is not a dead strip */
-  const z=ZONES.find(z=>u>=z.x-16&&u<=z.x+z.w+16&&v>=z.y-14&&v<=z.y+z.h+14);
-  const k=z?z.key:null;
-  if(k!==hoverKey){hoverKey=k;drawResume();}
-  document.body.style.cursor=k?"pointer":"default";
-  return k?k:"__paper";
+  document.body.style.cursor="default";
+  return "__paper";
 }
 addEventListener("pointermove",e=>{
   if(TOUCH)return;
@@ -4578,6 +4743,10 @@ addEventListener("pointermove",e=>{
     document.body.style.cursor="pointer";
 });
 addEventListener("pointerdown",e=>{
+  /* The reading beat owns every click: the sheet is up across the whole
+     frame, so there is nothing else on screen to mean. Putting it down
+     is what starts the conversation. */
+  if(reading){endReading();return;}
   const k=pick(e);
   /* Seated, the camera is parked and tap-to-walk is off, so walkOrder
      never sees this click — but the television is right over Simon's
@@ -4586,12 +4755,9 @@ addEventListener("pointerdown",e=>{
     const rd=pickReadable(e.clientX,e.clientY);
     if(rd){openZoom(rd);return;}
   }
-  if(k==="__simon"){selectAbout();return;}
-  if(TOUCH){
-    if(k===null){paperLifted=false;return;}      /* tap away -> lay it back down */
-    if(!paperLifted){paperLifted=true;return;}   /* first tap -> lift the sheet */
-    if(k!=="__paper")selectSection(k);           /* lifted -> taps pick sections */
-  }else if(k&&k!=="__paper")selectSection(k);
+  if(k==="__simon"){tapSimon();return;}
+  /* touch has no hover: the sheet stays up until you tap off it */
+  if(TOUCH)paperLifted=(k==="__paper")?!paperLifted:false;
 });
 
 /* ---------------- SPEECH ---------------- */
@@ -4662,7 +4828,7 @@ let muted=false,ttsInterrupt=false,ttsCode="en-GB",ttsVoice=null;
    strips the NEW line of its captions, its lipsync and its letterbox.
    That is what happened to the welcome the moment the walk-in call was
    cut short by sitting down: Simon mouthed it in silence. */
-let speechGen=0,ttsTimer=0;
+let speechGen=0,ttsTimer=0,ttsAt=0;
 try{muted=localStorage.getItem("vc:muted")==="1";}catch(_){}
 const muteBtn=document.getElementById("muteBtn");
 function applyMute(){
@@ -4702,19 +4868,137 @@ addEventListener("keydown",e=>{
   if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;
   setMuted(!muted);
 });
-function selectSection(key){
-  if(beerMode)setBeerMode(false);
-  current=key;drawResume();
+/* ════════════════════════════════════════════════════════════════════
+   THE CONVERSATION
+   One section = one or more clips played back to back (see
+   sectionClips), and a section only counts as heard when the LAST clip
+   reaches its own end. Hush it halfway and it stays open — the green
+   marker is a promise that you heard the whole thing.
+   ════════════════════════════════════════════════════════════════════ */
+const SPEECH=DATA[lang].speech;
+const heard=new Set();
+const talkEl=document.getElementById("talk");
+const talkLead=document.getElementById("talkLead");
+const talkOpts=document.getElementById("talkOpts");
+const talkLinks=document.getElementById("talkLinks");
+const skipBtn=document.getElementById("skipBtn");
+let talkOpen=false,tier2=false,outroSeen=false;
+function unlocked(){return TALK.tier1.every(o=>heard.has(o[0]));}
+/* The two openings of the work experience are the same story told to two
+   different people: one who has heard the education section and one who
+   has not. Everything else is a single clip. */
+function sectionClips(key){
+  if(key==="experience")
+    return [heard.has("education")?"experience_open_b":"experience_open_a","experience_body"];
+  return [key];
+}
+
+/* ---- the clip chain ----
+   speak() is single-shot, and stopSpeaking() runs at the top of every
+   call, so the chain deliberately lives OUTSIDE it: a new section always
+   overwrites the queue, and a hush simply leaves a queue nobody reads
+   again (endSpeech only advances on a natural end). */
+let chain=[],chainEnd=null;
+function playChain(keys,done){
+  chain=keys.slice();chainEnd=done||null;
+  nextClip();
+}
+function nextClip(){
+  const k=chain.shift();
+  if(k){speak(SPEECH[k],k);return;}
+  const d=chainEnd;chainEnd=null;
+  if(d)d();
+}
+function abortChain(){chain=[];chainEnd=null;}
+
+function playSection(key){
+  setBeerMode(key==="personal");     /* off the clock: two beers on the table */
+  abortChain();
+  current=key;drawResume();          /* the sheet lights the matching block */
   promptEl.style.display="none";
   PING.tap(key);
-  speak(DATA[lang].speech[key],key);
+  const clips=sectionClips(key);
+  /* "Ah, you weren't listening" — only ever in front of a repeat */
+  if(heard.has(key))clips.unshift("reclick");
+  if(key==="outro"){outroSeen=true;talkLinks.hidden=false;}
+  playChain(clips,()=>{heard.add(key);current=null;drawResume();renderTalk();});
+  renderTalk();
 }
-function selectAbout(){
-  setBeerMode(true);
-  current=null;hoverKey=null;drawResume();
-  promptEl.style.display="none";
-  PING.tap("about");
-  speak(DATA[lang].speech.about,"about");
+/* Tapping Simon himself: the personal section if it is open, and
+   otherwise a nudge back to the box — he is not going to improvise. */
+function tapSimon(){
+  if(!talkOpen)return;
+  if(tier2&&!speaking)playSection("personal");
+  else flashTalk();
+}
+
+/* ---- the box ---- */
+function optButton(key,label,n,late){
+  const b=document.createElement("button");
+  b.type="button";b.className="topt"+(heard.has(key)?" done":"")+(late?" late":"")+
+    (key==="outro"?" wrap":"");
+  b.dataset.k=key;
+  b.innerHTML='<span class="tnum">'+(n||"")+'</span><span class="tlbl"></span>'+
+              '<span class="tmark" aria-hidden="true">●</span>';
+  b.querySelector(".tlbl").textContent=label;
+  if(heard.has(key))b.setAttribute("aria-label",label+" — already heard, play it again");
+  b.addEventListener("click",()=>{if(!speaking)playSection(key);});
+  return b;
+}
+function renderTalk(){
+  if(!talkOpen)return;
+  const wasTier2=tier2;
+  tier2=unlocked();
+  talkLead.textContent=tier2
+    ?(outroSeen?"Anything you want to hear again?":"That's the résumé covered. Now the person behind it.")
+    :"Pick a section and I'll fill in the gaps.";
+  talkOpts.innerHTML="";
+  let n=0;
+  TALK.tier1.forEach(o=>talkOpts.appendChild(optButton(o[0],o[1],++n,false)));
+  if(tier2){
+    const h=document.createElement("p");
+    h.className="thead";h.textContent="Off the record";
+    talkOpts.appendChild(h);
+    /* only animate them in on the visit where they actually appear */
+    TALK.tier2.forEach(o=>talkOpts.appendChild(optButton(o[0],o[1],++n,!wasTier2)));
+    talkOpts.appendChild(optButton(TALK.outro[0],TALK.outro[1],"0",!wasTier2));
+  }
+}
+function openTalk(){
+  if(talkOpen)return;
+  talkOpen=true;
+  talkEl.hidden=false;talkEl.setAttribute("aria-hidden","false");
+  renderTalk();
+}
+function closeTalk(){
+  talkOpen=false;talkEl.hidden=true;talkEl.setAttribute("aria-hidden","true");
+}
+/* he was tapped for something he cannot answer: point at the box */
+function flashTalk(){
+  talkEl.animate&&talkEl.animate(
+    [{transform:"translateX(0)"},{transform:"translateX(6px)"},{transform:"translateX(0)"}],
+    {duration:280,easing:"ease-out"});
+}
+if(skipBtn){
+  skipBtn.hidden=false;
+  skipBtn.addEventListener("click",()=>{abortChain();stopSpeaking();});
+}
+/* The résumé you can keep. The sheet on the table is a real 1240×1754
+   render of the CV, so the download is that canvas — nothing to keep in
+   step, nothing extra to ship. CV_FILE overrides it when a PDF exists. */
+document.getElementById("cvDl").addEventListener("click",function(e){
+  if(CV_FILE){this.href=CV_FILE;return;}          /* a real file: let the browser have it */
+  e.preventDefault();
+  cnv.toBlob(b=>{
+    if(!b)return;
+    const u=URL.createObjectURL(b),a=document.createElement("a");
+    a.href=u;a.download="Simon_Goffin_CV.png";a.click();
+    setTimeout(()=>URL.revokeObjectURL(u),4000);
+  },"image/png");
+});
+{
+  const li=document.getElementById("liLink");
+  if(LINKEDIN_URL)li.href=LINKEDIN_URL;else li.hidden=true;
 }
 function bestVoice(code){
   const vs=speechSynthesis.getVoices(),sh=code.slice(0,2);
@@ -4751,19 +5035,14 @@ function ttsResume(gen){
   if(queue.length)setTimeout(()=>next(ttsCode,ttsVoice,g),60);
   else endSpeech();
 }
-/* `el` (optional): a pre-made Audio for the same file — the entrance
-   blesses the welcome element inside the click gesture, then hands it
-   here once the guest is seated, well outside any gesture. */
-function speak(text,key,el){
+function speak(text,key){
   stopSpeaking();speaking=true;lastKey=key||null;
   const gen=++speechGen;
   const f=key&&AUDIO[lang][key];
   if(f){
-    audioEl=el||new Audio(f);
+    audioEl=new Audio(f);
     try{attachAnalyser(audioEl);audioRouted=true;}catch(_){lipAnalyser=null;audioRouted=false;}
     applyMute();
-    /* a blessed element may have its metadata already — the event
-       won't refire, so build the cues from what's there */
     if(audioEl.readyState>=1&&audioEl.duration)cues=buildCues(text,audioEl.duration);
     else audioEl.addEventListener("loadedmetadata",()=>{
       if(audioEl)cues=buildCues(text,audioEl.duration||1);
@@ -4785,6 +5064,7 @@ function speak(text,key,el){
   ttsStart(text,gen);
 }
 function next(code,v,gen){
+  ttsTimer=0;                                     /* this IS the pending sentence */
   if(gen!==speechGen)return;                      /* a cancelled line talking from the grave */
   if(!queue.length){endSpeech(true);return;}      /* every sentence spoken */
   const sentence=queue.shift().trim();
@@ -4794,6 +5074,7 @@ function next(code,v,gen){
      keep their pacing with the sound off */
   u.volume=muted?0:1;
   showCue(sentence);
+  ttsAt=Date.now();          /* handed over — the watchdog dates itself from here */
   u.onend=()=>{if(gen!==speechGen)return;if(ttsInterrupt){ttsResume(gen);return;}
     ttsTimer=setTimeout(()=>next(code,v,gen),140);};
   u.onerror=()=>{if(gen!==speechGen)return;if(ttsInterrupt){ttsResume(gen);return;}endSpeech();};
@@ -4805,22 +5086,70 @@ function next(code,v,gen){
 function endSpeech(natural){
   speaking=false;clearCues();
   if(natural&&lastKey==="outro"&&!RM)startClosing();
+  /* the only place a section advances or completes: a clip that ran out
+     of words. Anything else — a hush, a dead file, a mute race — leaves
+     the section unheard and the queue dropped. */
+  if(natural)nextClip();
+  else abortChain();
 }
 function stopSpeaking(){speechGen++;if(ttsTimer){clearTimeout(ttsTimer);ttsTimer=0;}queue=[];speaking=false;ttsInterrupt=false;clearCues();
   if("speechSynthesis"in window)speechSynthesis.cancel();
   if(audioEl){audioEl.pause();audioEl=null;}}
 
-/* ---- keyboard: 1-7 sections, 8 off the record, 0 outro, space = hush ---- */
-const KEY_SECTIONS={"1":"intro","2":"experience","3":"education","4":"skills",
-  "5":"certifications","6":"languages","7":"contact","8":"about","0":"outro"};
+/* ---- the end-of-clip watchdog ----
+   The whole conversation hangs off one event: a clip that reaches its own
+   end. The mp3 path fires `ended` reliably; the browser voice does not —
+   Chrome drops `end` outright when the tab was hidden as the sentence
+   finished, and engines disagree about what a cancel fires. Losing it
+   once used to strand the visitor: Simon silent, the flag still up, the
+   box faded out, nothing left to click but the skip pill.
+
+   So the engine is watched instead of trusted. Three quiet ticks with a
+   line still officially in flight, no sentence already scheduled and
+   nobody actually talking means it finished and said nothing. Hidden
+   tabs throttle this to about a minute, which is exactly when it does
+   not matter — it catches up the moment you come back. */
+setInterval(function(){
+  if(!speaking)return;
+  if(audioEl){                                   /* the mp3 path, same idea */
+    if(audioEl.ended)endSpeech(true);
+    return;
+  }
+  if(!("speechSynthesis"in window)||ttsInterrupt||ttsTimer)return;
+  if(speechSynthesis.speaking||speechSynthesis.pending)return;
+  /* One idle tick is the verdict, not three: a hidden tab throttles this
+     timer to about one tick a minute, and counting ticks there would mean
+     minutes of silence. The guard is elapsed time instead — under a second
+     and a half the engine has simply not started yet. */
+  if(Date.now()-ttsAt<1500)return;
+  if(queue.length)next(ttsCode,ttsVoice,speechGen);
+  else endSpeech(true);
+},400);
+
+/* ---- keyboard: the dialogue box, by number ----
+   1-5 are the résumé, 6-9 the second tier, 0 the wrap-up — the same
+   numbers the box prints down its left edge, and locked keys do nothing
+   rather than jumping the queue. Space hushes him. */
+function keyItem(d){
+  if(d==="0")return tier2?TALK.outro[0]:null;
+  const i=+d-1;
+  const o=(i>=0&&i<5)?TALK.tier1[i]:(tier2&&i>=5&&i<9?TALK.tier2[i-5]:null);
+  return o?o[0]:null;
+}
 addEventListener("keydown",e=>{
   if(!entered||cafeClosed)return;
   if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;
   if(!document.getElementById("cv-text").hidden)return;
-  if(e.key===" "){e.preventDefault();stopSpeaking();return;}
-  const k=KEY_SECTIONS[e.key];
-  if(k==="about")selectAbout();
-  else if(k)selectSection(k);
+  if(e.key===" "){
+    e.preventDefault();
+    /* the sheet is up and he has not started: space is "I've read it" */
+    if(reading){endReading();return;}
+    abortChain();stopSpeaking();return;
+  }
+  if(reading)return;                      /* one thing at a time */
+  if(!talkOpen||speaking)return;
+  const k=keyItem(e.key);
+  if(k)playSection(k);
 });
 
 /* ---------------- LANGUAGE ----------------
@@ -4836,14 +5165,14 @@ if("speechSynthesis"in window){speechSynthesis.getVoices();speechSynthesis.onvoi
 /* ---------------- HOW-TO OVERLAY ---------------- */
 const HOWTO={
  en:{title:"Welcome to my virtual coffee\u00A0☕",
-     steps:["🪑 Arrow keys walk you in — come take the chair at my table",
-            "👆 Hover the résumé on the table — it lifts up. Tap any section",
-            "🍺 Tap me — Simon — for the off-the-record story",
-            "🔊 It's my real voice — turn your sound on",
+     steps:["🚶 Arrow keys walk you in — have a wander, the place is mine",
+            "🪑 The chair with the green cushion is yours — sit and the résumé comes up",
+            "💬 Read it, put it down, then pick a section — I'll fill in the gaps",
+            "🔊 It's my real voice — turn your sound on (space hushes me)",
             "📄 In a hurry? “Text résumé” gives you the flat version"],
-     stepsTouch:["🪑 Tap the floor to walk over — come take the chair at my table",
-            "👆 Tap the résumé to lift it, then tap any section",
-            "🍺 Tap me — Simon — for the off-the-record story",
+     stepsTouch:["🚶 Tap the floor to walk — have a wander, the place is mine",
+            "🪑 The chair with the green cushion is yours — sit and the résumé comes up",
+            "💬 Read it, tap to put it down, then pick a section",
             "🔊 It's my real voice — turn your sound on",
             "📄 In a hurry? “Text résumé” gives you the flat version"],
      btn:"Take a seat",
@@ -4855,8 +5184,7 @@ const HOWTO={
                     "📄 The résumé did not close with it: the full text version is one tap away",
                     "☕ Come back another day and I'll talk you through it out loud, in my own voice",
                     "🚪 Tap outside this card if you'd rather sit in the dark a minute"],
-             btn:"Read the text résumé"},
-     welcome:`Hey, welcome, grab a seat. Here's how this works: the resume is sitting right there on the table. Hover over it and it lifts up, which is already fancier than my actual desk. Tap any section that catches your eye and I'll tell you about it, in my own words, like we're having a real coffee, except I do all the talking. There's no right order, start wherever you're curious. And if you'd rather hear this in French, there's a switch for that. So, where do we begin?`}
+             btn:"Read the text résumé"}}
 };
 function renderHowto(){
   const el=document.getElementById("howto");
@@ -4875,30 +5203,18 @@ function dismissHowto(){
 }
 /* ---------------- THE ENTRANCE ----------------
    Clicking "Take a seat" no longer teleports you into the chair: your
-   character walks in by the door, crosses the room and sits down at the
-   table — the welcome starts only once he is in the chair. Two things
-   must happen INSIDE this click (the last user gesture before the
-   welcome): resuming the AudioContext, and blessing the welcome's Audio
-   element with a volume-0 play() — Safari refuses a cold play() eight
-   seconds later, but resuming a blessed element is fine everywhere. */
+   character walks in by the door and crosses the room on the arrows.
+   The welcome is spoken from the moment you step in — Simon calls it
+   across the room and it is the thing that tells you to have a wander
+   before sitting down. It therefore starts INSIDE this click, the last
+   user gesture available: a cold play() eight seconds later is refused
+   by Safari, and there is no gesture between here and the chair. */
 function startEntrance(){
   entering=true;
   try{
     if(!lipCtx)lipCtx=new (window.AudioContext||window.webkitAudioContext)();
     lipCtx.resume();
   }catch(_){}
-  const f=AUDIO[lang]&&AUDIO[lang].welcome;
-  if(f){
-    welcomeEl=new Audio(f);
-    welcomeEl.preload="auto";
-    welcomeEl.volume=0;                /* the blessing must not be heard */
-    try{
-      const p=welcomeEl.play();
-      if(p&&p.then)p.then(()=>{
-        if(!welcomeUsed&&welcomeEl){welcomeEl.pause();welcomeEl.currentTime=0;}
-      }).catch(()=>{});
-    }catch(_){}
-  }
   reskin(guest);                       /* a fresh coat every visit — it's you */
   /* the shared wardrobe holds two skin-like tans — fine on a background
      stroller, naked-looking on the guest of honour: re-pick the shirt
@@ -4947,23 +5263,40 @@ function startEntrance(){
     :"Arrows to walk · drag to look · Shift to run — head for the arrow ☕";
   /* the stroller yields the entrance beat — unless he's already inside */
   if(!visitor.active)visitor.vTimer=Math.max(visitor.vTimer,16);
-  /* Simon calls you over. Nobody walks any more unless they are told to,
-     so the telling has to be part of the room rather than a line of UI.
-     No mp3 for this one, so speak() falls through to the browser voice
-     and the subtitles carry it — the same path the skills section has
-     always used. Drop audio/en/walkin.mp3 in and add the key to AUDIO
-     and it becomes his real voice with nothing else to change. */
-  speak(TOUCH?DATA[lang].speech.walkinTouch:DATA[lang].speech.walkin,"walkin");
+  /* Simon calls it across the room: the wander, the plumbing, and where
+     the chair is. Nobody walks unless they are told to, so the telling
+     has to be part of the room rather than a line of UI. */
+  speak(SPEECH.welcome,"welcome");
 }
+/* ---------------- SITTING DOWN ----------------
+   Two beats before the conversation starts, in this order:
+     1. the sheet comes up near full-screen and you read it in silence;
+     2. you put it down — and only then does he pick the story up.
+   Reading first is the whole point of the seated line ("a résumé only
+   tells you what I did"): it has to answer something you have already
+   read, or it is answering nothing. */
+var reading=false;
 function arriveAtTable(){
   if(entered)return;
   entered=true;
-  promptEl.textContent=TOUCH?DATA[lang].promptTouch:DATA[lang].prompt;
+  abortChain();stopSpeaking();     /* the welcome had the walk; the sheet has this */
+  reading=true;
   promptEl.style.display="";
-  welcomeUsed=true;
-  const el=welcomeEl;welcomeEl=null;
-  if(el){try{el.pause();el.currentTime=0;el.volume=1;}catch(_){}}
-  speak(HOWTO[lang].welcome,"welcome",el);
+  promptEl.textContent=TOUCH?DATA[lang].promptReadTouch:DATA[lang].promptRead;
+}
+function endReading(){
+  if(!reading)return;
+  reading=false;
+  /* the sheet filled the frame, so the pointer was "over" it the whole
+     time — left as is, the hover lift would catch it on the way down */
+  paperHover=false;paperLifted=false;
+  promptEl.style.display="none";
+  /* the sheet needs a moment to land before he talks over it */
+  setTimeout(()=>{
+    if(cafeClosed)return;
+    openTalk();
+    playChain(["seated"]);
+  },RM?60:620);
 }
 document.getElementById("enterBtn").addEventListener("click",()=>{
   if(cafeClosed){VC.openCV();return;}   /* closed: the button is the way to the CV, not a seat */
@@ -5036,6 +5369,7 @@ function closeCafe(){
   applyGrade("vinewoodNight");
   dust.material.opacity=.22;
 
+  closeTalk();                                 /* nobody left to ask */
   drawMenu();                                  /* same slate, CLOSED side up */
   paintSign();
   promptEl.textContent=DATA[lang].closed.prompt;
@@ -5441,6 +5775,11 @@ function updateCamera(dt,t){
      letterboxing it hides the instruction exactly as it is spoken. */
   document.body.classList.toggle("cine",
     speaking&&!RM&&!cafeClosed&&guest.state!=="walk");
+  /* the box steps aside while he talks and the skip pill takes its
+     place. Not keyed off .cine: that one is suppressed for the walk and
+     under reduced motion, and both are moments you still want a way to
+     cut him off. */
+  document.body.classList.toggle("talking",speaking&&!cafeClosed);
   if(hardCut){hardCut=false;}
   else{
     /* per-shot response. The fixed interview shot glides (.055); the
@@ -5475,6 +5814,9 @@ function updateCamera(dt,t){
      to click */
   let fT=shot.focus,rT=shot.range;
   if(paperHover||paperLifted){fT=1.6;rT=.4;}
+  /* reading: focus is measured, not guessed — the sheet is the only
+     thing in the frame that is allowed to be sharp */
+  if(reading&&paperT>.2){fT=paper.position.distanceTo(camera.position);rT=.45;}
   /* the pull IN has to be quick or it is not a rack focus — and the trip
      is now 14 → .4, not 1.75 → .4, so the old rate would take two full
      seconds to say "this sheet is the thing you click". Coming back out
@@ -5503,6 +5845,18 @@ function applyStaging(){
      up the table, or it would drop to postage-stamp size */
   paperUp.pos.set(0,portrait?1.16:1.08,portrait?1.3:.95);
   paperUp.rot=portrait?-.98:-.85;
+  /* Reading pose, solved rather than tuned: park the sheet on the shot's
+     own axis, at the distance where an A4 covers ~80% of the frame
+     height, and roll it back by the camera's own downward tilt so it
+     ends up square to the lens. */
+  {
+    const fov=(portrait?66:52)*Math.PI/180,fill=portrait?.86:.8;
+    const from=new THREE.Vector3().fromArray(SHOTS.gameplay.pos);
+    const dir=new THREE.Vector3().fromArray(SHOTS.gameplay.look).sub(from).normalize();
+    const d=.877/fill/(2*Math.tan(fov/2));
+    paperRead.pos.copy(from).addScaledVector(dir,d);
+    paperRead.rot=Math.asin(dir.y);
+  }
 }
 stagingReady=true;applyStaging();
 function animate(){
@@ -5613,10 +5967,14 @@ function animate(){
     }
     pos.needsUpdate=true;
   }
-  const liftTarget=TOUCH?(paperLifted?1:0):(paperHover?1:0);
-  paperT+=(liftTarget-paperT)*Math.min(1,dt*7);
-  paper.position.lerpVectors(paperRest.pos,paperUp.pos,paperT);
-  paper.rotation.x=paperRest.rot+(paperUp.rot-paperRest.rot)*paperT;
+  /* One tween, two destinations. The pose can only be swapped while the
+     sheet is flat on the table — swapping it mid-travel would teleport
+     the sheet from one arc to the other. */
+  const liftTarget=reading?1:(TOUCH?(paperLifted?1:0):(paperHover?1:0));
+  if(paperT<.02)paperGoal=reading?paperRead:paperUp;
+  paperT+=(liftTarget-paperT)*Math.min(1,dt*(paperGoal===paperRead?4.2:7));
+  paper.position.lerpVectors(paperRest.pos,paperGoal.pos,paperT);
+  paper.rotation.x=paperRest.rot+(paperGoal.rot-paperRest.rot)*paperT;
 
   if(cafeClosed){
     /* One lamp, breathing very slightly. Left perfectly steady under

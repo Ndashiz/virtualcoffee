@@ -2,9 +2,9 @@
 
 > **Un CV qu'on ne lit pas : on s'assied en face.**
 > Café 3D interactif servi sur <https://ndashiz.be/virtualcoffee/> — on est assis
-> à la table de Simon Goffin, son CV est posé entre les deux tasses, et toucher
-> une section le fait raconter, avec sa vraie voix enregistrée. Le toucher lui,
-> commande deux bières et débloque la version off.
+> à la table de Simon Goffin, on lit son CV, on le repose — et il raconte,
+> section par section, avec sa vraie voix enregistrée. Les cinq sections du CV
+> entendues, un second palier s'ouvre : la personne derrière le CV.
 
 ---
 
@@ -19,8 +19,8 @@ Une page de CV classique dit « voilà ce que j'ai fait ». Virtual Coffee dit
   par Simon lui-même, plus longues et plus personnelles que le texte du CV.
 
 Le site est aussi sa propre démonstration : Simon est Product Manager et
-revendique de construire avec l'IA — le café est l'exhibit A, mentionné dans la
-section « skills » qu'il raconte.
+revendique de construire avec l'IA — le café est l'exhibit A, et il en parle
+lui-même dans « How I built this », au second palier.
 
 **Anglais uniquement** (le mode FR a été retiré : seule la voix anglaise est
 enregistrée, et une voix de synthèse cassait la promesse « ma vraie voix »).
@@ -30,14 +30,12 @@ enregistrée, et une voix de synthèse cassait la promesse « ma vraie voix »).
 **Rien ne bouge tant que vous ne bougez pas.** Le personnage entre côté
 porte et **reste là** : il n'y a plus d'autopilote, la marche est
 l'invitation et un personnage qui s'en va tout seul y répond à votre
-place. Alors Simon vous appelle — *« Hey! Yes, you, by the door. If you
-fancy a chat, come and sit with me… »* — à la voix (pas d'enregistrement
-pour cette réplique : elle passe par la synthèse du navigateur et les
-sous-titres, exactement comme la section skills ; déposer
-`audio/en/walkin.mp3` et ajouter la clé suffit à lui rendre sa vraie
-voix). Deux façons de le déplacer : **les flèches**, ou **un tap sur le
-sol** — la seule dont dispose un téléphone, et la raison pour laquelle
-elle existe.
+place. Alors Simon vous accueille, de l'autre bout de la salle
+(`welcome`) : le lieu est à lui, il en a fait la plomberie et
+l'électricité, faites-en le tour — et quand vous êtes prêt, **la chaise au
+coussin vert** est la vôtre. Deux façons de le déplacer : **les flèches**,
+ou **un tap sur le sol** — la seule dont dispose un téléphone, et la
+raison pour laquelle elle existe.
 
 « Take a seat » ne téléporte plus : **votre personnage entre côté porte et
 les flèches sont à vous** (WASD physique aussi — ZQSD sur un AZERTY,
@@ -45,8 +43,12 @@ déplacement relatif à l'écran), **caméra à la troisième personne** dans so
 dos. La chaise libre porte une **balise** : anneau au sol, flèche qui flotte
 au-dessus, colonne de lumière visible d'un bout à l'autre de la salle — et si
 vous lui tournez le dos, un curseur en bord d'écran pointe vers elle. Entrez
-dans l'anneau et **l'entretien démarre** : l'accueil vocal et le CV cliquable
-n'existent qu'une fois assis. L'anneau dessiné au sol a exactement le rayon du
+dans l'anneau et **l'entretien démarre** — en deux temps, jamais l'inverse :
+la feuille monte d'abord en quasi plein écran et vous la lisez en silence ;
+vous la reposez, et seulement là il enchaîne (`seated`) et la **boîte de
+dialogue** s'ouvre. Lire d'abord est tout l'intérêt de sa réplique — *« a
+résumé only tells you what I did »* — : elle doit répondre à quelque chose que
+vous avez déjà lu. L'anneau dessiné au sol a exactement le rayon du
 déclencheur (`SEAT_TRIGGER`) — ce que vous voyez est ce dans quoi il faut
 entrer. Collisions : tables, comptoir, bar de fenêtre — et Simon. Sous `prefers-reduced-motion`, pas de marche : déjà assis, accueil
 immédiat.
@@ -89,13 +91,17 @@ en muet il parle toujours, sous-titres compris, on ne l'entend simplement pas.
 | Glisser à la souris · molette · `Maj` | Tourner la caméra · reculer · sprinter |
 | Pastille 🔊 ou touche `M` | Coupe / rétablit la voix (mémorisé) |
 | Touche `0` (l'outro) | …et le café ferme : le serveur vient vous le dire, la salle se vide |
+| Cliquer n'importe où (feuille en plein écran) | Vous l'avez lue : elle retourne sur la table et la conversation commence |
 | Survoler le CV sur la table | La feuille se soulève, la mise au point se tire dessus (rack focus) |
-| Cliquer une section (ou touches `1`–`7`) | Simon la raconte, sous-titres à l'écran, letterbox cinéma |
-| Cliquer Simon (ou touche `8`) | Il commande deux bières — la version « off the record » |
-| Touche `0` | L'outro ; `espace` le fait taire |
+| Une section de la boîte (ou touches `1`–`5`) | Simon la raconte, sous-titres à l'écran, letterbox cinéma ; entendue en entier, elle garde un point vert |
+| Une section déjà entendue | *« Ah, you weren't listening »* (`reclick`), puis il la rejoue en entier |
+| Les cinq entendues | Second palier : off the clock, l'IA, pourquoi la banque, comment j'ai construit ça — plus l'outro |
+| Cliquer Simon | La section « off the clock » (deux bières sur la table), une fois le palier ouvert |
+| L'outro (ou touche `0`) | Téléchargement du CV + LinkedIn, puis le café ferme |
+| Pastille ⏭ Skip ou `espace` | Le fait taire — la section reste alors non entendue |
 | « Text résumé » (ou sans WebGL) | La version texte complète, accessible et indexable |
 
-Sur mobile : premier tap pour soulever la feuille, deuxième pour choisir.
+Sur mobile, la boîte devient un panneau en bas d'écran, sur deux colonnes.
 
 ## 3. Le décor vit
 
@@ -194,8 +200,8 @@ fait un café en fin de service : le barista sort de derrière son comptoir,
 vient jusqu'à la table, lâche la phrase de toutes les fermetures — *« Excuse
 me — we're closing now. »* — et les habitués s'en vont un par un vers la
 porte, en décalé (une salle qui se vide au pas cadencé, c'est un exercice
-d'évacuation). C'est **du décor et rien d'autre** : Simon reste, le CV reste
-cliquable, les sections se jouent encore. Vider la page, c'est le travail de
+d'évacuation). C'est **du décor et rien d'autre** : Simon reste, la boîte de
+dialogue reste ouverte, les sections se rejouent. Vider la page, c'est le travail de
 `closeCafe()` — le bar fermé à distance — et ce n'est pas celui-ci.
 
 ## 4. Le rendu
@@ -237,7 +243,9 @@ grain figé, figurants calmes).
   d'écran, clavier, crawlers, visiteurs sans WebGL — tous ont tout.
 - Les sections parlées sont **sous-titrées** (répartition au prorata sur la
   durée du mp3 ; la synthèse vocale de secours sous-titre phrase par phrase).
-- Navigation clavier complète (`1`–`8`, `0`, `espace`, `Échap`).
+- Navigation clavier complète : `1`–`5` (les sections du CV), `6`–`9` (le
+  second palier, une fois ouvert), `0` (l'outro), `espace` (le faire taire, ou
+  reposer la feuille), `M` (couper le son), `Échap`.
 - Si la 3D échoue (pas de WebGL, driver, three.js absent), le CV texte
   **devient** la page — le shell `VC` vit dans un script séparé précisément
   pour survivre à la mort de la scène.
@@ -252,7 +260,8 @@ tex/*.png           13 étiquettes cuites — armoire à trophées, diplômes, v
 person.obj          Corps des PNJ masculins — base mesh en 15 segments (547 Ko)
 three.min.js        three.js r134, vendorisé
 fonts/*.woff2       Space Grotesk · Inter · Caveat, auto-hébergées
-audio/en/*.mp3      La voix de Simon, une piste par section (~4,6 Mo)
+audio/en/*.mp3      La voix de Simon, une piste par clip (15 clés, cf. README)
+audio/en/v1/*.mp3   Les enregistrements v1, retirés du circuit — jamais chargés
 og.jpg              Carte de partage 1200×630
 ```
 

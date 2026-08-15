@@ -6,15 +6,28 @@ AZERTY, or a tap on the floor — the only control a phone has): nothing moves
 until you move it, so Simon calls you over out loud. A third-person camera
 follows you across the room — drag to look, wheel to pull back, Shift to run —
 to the chair across the table from him, marked by a ring on the floor, an
-arrow and a sign above it. Step into the ring and the interview starts — the welcome, and the clickable CV with it,
-waits until you are actually in the chair. When Simon finishes the outro the
-barista comes over, says they're closing, and the room empties around you. The CV is lying on the table, and tapping a
-section makes Simon tell you about it out loud — in his own recorded voice,
-while he looks you in the eye. Tap Simon himself and he orders a round of beers
-for the off-the-record version. There is a mute pill (or `M`) for the voice;
-the subtitles carry every word without it. English only (the FR mode was
-retired in favour of the recorded voice). Under `prefers-reduced-motion` the
-walk is skipped: you appear seated and the welcome starts at once.
+arrow and a sign above it — look for the **green cushion**, which is what the
+welcome tells you to look for. Simon greets you the moment you step in and
+tells you to have a wander first; the conversation itself waits until you are
+actually in the chair.
+
+Sitting down raises the CV to near full-screen and you read it in silence. Put
+it back on the table and the **dialogue box** opens down the left: five
+sections — work experience, education, skills, certifications, languages —
+each of which Simon tells you about out loud, in his own recorded voice, while
+he looks you in the eye. A section you have heard right through keeps a green
+marker; ask for it again and he says so before repeating himself. Work
+experience has two openings and picks the one that fits what you have already
+heard. Once all five are done a **second tier** opens — off the clock, AI long
+term, why banking, how I built this — along with the wrap-up, which ends the
+visit with the résumé download and his LinkedIn. When Simon finishes that
+outro the barista comes over, says they're closing, and the room empties around
+you.
+
+There is a mute pill (or `M`) for the voice, a skip pill (or `space`) to cut
+him off, and the subtitles carry every word without sound. English only (the FR
+mode was retired in favour of the recorded voice). Under
+`prefers-reduced-motion` the walk is skipped: you appear seated at once.
 
 **Live** : <https://ndashiz.be/virtualcoffee/>
 
@@ -72,7 +85,8 @@ person.obj          Male NPC body — base mesh cut into 15 rig segments (~550 K
 fonts.css           @font-face for the three self-hosted families
 fonts/*.woff2       Space Grotesk · Inter · Caveat (latin + latin-ext)
 three.min.js        three.js r134, vendored
-audio/en/*.mp3      Simon's recorded voice, one file per section (~4.6 MB)
+audio/en/*.mp3      Simon's recorded voice, one file per clip (see "Voice")
+audio/en/v1/*.mp3   The retired v1 recordings — kept, never loaded
 og.jpg              1200×630 share card, rendered from the scene itself
 favicon.svg
 .nojekyll           skip the Jekyll build on Pages
@@ -170,7 +184,7 @@ anything else is dropped on the floor:
 
 | Param | Values |
 |---|---|
-| `e` | `open` `enter` `cv` `intro` `experience` `education` `skills` `certifications` `languages` `contact` `outro` `about` |
+| `e` | `open` `enter` `cv` `experience` `education` `skills` `certifications` `languages` `personal` `ai` `banking` `howibuilt` `outro` |
 | `l` | `en` `fr` |
 | `r` | `linkedin` `github` `google` `direct` `other` |
 
@@ -388,7 +402,8 @@ The cost is two copies of the content. **When the CV changes, update both** —
 
 ### Stacking order
 
-`overlays 12 · sign 20 · bubble 25 · how-to 50 · text résumé 60 · tools 70`
+`overlays 12 · sign 20 · prompt 20 · dialogue box 23 · subtitles 24 · skip 25 ·
+how-to 50 · text résumé 60 · tools 70`
 
 The tools cluster is on top of everything on purpose: the résumé pill has to be
 reachable from inside the text résumé and from the welcome card, both of which
@@ -403,18 +418,35 @@ the café sign fades out while a bubble is up.
 
 ## Voice
 
-`AUDIO.en[section]` maps a section to a recording, in Simon's own voice
-(`audio/en/*.mp3`). `skills` has no mp3 and falls back to the browser's
-`SpeechSynthesis`.
+One key = one clip = one mp3, and the same key is the counter event:
 
-To record more, drop the file in and add the key:
-
-```js
-AUDIO.en.skills = "audio/en/skills.mp3";
+```
+welcome · seated · reclick
+experience_open_a · experience_open_b · experience_body
+education · skills · certifications · languages
+personal · ai · banking · howibuilt · outro
 ```
 
-A missing key falls back to TTS, and so does a file that fails to load
-(`audioEl.onerror`), so a broken path degrades rather than going silent.
+`DATA.en.speech[key]` holds the words and `AUDIO.en[key]` the file. The text is
+the recording script, the subtitle track and the browser-voice fallback all at
+once, so **it must match the mp3 word for word** — change one, re-record the
+other.
+
+A missing file falls back to TTS, and so does one that fails to load
+(`audioEl.onerror`), so the café is complete and speakable before a single clip
+is recorded. Drop `audio/en/<key>.mp3` in and that key stops falling back, with
+nothing else to change.
+
+The **v1 recordings are parked in `audio/en/v1/`** rather than deleted. They
+carry the older, shorter scripts under the same filenames: left where they
+were, they would have played underneath v2 subtitles.
+
+A section is one clip or several. `sectionClips()` owns that: work experience
+returns `experience_open_b` (if education has already been heard) or
+`experience_open_a`, then `experience_body`, and a repeat gets `reclick` in
+front. Only a clip that reaches its **own** end advances the chain — hush him
+and the section stays unheard, because the green marker promises you heard the
+whole thing.
 
 ### Mute
 
