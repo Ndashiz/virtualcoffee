@@ -544,7 +544,7 @@ window.VCPing = (function(){
 <script>
 /* =====================================================================
    VIRTUAL COFFEE 3D — max-quality pass
-   The café itself is a real model (cafe.obj, ~29k tris, preprocessed
+   The café itself is a real model (cafe.obj.txt, ~95k tris, preprocessed
    into world coordinates) dressed with the procedural textures
    (parquet, plaster, marble, chalkboard menu, rug, window view, art)
    light shafts + floating dust · camera parallax · curly-hair Simon
@@ -1251,8 +1251,17 @@ const PRESS=[
   {year:"2024",paper:"THE BRUSSELS PRODUCT REVIEW",
    head:"Made product owner of two teams at Degroof Petercam",
    sub:"Sources confirm he now attends two stand-ups before nine",
+   art:"juggle"},
+  /* the third only hangs on the front wall, which the model added. The map
+     ships baked art for these three, in French — the page has been EN-only
+     since the wide shot landed, so they get repainted here instead: same
+     painter as the pair above, and 506 KB of PNG never leaves the repo. */
+  {year:"2025",paper:"THE PRODUCT DIGEST",
+   head:"Six months a business analyst, then handed the backlog",
+   sub:"Two teams, one roadmap, and nobody has taken it back",
    art:"juggle"}
 ];
+const PRESS_TEX=[];
 function drawPress(c,a){
   const x=c.getContext("2d"),w=c.width,h=c.height;
   x.fillStyle="#efe7d5";x.fillRect(0,0,w,h);
@@ -1353,6 +1362,10 @@ PRESS.forEach(function(a,i){
   const tex=new THREE.CanvasTexture(c);
   tex.encoding=THREE.sRGBEncoding;tex.anisotropy=maxAniso;
   VC.fontsReady.then(function(){drawPress(c,a);tex.needsUpdate=true;});
+  PRESS_TEX.push(tex);           /* the model's front-wall frames reuse these */
+  /* only the first two hang on the back wall: the third exists for the
+     model's front wall, which the café loader dresses from PRESS_TEX */
+  if(i>1)return;
   /* back wall, left of the counter — the one stretch of plaster with
      nothing in front of it, and well inside the seated wide shot */
   const g=new THREE.Group();
@@ -1422,16 +1435,42 @@ const signTex=ctex(512,96,(x,w,h)=>{
   x.restore();
 });
 
+/* baked label textures — the trophy plaques, the two diplomas, the van's
+   lettering. The chalkboard and the menu are painted procedurally because
+   they are just type; these carry awarded titles and vendor logos, which no
+   procedural painter is going to reinvent, so they ship as PNG.
+
+   flipY=false is the whole trick. The exporter writes glTF, where v=0 is
+   the TOP of the image, and it squares that with three.js by flipping the
+   pixels on the way out — so these files are stored upside down. The
+   model's UVs are glTF's, untouched. A canvas texture on those same UVs
+   (the chalkboard, the door sign) comes out right way up because its
+   pixels were never flipped; feed a pre-flipped PNG through the same
+   default and it lands on its head. Turning flipY off cancels the
+   exporter's flip instead of repeating it. */
+const texLoader=new THREE.TextureLoader();
+function labelTex(name){
+  const t=texLoader.load("tex/"+name+".png");
+  t.flipY=false;
+  t.encoding=THREE.sRGBEncoding;t.anisotropy=maxAniso;
+  return t;
+}
+
 /* ---------------- CAFÉ MODEL ----------------
-   The room, the bar and every prop now come from cafe.obj — a real 3D
+   The room, the bar and every prop now come from cafe.obj.txt — a real 3D
    model of the café, preprocessed offline into FINAL WORLD coordinates
    (Simon's table at the origin, tabletop at y=.8025: every anchor the
    scene already uses). No OBJLoader in the r134 UMD build, and none
    needed: the file is our own output, so the parser below only has to
    read what the preprocessor writes (v/vt/vn, triangulated f, one
-   usemtl per o). Faces are merged into ONE mesh per material — ~30
-   draw calls instead of ~420 objects — except the few objects the
-   scene must drive individually (the three pendant bulbs, the mat). */
+   usemtl per o). Faces are merged into ONE mesh per material — ~55
+   draw calls instead of ~1300 objects — except the few objects the
+   scene must drive individually (the three pendant bulbs, the mat).
+
+   The .txt is not a typo: GitHub Pages serves .obj as application/x-tgif,
+   which the CDN refuses to compress, so the old model went over the wire
+   at its full 1.35 MB. As text/plain it gzips 5:1 — 5.1 MB of model for
+   under 1 MB on the wire. */
 const CAFE={meshes:new Map(),floor:null,backWall:null,bulbs:[],ready:false};
 /* Shared by the café and the NPC body parts: group an OBJ's triangles by
    keyFor(objectName, usemtl). The preprocessors write v/vt/vn for textured
@@ -1510,13 +1549,82 @@ function groupGeometry(g){
     soda_jaune: std({color:0xd8ac2b,metalness:.25,roughness:.3,envMapIntensity:1.1}),
     enseigne_porte:new THREE.MeshBasicMaterial({map:signTex}),
     vitrophanie:new THREE.MeshBasicMaterial({color:0xe9eef2,transparent:true,opacity:.45,depthWrite:false}),
-    paillasson: std({color:0x4a3428,roughness:1})
+    paillasson: std({color:0x4a3428,roughness:1}),
+
+    /* --- the front wall the map added: Simon's own trophy cabinet --- */
+    mur_avant_teinte:std({color:0xc6b598,roughness:.95,envMapIntensity:.3}),
+    socle_trophee:std({color:0x060504,roughness:.6}),
+    or:         std({color:0xaf680f,metalness:.55,roughness:.3,envMapIntensity:1.3}),
+    argent:     std({color:0x8b929a,metalness:.5,roughness:.3,envMapIntensity:1.3}),
+    scrum:      std({color:0x075546,roughness:.4}),
+    azure:      std({color:0x0736a3,metalness:.2,roughness:.35}),
+    bordeaux:   std({color:0x340408,roughness:.5}),
+    parchemin:  std({color:0xe7d6af,roughness:.7}),
+    cadre_presse:std({color:0x080503,roughness:.5}),
+    /* the labels and the diplomas are decals on those faces: baked PNG,
+       double-sided because the map builds them as single quads */
+    plaque_palmares:            std({map:labelTex("plaque_palmares"),roughness:.65,side:THREE.DoubleSide}),
+    etq_pspo:                   std({map:labelTex("etq_pspo"),roughness:.65,side:THREE.DoubleSide}),
+    etq_psm:                    std({map:labelTex("etq_psm"),roughness:.65,side:THREE.DoubleSide}),
+    etq_dynamics:               std({map:labelTex("etq_dynamics"),roughness:.65,side:THREE.DoubleSide}),
+    etq_azure:                  std({map:labelTex("etq_azure"),roughness:.65,side:THREE.DoubleSide}),
+    etq_solvay:                 std({map:labelTex("etq_solvay"),roughness:.65,side:THREE.DoubleSide}),
+    etq_wagon:                  std({map:labelTex("etq_wagon"),roughness:.65,side:THREE.DoubleSide}),
+    etq_parcours:               std({map:labelTex("etq_parcours"),roughness:.65,side:THREE.DoubleSide}),
+    face_trophee_dynamics_365:  std({map:labelTex("face_trophee_dynamics_365"),roughness:.65,side:THREE.DoubleSide}),
+    face_trophee_azure:         std({map:labelTex("face_trophee_azure"),roughness:.65,side:THREE.DoubleSide}),
+    parch_diplome_solvay:       std({map:labelTex("parch_diplome_solvay"),roughness:.65,side:THREE.DoubleSide}),
+    parch_certification_le_wagon:std({map:labelTex("parch_certification_le_wagon"),roughness:.65,side:THREE.DoubleSide}),
+    /* the three framed clippings on that wall are painted, not baked —
+       same canvases as the pair on the back wall, English and font-aware */
+    article_ey_fast_track:   new THREE.MeshBasicMaterial({map:PRESS_TEX[0],side:THREE.DoubleSide}),
+    article_product_owner:   new THREE.MeshBasicMaterial({map:PRESS_TEX[1],side:THREE.DoubleSide}),
+    article_deuxieme_equipe: new THREE.MeshBasicMaterial({map:PRESS_TEX[2],side:THREE.DoubleSide}),
+
+    /* --- beyond the glass: the street, the van, the treeline --- */
+    trottoir:   std({color:0x7a7263,roughness:.9}),
+    bordure:    std({color:0x5f5648,roughness:.85}),
+    bitume:     std({color:0x121214,roughness:.95}),
+    bitume_rue: std({color:0x0d0e0f,roughness:.95}),
+    marquage:   std({color:0xcec6af,roughness:.8}),
+    carrosserie:std({color:0x7a0803,metalness:.3,roughness:.3,envMapIntensity:1.1}),
+    van_blanc:  std({color:0xe0dcd0,metalness:.15,roughness:.42}),
+    van_bleu:   std({color:0x072957,metalness:.2,roughness:.4}),
+    lettrage_ice_cube:std({map:labelTex("lettrage_ice_cube"),roughness:.5,side:THREE.DoubleSide}),
+    chrome:     std({color:0x9fa4ab,metalness:.4,roughness:.25,envMapIntensity:1.4}),
+    pneu:       std({color:0x040405,roughness:.95}),
+    phare:      std({color:0x1a1610,emissive:0xffe7ab,emissiveIntensity:1.6,roughness:.2}),
+    feu_rouge:  std({color:0x140101,emissive:0x8c0605,emissiveIntensity:1.2,roughness:.3}),
+    herbe:      std({color:0x1d290f,roughness:.95}),
+    sous_bois:  std({color:0x12180a,roughness:.98}),
+    tronc_foret:std({color:0x1a1008,roughness:.92}),
+    tronc_clair:std({color:0x342516,roughness:.9}),
+    feuillu_1:  std({color:0x10210d,roughness:.9}),
+    feuillu_2:  std({color:0x18320f,roughness:.9}),
+    feuillu_3:  std({color:0x0c1b0b,roughness:.9}),
+    resineux:   std({color:0x07110a,roughness:.92}),
+    fougere:    std({color:0x14250c,roughness:.95})
   };
+  /* Everything the glass separates us from. The shadow camera is a box
+     around the room, so these cast into nothing at full price; and the
+     light on them is the sky, not the three bulbs over the counter. */
+  const OUTSIDE=new Set(["trottoir","bordure","bitume","bitume_rue","marquage",
+    "carrosserie","van_blanc","van_bleu","lettrage_ice_cube","chrome","pneu",
+    "phare","feu_rouge","herbe","sous_bois","tronc_foret","tronc_clair",
+    "feuillu_1","feuillu_2","feuillu_3","resineux","fougere"]);
   /* structure never casts (the window light must get in, the floor has
-     nothing below); glass and film neither. Everything else does. */
+     nothing below); glass, film and the flat decals neither. */
   const NO_CAST=new Set(["chene_sol","platre","platre_vert","verre","emballage",
-    "vitrophanie","enseigne_porte","carte","tapis","ampoule","paillasson"]);
-  const NO_RECEIVE=new Set(["verre","emballage","vitrophanie","enseigne_porte","ampoule"]);
+    "vitrophanie","enseigne_porte","carte","tapis","ampoule","paillasson",
+    "mur_avant_teinte","plaque_palmares","etq_pspo","etq_psm","etq_dynamics",
+    "etq_azure","etq_solvay","etq_wagon","etq_parcours",
+    "face_trophee_dynamics_365","face_trophee_azure",
+    "parch_diplome_solvay","parch_certification_le_wagon",
+    "article_ey_fast_track","article_product_owner","article_deuxieme_equipe",
+    ...OUTSIDE]);
+  const NO_RECEIVE=new Set(["verre","emballage","vitrophanie","enseigne_porte",
+    "ampoule","article_ey_fast_track","article_product_owner",
+    "article_deuxieme_equipe","lettrage_ice_cube",...OUTSIDE]);
   /* objects the scene drives one by one — everything else merges by material */
   const SPECIAL=new Set(["ampoule.0","ampoule.1","ampoule.2","paillasson.0"]);
 
@@ -1531,6 +1639,10 @@ function groupGeometry(g){
       const m=new THREE.Mesh(geo,k.indexOf("ampoule")===0?MATS.ampoule.clone():MATS[g.mat]);
       m.castShadow=!NO_CAST.has(g.mat);
       m.receiveShadow=!NO_RECEIVE.has(g.mat);
+      /* the camera is fenced inside the room, so nothing out there can ever
+         block it — and probing 50k triangles of foliage per ray would cost
+         real milliseconds. cameraColliders() reads this back. */
+      m.userData.outside=OUTSIDE.has(g.mat);
       if(g.mat==="verre")m.renderOrder=3;
       else if(g.mat==="emballage"||g.mat==="vitrophanie")m.renderOrder=2;
       CAFE.meshes.set(k,m);
@@ -1567,14 +1679,14 @@ function groupGeometry(g){
       }catch(e){console.warn("[vc] model normal maps skipped —",e);}
     });
   }
-  fetch("cafe.obj").then(r=>{
+  fetch("cafe.obj.txt").then(r=>{
     if(!r.ok)throw new Error("HTTP "+r.status);
     return r.text();
   }).then(parseCafe).catch(err=>{
     /* no model, no room — but the table, Simon and the sheet are all
        procedural, so the CV conversation itself still works. Give it a
        bare floor rather than a void and say so. */
-    console.warn("[vc] cafe.obj failed to load —",err);
+    console.warn("[vc] cafe.obj.txt failed to load —",err);
     const em=new THREE.Mesh(new THREE.PlaneGeometry(24,24),
       new THREE.MeshStandardMaterial({map:floorTex,roughness:.62}));
     em.rotation.x=-Math.PI/2;em.receiveShadow=true;scene.add(em);
@@ -1750,7 +1862,7 @@ const lampPts=[];
 /* The three pendants over the counter are model geometry now (rail,
    cable, shade, bulb). The scene keeps their LIGHT: one glow sprite and
    an optional point per fixture, built eagerly at the model's known bulb
-   positions so closeCafe() works even while cafe.obj is still in flight.
+   positions so closeCafe() works even while cafe.obj.txt is in flight.
    Each record's bulb mesh joins it when the model lands. */
 const pendants=[];
 function applyPendant(p){
@@ -1828,11 +1940,15 @@ neonPt.position.set(-2.3,2.9,-4.45);
 scene.add(neonPt);
 
 /* ---------------- ROOM ----------------
-   Floor, walls, storefront and window all come from cafe.obj (walls top
-   out at y=3.44, back wall face z=-4.75, window wall face x=-3.25).
+   Floor, walls, storefront and window all come from cafe.obj.txt (walls
+   top out at y=3.44, back wall face z=-4.75, window wall face x=-3.25).
    The scene keeps what the model has none of: a ceiling with beams, the
    city backdrop behind the window glass, the light shafts, the dust and
-   two framed prints on the back wall. */
+   two framed prints on the back wall.
+
+   The backdrop is behind the LEFT window only. The storefront on +x now
+   opens onto real geometry — parking, van, treeline — so it must stay
+   clear of anything painted. */
 const ceil=new THREE.Mesh(new THREE.PlaneGeometry(22,22),
   new THREE.MeshStandardMaterial({color:0x231b15,roughness:1,envMapIntensity:.2}));
 ceil.rotation.x=Math.PI/2;ceil.position.set(1.8,3.42,-.5);scene.add(ceil);
@@ -1878,10 +1994,14 @@ scene.add(dust);
   a.position.set(p[0],p[1],p[2]);a.rotation.y=p[3];scene.add(a);
 });
 
-/* COUNTER ZONE, TABLES, CHAIRS, RUG, PLANTS: all cafe.obj now — counter
-   with espresso machine, register and pastry case at z≈-3.7, four bar
-   stools in front of it, a high table with six stools along the window,
-   the round rug under Simon's table, the plant in the left corner. */
+/* COUNTER ZONE, TABLES, CHAIRS, RUG, PLANTS: all cafe.obj.txt now —
+   counter with espresso machine, register and pastry case at z≈-3.7, four
+   bar stools in front of it, a high table with six stools along the
+   window, the rug, the plant. Plus, since the map grew a front wall: the
+   trophy cabinet and its three framed clippings at z≈3.5. Rug and plant
+   sit where the map puts them, not where the old preprocessor shoved
+   them — the staging is the map's job now, bar the three gestures the
+   rig depends on (see preprocess_cafe_glb.py). */
 
 /* ---------------- CONTACT SHADOWS (blobs) ----------------
    90% of the perceived SSAO in a static scene, for 20 lines: a radial
@@ -1965,7 +2085,7 @@ const clockG=new THREE.Group();
   scene.add(clockG);
 }
 /* Idle-time normal maps for the model's floor, back wall and woodwork
-   now live in the cafe.obj loader — they can only run once those meshes
+   now live in the cafe.obj.txt loader — they can only run once those meshes
    exist. */
 
 /* ---------------- PEOPLE : the living background ----------------
@@ -4082,7 +4202,7 @@ function startEntrance(){
   CAM.yaw=guest.yaw+Math.PI;
   CAM.pitch=.19;CAM.yawV=0;CAM.idle=0;
   CAM.dist=2.7;CAM.distNow=2.7;CAM.sprint=false;
-  camColliders=null;              /* cafe.obj may have landed since */
+  camColliders=null;              /* the model may have landed since */
   showSeatMarker(true);           /* the arrow says where the coffee is */
   /* nothing moves until the visitor moves it, so the prompt has to say
      HOW — and on a phone that is a different instruction, not none */
@@ -4259,11 +4379,12 @@ const CAM={
 const camRay=new THREE.Raycaster();   /* private: `ray` belongs to pick() */
 let camColliders=null;
 function cameraColliders(){
-  /* built once, after cafe.obj lands: the solid furniture only — glass,
+  /* built once, after the model lands: the solid furniture only — glass,
      wrappers, decals and the rug must not shove the lens around */
   if(camColliders&&camColliders.length)return camColliders;
   camColliders=[];
   if(CAFE.ready)CAFE.meshes.forEach((m,k)=>{
+    if(m.userData.outside)return;      /* street and treeline: unreachable */
     if(/verre|emballage|vitrophanie|ampoule|tapis|carte|enseigne|paillasson|chene_sol/.test(k))return;
     camColliders.push(m);
   });

@@ -66,7 +66,8 @@ copy under `/var/www/virtualcoffee/` drifts the moment you stop deploying to it.
 
 ```
 index.html          Everything: markup, CSS, the VC shell, the scene code
-cafe.obj            The café itself — real 3D model, ~29k tris (~1.35 MB)
+cafe.obj.txt        The café itself — real 3D model, ~95k tris (5.1 MB, ~980 KB gzipped)
+tex/*.png           13 baked label maps — trophy cabinet, diplomas, van (~376 KB)
 person.obj          Male NPC body — base mesh cut into 15 rig segments (~550 KB)
 fonts.css           @font-face for the three self-hosted families
 fonts/*.woff2       Space Grotesk · Inter · Caveat (latin + latin-ext)
@@ -77,17 +78,31 @@ favicon.svg
 .nojekyll           skip the Jekyll build on Pages
 ```
 
-`cafe.obj` is preprocessed offline into **final world coordinates** (Simon's
-table at the origin, tabletop at y=.8025 — the height every scene anchor
-assumes), quantized and deduped, one `usemtl` per object. The scene has its own
-~60-line parser: no `OBJLoader` exists in the r134 UMD build, and none is
-needed for a file this repo itself produces. Faces merge into one mesh per
-material (~30 draw calls); materials are assigned by the model's French
-`usemtl` names (`chene_sol`, `laiton`, `marbre`, …) and dressed with the same
-procedural canvas textures as before — the chalkboard still repaints through
-`drawMenu()`, closed side included. If the fetch fails, the room is gone but
-the table, Simon and the résumé are all procedural: the conversation survives
-on a bare parquet.
+**Why the model is a `.txt`.** Pages serves `.obj` as `application/x-tgif`,
+which the CDN will not compress — the old 1.35 MB model went over the wire
+whole. As `text/plain` the same file gzips better than 5:1, so a model nearly
+four times the size lands *lighter* than the one it replaces. The loader
+fetches a URL and parses text; the extension means nothing to it.
+
+`cafe.obj.txt` is preprocessed offline from the stage tool's glTF-binary export
+into **final world coordinates** (Simon's table at the origin, tabletop at
+y=.8025 — the height every scene anchor assumes), quantized and deduped, one
+`usemtl` per object. The scene has its own ~60-line parser: no `OBJLoader`
+exists in the r134 UMD build, and none is needed for a file this repo itself
+produces. Faces merge into one mesh per material (~55 draw calls); materials
+are assigned by the model's French `usemtl` names (`chene_sol`, `laiton`,
+`marbre`, …) and dressed with the same procedural canvas textures as before —
+the chalkboard still repaints through `drawMenu()`, closed side included. If
+the fetch fails, the room is gone but the table, Simon and the résumé are all
+procedural: the conversation survives on a bare parquet.
+
+The map also carries what the room could never show before: a **front wall**
+with Simon's trophy cabinet (PSPO, PSM I, Dynamics 365, Azure, the Solvay
+diploma, Le Wagon) and three framed clippings, and a **real outside** — a
+parking lot with a van and a car, and a treeline — visible through the
+storefront. The trophy labels ship as baked PNG under `tex/` because they carry
+awarded titles and vendor marks; everything else stays procedural. The clippings
+are repainted by `drawPress()` so they stay English and font-aware.
 
 `person.obj` is currently **retired** (`USE_PERSON_MESH=false` in the scene):
 the segmented base-mesh bodies read as ragged mannequins next to the capsule
