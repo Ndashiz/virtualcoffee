@@ -145,17 +145,53 @@
     font-size:15px;cursor:pointer;box-shadow:0 6px 22px rgba(0,0,0,.45);
     transition:transform .12s ease;}
   .zoomback:hover{transform:scale(1.05);}
-  .zoomfig{margin:0;display:flex;flex-direction:column;align-items:center;gap:13px;
+  .zoomfig{margin:0;display:flex;flex-direction:column;align-items:center;gap:11px;
     max-width:100%;min-height:0;}
-  .zoomfig canvas{max-width:min(1080px,94vw);max-height:calc(100dvh - 190px);
+  .zoomstage{position:relative;line-height:0;}
+  .zoomfig canvas{max-width:min(1080px,94vw);max-height:calc(100dvh - 226px);
     width:auto;height:auto;border-radius:5px;border:13px solid #14161a;
     box-shadow:0 24px 70px rgba(0,0,0,.62);}
   .zoomfig figcaption{color:var(--gold);font-family:"Space Grotesk",sans-serif;
     font-weight:600;font-size:13px;letter-spacing:2.4px;text-transform:uppercase;}
+  /* the buffering card, over the picture while the stream "connects" */
+  .zoomload{position:absolute;inset:13px;border-radius:4px;background:#080d14;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    color:#cfdae6;font-family:"Space Grotesk",sans-serif;line-height:1.3;}
+  .zoomload[hidden]{display:none;}
+  .zoomload p{margin:0;font-size:14px;letter-spacing:.4px;}
+  .zspin{width:30px;height:30px;border-radius:50%;border:3px solid rgba(207,218,230,.22);
+    border-top-color:var(--gold);animation:zspin .8s linear infinite;}
+  @keyframes zspin{to{transform:rotate(360deg);}}
+  .zbar{width:min(240px,50%);height:4px;border-radius:99px;background:rgba(207,218,230,.18);
+    overflow:hidden;}
+  .zbar i{display:block;height:100%;width:0;background:var(--gold);border-radius:99px;}
+  /* where you are in the loop — the "video" is the running order itself */
+  .zoomplayer{width:min(1080px,94vw);}
+  .zoomplayer[hidden]{display:none;}
+  .ztrack{position:relative;height:5px;border-radius:99px;background:rgba(220,230,240,.20);
+    overflow:hidden;}
+  .ztrack i{position:absolute;inset:0 auto 0 0;width:0;background:var(--gold);border-radius:99px;}
+  .ztime{display:flex;justify-content:space-between;gap:12px;margin-top:7px;
+    color:#93a6b6;font-family:"Space Grotesk",sans-serif;font-size:12px;
+    font-variant-numeric:tabular-nums;}
+  .ztime span:nth-child(2){color:#cfdae6;text-align:center;flex:1;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* Walk up to something readable and it says so — a picture on a wall
+     does not advertise that it is clickable. */
+  .readhint{position:fixed;z-index:40;transform:translate(-50%,-100%);
+    display:flex;align-items:center;gap:8px;pointer-events:none;
+    background:rgba(15,21,27,.9);border:1px solid rgba(240,182,74,.5);
+    border-radius:999px;padding:7px 15px;color:#f3e9d4;
+    font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:13px;
+    white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.45);
+    opacity:0;transition:opacity .18s ease;}
+  .readhint.on{opacity:1;}
+  .readhint b{color:var(--gold);font-weight:700;}
   @media (max-width:640px){
     .zoom{padding:76px 10px 22px;}
     .zoomback{top:14px;left:14px;padding:10px 17px 10px 12px;font-size:14px;}
-    .zoomfig canvas{border-width:8px;max-height:calc(100dvh - 158px);}
+    .zoomfig canvas{border-width:8px;max-height:calc(100dvh - 200px);}
+    .readhint{font-size:12px;padding:6px 12px;}
   }
 
   /* Reachable by screen readers and crawlers, invisible on screen. */
@@ -255,6 +291,8 @@
 <div class="prompt" id="prompt">Hover the résumé on the table &amp; tap a section&nbsp;☕</div>
 
 <!-- Anything on a wall you can click comes off the wall and fills this. -->
+<div class="readhint" id="readHint" aria-hidden="true"></div>
+
 <div class="zoom" id="zoom" hidden>
   <button class="zoomback" id="zoomBack" type="button"
           aria-label="Close and go back to the café">
@@ -265,7 +303,22 @@
     <span>Back to the café</span>
   </button>
   <figure class="zoomfig">
-    <canvas id="zoomC"></canvas>
+    <div class="zoomstage">
+      <canvas id="zoomC"></canvas>
+      <div class="zoomload" id="zoomLoad" hidden>
+        <div class="zspin" aria-hidden="true"></div>
+        <p id="zoomLoadTxt">Connecting to the live feed…</p>
+        <div class="zbar"><i id="zoomLoadBar"></i></div>
+      </div>
+    </div>
+    <div class="zoomplayer" id="zoomPlayer" hidden>
+      <div class="ztrack" id="zoomTrack"><i id="zoomFill"></i></div>
+      <div class="ztime">
+        <span id="zoomNow">0:00</span>
+        <span id="zoomSeg"></span>
+        <span id="zoomEnd">0:00</span>
+      </div>
+    </div>
     <figcaption id="zoomTitle"></figcaption>
   </figure>
 </div>
@@ -1380,12 +1433,13 @@ function drawEotm(x){
      below this line, so calling it here would hit the temporal dead
      zone and take the whole scene down at load */
   const frame=new THREE.Mesh(new THREE.BoxGeometry(.38,.47,.04),
-    new THREE.MeshStandardMaterial({color:0x241a12,roughness:.55,envMapIntensity:.7}));
+    new THREE.MeshStandardMaterial({color:0x241a12,roughness:.55,envMapIntensity:.7,
+      polygonOffset:true,polygonOffsetFactor:2,polygonOffsetUnits:2}));
   frame.castShadow=true;g.add(frame);
   const sheet=new THREE.Mesh(new THREE.PlaneGeometry(.33,.42),
     new THREE.MeshStandardMaterial({map:tex,roughness:.82,
       emissive:0x2a2418,emissiveMap:tex,emissiveIntensity:.22}));
-  sheet.position.z=.021;g.add(sheet);
+  sheet.position.z=.026;g.add(sheet);
   addReadable(sheet,"Employee of the Month",EOTM_W,EOTM_H,drawEotm,false);
   /* front wall (face at z=3.81), just right of the trophy cabinet, which
      ends at x=.92 — and dead ahead of anyone who now walks the length of
@@ -2276,73 +2330,178 @@ function updateSkyTraffic(dt){
    presenter whose mouth moves, a headline that turns over, and a ticker
    that never stops. Unlit material — a screen is a light source, it must
    not dim with the room. */
-const TV_TICKER=["MSCI WORLD +9.7%","SEMICONDUCTORS +8.0%",
-  "ATOS +40% AFTER STOCK SPLIT","NDABANK -6.2%","EURO STOXX 50 +1.2%",
-  "BEL 20 +0.4%","ARABICA FUTURES +2.3%","GOLD -0.6%","EUR/USD 1.0914"];
-/* Four stories on an eight-second loop. Three are the tape. The fourth is
-   the one this room is quietly in: NdaBank's chief executive is the man on
-   the plaque by the trophy cabinet — employee of the month, and nobody
-   here has ever met him either. His graph is the only one that goes down,
-   which is the whole gag: same name, two walls, opposite directions. */
+/* Only the quotes Simon actually gave, plus the euro/dollar he allowed —
+   a made-up index on a screen he shows people is a made-up index. */
+const TV_TICKER=["MSCI WORLD +9.7%","SEMICONDUCTORS +8%",
+  "ATOS +40% AFTER STOCK SPLIT","EUR/USD 1.0914"];
+/* HENRY TV's running order: six stories on an eight-second loop, which is
+   also the "video" the zoom overlay scrubs through. Three are the tape
+   (kind "market": a graph, and only the direction changes). Two are
+   billboards for tonight's programmes (kind "topic": no graph, a keyword
+   card instead — a channel does not chart a talking point).
+   The sixth is the one this room is quietly in: NdaBank's chief executive
+   is the man on the plaque by the trophy cabinet — employee of the month,
+   and nobody here has ever met him either. His is the only graph that
+   goes down, which is the whole gag: same name, two walls, opposite
+   directions. */
 const TV_STORIES=[
-  {head:"MSCI World closes at a record",
-   sub:"Third session running in the green",
+  {head:"MSCI World gains 9.7%",
+   sub:"The session, decoded by our experts",
    tag:"MSCI WORLD",val:"+9.7%"},
-  {head:"Chips lead the rally",
-   sub:"Semiconductors up 8.0% on the week",
-   tag:"SEMICONDUCTORS",val:"+8.0%"},
+  {head:"Banks adapt their procedures to PSD3 and the EU's AMLR",
+   sub:"Our experts explain how they can be so agile",
+   art:"eu",tag:"AMLR"},
+  {head:"Semiconductors gain 8%",
+   sub:"The sector leads the tape",
+   tag:"SEMICONDUCTORS",val:"+8%"},
+  {head:"How banks use AI for a custom made offer",
+   sub:"Efficiency and made to measure — don't miss tonight's programme",
+   art:"topic",tag:"AI & BANKING",val:"TONIGHT 20:45",kicker:"PROGRAMME"},
   {head:"ATOS +40% after the stock split",
-   sub:"Volumes at four times the daily average",
+   sub:"The share soars on the split announcement",
    tag:"ATOS",val:"+40%"},
   {head:"NdaBank fined over anti-money-laundering failures",
    sub:"“We will reinforce the internal compliance department” "+
        "— Tonio Salfari, CEO",
-   tag:"NDABANK",val:"–6.2%",down:true,stamp:"€ 34 M FINE"}
+   art:"ceo",tag:"NDABANK",val:"PENALTY",down:true}
 ];
+const TV_SEG=8;                                  /* seconds a story holds */
+const TV_LOOP=TV_STORIES.length*TV_SEG;
 const TV={tex:null,ctx:null,acc:0};
-function drawTV(t){
-  const x=TV.ctx,w=512,h=288,SH=208;          /* SH: where the studio ends */
-  const st=TV_STORIES[((t/8)|0)%TV_STORIES.length];
+/* ---- the illustrations. A channel does not put a graph on everything:
+   two of the six stories carry a picture instead, and one carries a
+   keyword card. All painted in the same 236x138 panel the graph uses. ---- */
+function tvClip(x,px,py,pw,ph){x.save();x.beginPath();x.rect(px,py,pw,ph);x.clip();}
+function tvChart(x,px,py,pw,ph,st,t){
   const down=!!st.down;
   const line=down?"#e2707a":"#5fd39a";
   const fill=down?"rgba(212,92,102,.30)":"rgba(90,190,140,.30)";
-  /* --- studio --- */
-  const bg=x.createLinearGradient(0,0,0,SH);
-  bg.addColorStop(0,"#0b1524");bg.addColorStop(1,"#17293d");
-  x.fillStyle=bg;x.fillRect(0,0,w,SH);
-  /* the panel on the wall behind him. It is the same graph every time —
-     only the direction changes, and on one story out of four it is the
-     wrong one. */
-  x.fillStyle="rgba(8,16,26,.72)";x.fillRect(250,22,236,138);
+  x.fillStyle="rgba(8,16,26,.72)";x.fillRect(px,py,pw,ph);
   x.strokeStyle="rgba(120,170,220,.18)";x.lineWidth=1;
   for(let i=1;i<4;i++){
-    x.beginPath();x.moveTo(250,22+i*33);x.lineTo(486,22+i*33);x.stroke();
+    x.beginPath();x.moveTo(px,py+i*33);x.lineTo(px+pw,py+i*33);x.stroke();
   }
   x.fillStyle=fill;
   for(let i=0;i<11;i++){
     const k=down?10-i:i;
     const bh=14+k*7+Math.sin(i*1.7+t*.35)*6;
-    x.fillRect(260+i*20,152-bh,13,bh);
+    x.fillRect(px+10+i*20,py+130-bh,13,bh);
   }
   x.strokeStyle=line;x.lineWidth=2.4;x.beginPath();
   for(let i=0;i<11;i++){
     const k=down?10-i:i;
-    const py=138-k*8.4+Math.sin(i*1.7+t*.35)*6;
-    x[i?"lineTo":"moveTo"](266+i*20,py);
+    const py2=py+116-k*8.4+Math.sin(i*1.7+t*.35)*6;
+    x[i?"lineTo":"moveTo"](px+16+i*20,py2);
   }
   x.stroke();
   x.fillStyle=line;x.font='700 13px "Space Grotesk", sans-serif';
-  x.textAlign="left";x.fillText(st.tag,258,40);
-  x.textAlign="right";x.fillText(st.val,478,40);
-  /* the penalty, stamped across the graph the way a channel does it */
-  if(st.stamp){
-    x.save();x.translate(368,112);x.rotate(-.11);
-    x.strokeStyle="#e2707a";x.lineWidth=2.6;x.strokeRect(-76,-18,152,36);
-    x.fillStyle="rgba(178,40,50,.22)";x.fillRect(-76,-18,152,36);
-    x.fillStyle="#f0919a";x.font='700 20px "Space Grotesk", sans-serif';
-    x.textAlign="center";x.textBaseline="middle";x.fillText(st.stamp,0,1);
-    x.restore();x.textBaseline="alphabetic";
+  x.textAlign="left";x.fillText(st.tag,px+8,py+18);
+  x.textAlign="right";x.fillText(st.val,px+pw-8,py+18);
+}
+/* The European ring of stars with the file name in the middle — the card
+   every newsroom cuts for a piece of EU regulation. Twelve stars, the
+   canonical 2/3 radius, the flag's own blue and gold. */
+function tvEu(x,px,py,pw,ph,label){
+  x.fillStyle="#003399";x.fillRect(px,py,pw,ph);
+  const cx=px+pw/2,cy=py+ph/2,R=ph*.34,s=ph*.075;
+  x.fillStyle="#ffcc00";
+  for(let i=0;i<12;i++){
+    const a=-Math.PI/2+i*Math.PI/6;
+    x.save();x.translate(cx+Math.cos(a)*R,cy+Math.sin(a)*R);
+    x.beginPath();
+    for(let k=0;k<10;k++){
+      const r=k%2?s*.42:s,ka=-Math.PI/2+k*Math.PI/5;
+      x[k?"lineTo":"moveTo"](Math.cos(ka)*r,Math.sin(ka)*r);
+    }
+    x.closePath();x.fill();x.restore();
   }
+  x.fillStyle="#fff";x.font='700 34px "Space Grotesk", sans-serif';
+  x.textAlign="center";x.textBaseline="middle";
+  x.fillText(label,cx,cy+1);
+  x.textBaseline="alphabetic";x.textAlign="left";
+}
+/* A chief executive at a lectern, mid-sentence. It is the picture every
+   channel runs over a fine: the man saying it will not happen again. */
+function tvCeo(x,px,py,pw,ph,t){
+  x.fillStyle="#0d1626";x.fillRect(px,py,pw,ph);
+  const cx=px+pw/2,base=py+ph;
+  /* step-and-repeat backdrop, the way these rooms are always dressed */
+  x.fillStyle="rgba(120,150,190,.13)";
+  x.font='700 9px "Space Grotesk", sans-serif';x.textAlign="center";
+  for(let i=0;i<5;i++)for(let j=0;j<3;j++)x.fillText("NDABANK",px+26+i*48,py+24+j*34);
+  x.textAlign="left";
+  /* him: suit, shirt, tie, head — and one hand up, because he is talking */
+  x.fillStyle="#e0b48a";                                   /* raised hand */
+  x.beginPath();x.arc(cx+44,py+62,7,0,7);x.fill();
+  x.strokeStyle="#243654";x.lineWidth=11;x.lineCap="round";
+  x.beginPath();x.moveTo(cx+16,py+84);x.lineTo(cx+42,py+64);x.stroke();
+  x.fillStyle="#243654";
+  x.beginPath();
+  x.moveTo(cx-42,base-6);x.quadraticCurveTo(cx-32,py+62,cx-12,py+56);
+  x.lineTo(cx+12,py+56);x.quadraticCurveTo(cx+32,py+62,cx+42,base-6);
+  x.closePath();x.fill();
+  x.fillStyle="#eef2f6";
+  x.beginPath();x.moveTo(cx-11,py+57);x.lineTo(cx,base-6);x.lineTo(cx+11,py+57);
+  x.closePath();x.fill();
+  x.fillStyle="#b0202a";
+  x.beginPath();x.moveTo(cx-4,py+61);x.lineTo(cx+4,py+61);
+  x.lineTo(cx+3,py+96);x.lineTo(cx-3,py+96);x.closePath();x.fill();
+  x.fillStyle="#e0b48a";x.fillRect(cx-7,py+46,14,12);
+  x.beginPath();x.arc(cx,py+38,20,0,7);x.fill();
+  x.fillStyle="#241c16";
+  x.beginPath();x.arc(cx,py+34,20,Math.PI*1.03,Math.PI*1.97);x.fill();
+  x.fillStyle="#1b1b22";
+  x.beginPath();x.arc(cx-7,py+37,2,0,7);x.arc(cx+7,py+37,2,0,7);x.fill();
+  x.fillStyle="#8a3f3a";                                   /* mid-sentence */
+  x.beginPath();x.ellipse(cx,py+47,5,1.4+Math.abs(Math.sin(t*5.7))*3,0,0,7);x.fill();
+  /* the lectern, and the microphone he is leaning into */
+  x.strokeStyle="#7d848e";x.lineWidth=2;
+  x.beginPath();x.moveTo(cx-6,base-34);x.lineTo(cx-16,py+52);x.stroke();
+  x.fillStyle="#7d848e";x.beginPath();x.arc(cx-17,py+50,3.4,0,7);x.fill();
+  x.fillStyle="#16223a";
+  x.beginPath();x.moveTo(cx-38,base);x.lineTo(cx+38,base);
+  x.lineTo(cx+28,base-36);x.lineTo(cx-28,base-36);x.closePath();x.fill();
+  x.fillStyle="rgba(238,242,246,.85)";
+  x.font='700 11px "Space Grotesk", sans-serif';x.textAlign="center";
+  x.fillText("NDABANK",cx,base-14);x.textAlign="left";
+}
+/* A keyword card, for the stories that are billboards rather than news */
+function tvTopic(x,px,py,pw,ph,st){
+  const g=x.createLinearGradient(px,py,px+pw,py+ph);
+  g.addColorStop(0,"#123a5e");g.addColorStop(1,"#0b1e33");
+  x.fillStyle=g;x.fillRect(px,py,pw,ph);
+  x.strokeStyle="rgba(240,182,74,.55)";x.lineWidth=2;
+  x.strokeRect(px+8,py+8,pw-16,ph-16);
+  x.textAlign="center";
+  x.fillStyle="#f0b64a";x.font='600 11px "Space Grotesk", sans-serif';
+  x.fillText(st.kicker||"",px+pw/2,py+36);
+  x.fillStyle="#eef2f6";
+  let fs=27;x.font='700 '+fs+'px "Space Grotesk", sans-serif';
+  while(fs>13&&x.measureText(st.tag).width>pw-38){
+    fs-=1;x.font='700 '+fs+'px "Space Grotesk", sans-serif';
+  }
+  x.fillText(st.tag,px+pw/2,py+ph/2+8);
+  x.fillStyle="#f0b64a";x.fillRect(px+pw/2-34,py+ph/2+22,68,3);
+  x.font='700 14px "Space Grotesk", sans-serif';
+  x.fillText(st.val,px+pw/2,py+ph-24);
+  x.textAlign="left";
+}
+function drawTV(t){
+  const x=TV.ctx,w=512,h=288,SH=208;          /* SH: where the studio ends */
+  const st=TV_STORIES[((t/TV_SEG)|0)%TV_STORIES.length];
+  const down=!!st.down;
+  /* --- studio --- */
+  const bg=x.createLinearGradient(0,0,0,SH);
+  bg.addColorStop(0,"#0b1524");bg.addColorStop(1,"#17293d");
+  x.fillStyle=bg;x.fillRect(0,0,w,SH);
+  /* --- the panel behind him: graph, picture or keyword card --- */
+  const px=250,py=22,pw=236,ph=138;
+  tvClip(x,px,py,pw,ph);
+  if(st.art==="eu")       tvEu(x,px,py,pw,ph,st.tag);
+  else if(st.art==="ceo") tvCeo(x,px,py,pw,ph,t);
+  else if(st.art==="topic")tvTopic(x,px,py,pw,ph,st);
+  else                    tvChart(x,px,py,pw,ph,st,t);
+  x.restore();
   /* --- the presenter --- */
   const bob=Math.sin(t*1.3)*1.6, cx=132, hy=104+bob;
   x.fillStyle="#101c2c";x.fillRect(0,176,w,SH-176);      /* the desk */
@@ -2369,26 +2528,44 @@ function drawTV(t){
   const jaw=1.6+Math.abs(Math.sin(t*6.1))*5.2*(Math.sin(t*.7)>-.55?1:.15);
   x.fillStyle="#8a3f3a";
   x.beginPath();x.ellipse(cx,hy+13,6.5,jaw,0,0,7);x.fill();
-  /* LIVE, and the channel bug */
-  x.fillStyle="#d8242e";x.beginPath();x.arc(26,28,6,0,7);x.fill();
-  x.fillStyle="#eef2f6";x.font='700 15px "Space Grotesk", sans-serif';
-  x.textAlign="left";x.fillText("LIVE",38,33);
-  x.fillStyle="rgba(238,242,246,.5)";x.font='600 12px "Space Grotesk", sans-serif';
-  x.fillText("VC BUSINESS",22,50);
+  /* --- the channel: HENRY TV, bug top left --- */
+  const bx=18,by=14,bs=34,br=9;
+  const lg=x.createLinearGradient(bx,by,bx+bs,by+bs);
+  lg.addColorStop(0,"#e0343f");lg.addColorStop(1,"#8d1a22");
+  x.fillStyle=lg;
+  x.beginPath();
+  x.moveTo(bx+br,by);x.arcTo(bx+bs,by,bx+bs,by+bs,br);
+  x.arcTo(bx+bs,by+bs,bx,by+bs,br);x.arcTo(bx,by+bs,bx,by,br);
+  x.arcTo(bx,by,bx+bs,by,br);x.closePath();x.fill();
+  x.fillStyle="#fff";x.font='700 23px "Space Grotesk", sans-serif';
+  x.textAlign="center";x.textBaseline="middle";
+  x.fillText("H",bx+bs/2,by+bs/2+1);
+  x.textBaseline="alphabetic";x.textAlign="left";
+  x.font='700 17px "Space Grotesk", sans-serif';
+  x.fillStyle="#eef2f6";x.fillText("HENRY",60,30);
+  const hw=x.measureText("HENRY").width;
+  x.fillStyle="#f0b64a";x.fillText("TV",60+hw+7,30);
+  x.fillStyle="#d8242e";x.beginPath();x.arc(65,44,4.5,0,7);x.fill();
+  x.fillStyle="rgba(238,242,246,.72)";
+  x.font='700 11px "Space Grotesk", sans-serif';
+  x.fillText("LIVE",75,48);
   /* --- lower third: headline over a strap --- */
   x.fillStyle=down?"#8d1a22":"#b0202a";x.fillRect(0,SH,w,26);
-  x.fillStyle="#f4f0e6";x.font='700 15px "Space Grotesk", sans-serif';
-  x.textAlign="left";x.fillText(st.head,14,SH+18);
+  x.fillStyle="#f4f0e6";
+  let hs=15;x.font='700 '+hs+'px "Space Grotesk", sans-serif';
+  while(hs>10&&x.measureText(st.head).width>w-28){
+    hs-=.5;x.font='700 '+hs+'px "Space Grotesk", sans-serif';
+  }
+  x.fillText(st.head,14,SH+18);
   x.fillStyle="#0e1a27";x.fillRect(0,SH+26,w,18);
   x.fillStyle="rgba(222,232,242,.86)";
   /* the quote is the longest line the strap ever carries — squeeze the
      type rather than let a CEO run off the end of his own screen */
-  let sub=st.sub,fs=12;
-  x.font='italic 500 12px "Space Grotesk", sans-serif';
-  while(fs>9&&x.measureText(sub).width>w-28){
+  let fs=12;x.font='italic 500 12px "Space Grotesk", sans-serif';
+  while(fs>9&&x.measureText(st.sub).width>w-28){
     fs-=.5;x.font='italic 500 '+fs+'px "Space Grotesk", sans-serif';
   }
-  x.fillText(sub,14,SH+39);
+  x.fillText(st.sub,14,SH+39);
   /* --- ticker --- */
   x.fillStyle="#080d14";x.fillRect(0,SH+44,w,h-SH-44);
   x.font='600 18px "Space Grotesk", sans-serif';
@@ -2398,18 +2575,18 @@ function drawTV(t){
   }
   const off=(t*46)%total;
   x.textAlign="left";
-  for(let pass=0;pass<2;pass++){
-    let px=w-off+pass*total;
+  for(let pass=0;pass<3;pass++){
+    let ppx=w-off+pass*total;
     for(let i=0;i<TV_TICKER.length;i++){
-      if(px>-wid[i]&&px<w){
+      if(ppx>-wid[i]&&ppx<w){
         const s=TV_TICKER[i];
         x.fillStyle=s.indexOf("-")>0?"#e2707a":
                     s.indexOf("+")>0?"#6fd8a4":"#d8dee6";
-        x.fillText(s,px,SH+70);
+        x.fillText(s,ppx,SH+70);
         x.fillStyle="rgba(216,222,230,.28)";
-        x.fillText("•",px+wid[i]-32,SH+70);
+        x.fillText("•",ppx+wid[i]-32,SH+70);
       }
-      px+=wid[i];
+      ppx+=wid[i];
     }
   }
   /* scanline sheen, so it reads as a screen and not as a poster */
@@ -2424,8 +2601,12 @@ function drawTV(t){
   TV.tex=tex;
   drawTV(0);
   VC.fontsReady.then(function(){drawTV(0);tex.needsUpdate=true;});
+  /* polygonOffset + a 7 mm standoff: the picture and the bezel's front
+     face were 1 mm apart, which z-fights at room distance — the frame
+     wins over patches of the picture and the image reads as cropped */
   const bezelMat=new THREE.MeshStandardMaterial({color:0x14161a,roughness:.45,
-    metalness:.35,envMapIntensity:.9});
+    metalness:.35,envMapIntensity:.9,
+    polygonOffset:true,polygonOffsetFactor:2,polygonOffsetUnits:2});
   const armMat=new THREE.MeshStandardMaterial({color:0x1a1c20,roughness:.65});
   const screenMat=new THREE.MeshBasicMaterial({map:tex});
   /* Two sets, one feed — which is what a café with two screens does.
@@ -2441,14 +2622,14 @@ function drawTV(t){
     const g=new THREE.Group();
     const bezel=new THREE.Mesh(new THREE.BoxGeometry(d.w,d.h,.05),bezelMat);
     bezel.castShadow=true;g.add(bezel);
-    /* 16:9 inside the bezel, with a 3.5 cm frame all round */
+    /* 16:9 inside the bezel, with a 4 cm frame all round */
     const sw=d.w-.085,sh=sw*9/16;
     const screen=new THREE.Mesh(new THREE.PlaneGeometry(sw,sh),screenMat);
-    screen.position.z=.026;g.add(screen);
+    screen.position.z=.032;g.add(screen);
     /* the painter draws into whatever context it is given: hand it the
        overlay's and it broadcasts there instead, at twice the resolution */
-    addReadable(screen,"VC Business — live",512,288,function(g){
-      const keep=TV.ctx;TV.ctx=g;drawTV(clock.elapsedTime);TV.ctx=keep;
+    addReadable(screen,"HENRY TV — live",512,288,function(gg){
+      const keep=TV.ctx;TV.ctx=gg;drawTV(clock.elapsedTime);TV.ctx=keep;
     },true);
     const arm=new THREE.Mesh(new THREE.BoxGeometry(.18,.18,.08),armMat);
     arm.position.z=-.06;g.add(arm);
@@ -5045,11 +5226,78 @@ const _floor=new THREE.Plane(new THREE.Vector3(0,1,0),0),_tapHit=new THREE.Vecto
    painter is re-run at 2x into the overlay canvas rather than the wall
    texture being blown up: at 512 px wide the ticker is a smear, and
    reading the ticker is the only reason anyone clicks a television. */
-const _rdRay=new THREE.Raycaster(),_rdPt=new THREE.Vector2();
+const _rdRay=new THREE.Raycaster(),_rdPt=new THREE.Vector2(),_rdV=new THREE.Vector3();
 const zoomEl=document.getElementById("zoom");
 const zoomC=document.getElementById("zoomC");
 const zoomCap=document.getElementById("zoomTitle");
-let zoomItem=null;
+const zoomLoad=document.getElementById("zoomLoad");
+const zoomLoadBar=document.getElementById("zoomLoadBar");
+const zoomPlayer=document.getElementById("zoomPlayer");
+const zoomTrack=document.getElementById("zoomTrack");
+const zoomFill=document.getElementById("zoomFill");
+const zoomNow=document.getElementById("zoomNow");
+const zoomSeg=document.getElementById("zoomSeg");
+const zoomEnd=document.getElementById("zoomEnd");
+const readHint=document.getElementById("readHint");
+const ZOOM_BUFFER=1.15;               /* seconds of "connecting to the live" */
+let zoomItem=null,zoomT0=0,hintItem=null,hintT=0;
+/* chapter marks on the scrub bar, one per story */
+zoomTrack.style.backgroundImage=
+  "repeating-linear-gradient(90deg,transparent 0,"+
+  "transparent calc(100%/"+TV_STORIES.length+" - 2px),"+
+  "rgba(9,13,18,.9) calc(100%/"+TV_STORIES.length+" - 2px),"+
+  "rgba(9,13,18,.9) calc(100%/"+TV_STORIES.length+"))";
+function mmss(s){
+  s=Math.max(0,Math.floor(s));
+  return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
+}
+/* The "video" is the running order itself: six stories of eight seconds,
+   looping. So the scrub bar is honest — it really is where you are. */
+function updateZoomChrome(){
+  if(!zoomItem||!zoomItem.live)return;
+  const el=clock.elapsedTime,k=Math.min(1,(el-zoomT0)/ZOOM_BUFFER);
+  if(k<1){zoomLoadBar.style.width=(k*100).toFixed(1)+"%";return;}
+  if(!zoomLoad.hidden){zoomLoad.hidden=true;zoomPlayer.hidden=false;}
+  const pos=el%TV_LOOP,i=(pos/TV_SEG)|0;
+  zoomFill.style.width=(pos/TV_LOOP*100).toFixed(2)+"%";
+  zoomNow.textContent=mmss(pos);
+  zoomEnd.textContent=mmss(TV_LOOP);
+  zoomSeg.textContent="Story "+(i+1)+"/"+TV_STORIES.length+" — "+TV_STORIES[i].head;
+}
+/* Walk up to a screen or the plaque and it tells you it opens. A picture
+   on a wall gives no sign of being clickable, and the whole point of
+   opening it is the small type nobody can read from the floor. */
+function updateReadHint(dt){
+  hintT-=dt;
+  if(hintT>0)return;
+  hintT=.1;
+  if(zoomItem||guest.state==="off"||!READABLES.length){
+    readHint.classList.remove("on");hintItem=null;return;
+  }
+  let best=null,bd=1e9;
+  for(let i=0;i<READABLES.length;i++){
+    READABLES[i].mesh.getWorldPosition(_rdV);
+    const d=Math.hypot(_rdV.x-guest.pos.x,_rdV.z-guest.pos.z);
+    if(d<bd){bd=d;best=READABLES[i];}
+  }
+  if(!best||bd>3.4){readHint.classList.remove("on");hintItem=null;return;}
+  best.mesh.getWorldPosition(_rdV);
+  const gh=best.mesh.geometry.parameters;
+  _rdV.y+=(gh&&gh.height?gh.height:.4)*.5+.12;      /* ride above the frame */
+  _rdV.project(camera);
+  if(_rdV.z>1||Math.abs(_rdV.x)>.9||Math.abs(_rdV.y)>.9){
+    readHint.classList.remove("on");return;
+  }
+  const r=renderer.domElement.getBoundingClientRect();
+  readHint.style.left=(r.left+(_rdV.x*.5+.5)*r.width)+"px";
+  readHint.style.top=(r.top+(-_rdV.y*.5+.5)*r.height)+"px";
+  if(best!==hintItem){
+    hintItem=best;
+    readHint.innerHTML=(TOUCH?"<b>Tap</b>":"<b>Click</b>")+
+      " to open — "+best.title;
+  }
+  readHint.classList.add("on");
+}
 function pickReadable(cx,cy){
   /* NOT gated on `entered` the way pick() is: the résumé only exists once
      you are in the chair, but the wall is the whole reason to walk the
@@ -5074,13 +5322,25 @@ function openZoom(it){
   zoomItem=it;
   zoomCap.textContent=it.title;
   paintZoom();
+  /* a live feed does not appear instantly, and the wait is where the
+     player says what you are about to watch and how far in it is */
+  if(it.live){
+    zoomT0=clock.elapsedTime;
+    zoomLoad.hidden=false;zoomPlayer.hidden=true;
+    zoomLoadBar.style.width="0%";
+    updateZoomChrome();
+  }else{
+    zoomLoad.hidden=true;zoomPlayer.hidden=true;
+  }
   zoomEl.hidden=false;
+  readHint.classList.remove("on");
   document.body.style.cursor="default";
   document.getElementById("zoomBack").focus();
 }
 function closeZoom(){
   if(!zoomItem)return;
   zoomItem=null;zoomEl.hidden=true;
+  zoomLoad.hidden=true;zoomPlayer.hidden=true;
 }
 document.getElementById("zoomBack").addEventListener("click",closeZoom);
 /* the backdrop closes too, but not the picture itself */
@@ -5256,7 +5516,8 @@ function animate(){
     updateSkyTraffic(dt);
     updateDoor(dt);
     updateTV(dt);
-    if(zoomItem&&zoomItem.live)paintZoom();   /* it keeps broadcasting */
+    updateReadHint(dt);
+    if(zoomItem&&zoomItem.live){paintZoom();updateZoomChrome();}
     if(!RM)fan.rotation.y+=dt*1.6;
   }
 

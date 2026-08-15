@@ -114,12 +114,18 @@ moves the plant off the one run of wall a toilet door fits on, and clones the
 van one parking bay over for a second firm — BravoReno the electrician, whose
 livery the scene paints (`drawBravo()`).
 
-**Two televisions, one feed**, on a business channel with the sound off: four
-stories on an eight-second loop, a presenter whose mouth moves, and a ticker
-that never stops. Both are **clickable**, and so is the plaque: `openZoom()`
-re-runs the painter at 2× into a full-screen canvas rather than blowing up the
-wall texture, so the ticker is actually legible — and the television carries on
-broadcasting while you read it. One big arrow sends it back.
+**Two televisions, one feed** — HENRY TV, sound off: six stories on an
+eight-second loop (a 48-second "video", which is what the player's scrub bar
+actually measures), a presenter whose mouth moves, and a ticker carrying only
+real quotes. Three stories run a graph; three run a picture instead — the EU
+ring of stars for the AMLR file, a keyword card for tonight's programme, and a
+chief executive at a lectern for the fine.
+
+Walk up to a screen or the plaque and a bubble says it opens; click and
+`openZoom()` re-runs the painter at 2× into a full-screen canvas rather than
+blowing up the wall texture, so the ticker is legible — a second of "connecting
+to the live", then the picture, a progress bar and the current story. One big
+arrow sends it back.
 
 `person.obj` is currently **retired** (`USE_PERSON_MESH=false` in the scene):
 the segmented base-mesh bodies read as ragged mannequins next to the capsule
