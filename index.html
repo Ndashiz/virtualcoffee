@@ -758,8 +758,8 @@ const DATA={
   sign:["Virtual Coffee","discussion with Simon"],
   /* the beat between sitting down and the first section: the sheet is up,
      near full-screen, and nothing else may compete with it */
-  promptRead:"Read it — then click anywhere to put it back on the table",
-  promptReadTouch:"Read it — then tap anywhere to put it back on the table",
+  promptRead:"Read along — the sheet goes back down when I'm done",
+  promptReadTouch:"Read along — the sheet goes back down when I'm done",
   prompt:"Pick a section — I'll fill in the gaps\u00A0☕",
   promptTouch:"Pick a section — I'll fill in the gaps\u00A0☕",
   labels:{intro:"ABOUT ME",experience:"WORK EXPERIENCE",education:"EDUCATION",
@@ -2778,8 +2778,14 @@ function drawTV(t){
      4.3 cm above and below the small set and 3.9 cm on the big one, which
      at room distance is not a frame, it is a rounding error. */
   const FRAME=.06;
+  /* The big one is 1.70 m at x=5.85, not 2.06 m at 5.68: at that width
+     and that spot its left third sat BEHIND the drinks fridge. The
+     picture stands 7 mm proud of the frame, so it cleared the fridge a
+     few centimetres before the frame did — and a picture that pokes out
+     from behind an obstacle with no frame around it reads, exactly, as
+     an image spilling out of the television. */
   [{w:1.30,pos:[-1.24,2.46,-4.7],rot:[.06,.13,0],glow:.32},
-   {w:2.06,pos:[5.68,1.56,-4.7],rot:[0,-.10,0],glow:.5}]
+   {w:1.70,pos:[5.85,1.56,-4.7],rot:[0,-.10,0],glow:.5}]
   .forEach(function(d){
     const g=new THREE.Group();
     const sw=d.w-FRAME*2,sh=sw*9/16;           /* 16:9, always */
@@ -4755,10 +4761,11 @@ addEventListener("pointermove",e=>{
     document.body.style.cursor="pointer";
 });
 addEventListener("pointerdown",e=>{
-  /* The reading beat owns every click: the sheet is up across the whole
-     frame, so there is nothing else on screen to mean. Putting it down
-     is what starts the conversation. */
-  if(reading){endReading();return;}
+  /* The reading beat swallows every click: the sheet is up across the
+     whole frame, so there is nothing else on screen to mean — and it
+     stays up until he has finished the line he is reading over it. The
+     skip pill is the way out, and it is the only one. */
+  if(reading)return;
   const k=pick(e);
   /* Seated, the camera is parked and tap-to-walk is off, so walkOrder
      never sees this click — but the television is right over Simon's
@@ -4993,7 +5000,10 @@ function flashTalk(){
 }
 if(skipBtn){
   skipBtn.hidden=false;
-  skipBtn.addEventListener("click",()=>{abortChain();stopSpeaking();});
+  skipBtn.addEventListener("click",()=>{
+    abortChain();stopSpeaking();
+    if(reading)endReading();       /* or the sheet hangs there for ever */
+  });
 }
 /* The résumé you can keep. The sheet on the table is a real 1240×1754
    render of the CV, so the download is that canvas — nothing to keep in
@@ -5281,12 +5291,13 @@ function startEntrance(){
   speak(SPEECH.welcome,"welcome");
 }
 /* ---------------- SITTING DOWN ----------------
-   Two beats before the conversation starts, in this order:
-     1. the sheet comes up near full-screen and you read it in silence;
-     2. you put it down — and only then does he pick the story up.
-   Reading first is the whole point of the seated line ("a résumé only
-   tells you what I did"): it has to answer something you have already
-   read, or it is answering nothing. */
+   You sit, the sheet comes up near full-screen, and he starts talking
+   over it straight away — the seated line IS the caption to what you are
+   reading ("a résumé only tells you what I did, not how, or why"). The
+   sheet goes back down on its own when he finishes it, and only then
+   does the dialogue box open. Clicking does NOT cut it short — the sheet
+   is up for exactly as long as he is talking about it. The skip pill is
+   the way out, for someone who has read it in five seconds. */
 var reading=false;
 function arriveAtTable(){
   if(entered)return;
@@ -5295,6 +5306,7 @@ function arriveAtTable(){
   reading=true;
   promptEl.style.display="";
   promptEl.textContent=TOUCH?DATA[lang].promptReadTouch:DATA[lang].promptRead;
+  playChain(["seated"],endReading);
 }
 function endReading(){
   if(!reading)return;
@@ -5303,12 +5315,8 @@ function endReading(){
      time — left as is, the hover lift would catch it on the way down */
   paperHover=false;paperLifted=false;
   promptEl.style.display="none";
-  /* the sheet needs a moment to land before he talks over it */
-  setTimeout(()=>{
-    if(cafeClosed)return;
-    openTalk();
-    playChain(["seated"]);
-  },RM?60:620);
+  /* let the sheet land before the menu appears under it */
+  setTimeout(()=>{if(!cafeClosed)openTalk();},RM?60:620);
 }
 document.getElementById("enterBtn").addEventListener("click",()=>{
   if(cafeClosed){VC.openCV();return;}   /* closed: the button is the way to the CV, not a seat */

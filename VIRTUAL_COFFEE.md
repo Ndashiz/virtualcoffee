@@ -44,12 +44,12 @@ déplacement relatif à l'écran), **caméra à la troisième personne** dans so
 dos. La chaise libre porte une **balise** : anneau au sol, flèche qui flotte
 au-dessus, colonne de lumière visible d'un bout à l'autre de la salle — et si
 vous lui tournez le dos, un curseur en bord d'écran pointe vers elle. Entrez
-dans l'anneau et **l'entretien démarre** — en deux temps, jamais l'inverse :
-la feuille monte d'abord en quasi plein écran et vous la lisez en silence ;
-vous la reposez, et seulement là il enchaîne (`seated`) et la **boîte de
-dialogue** s'ouvre. Lire d'abord est tout l'intérêt de sa réplique — *« a
-résumé only tells you what I did »* — : elle doit répondre à quelque chose que
-vous avez déjà lu. L'anneau dessiné au sol a exactement le rayon du
+dans l'anneau et **l'entretien démarre** : la feuille monte en quasi plein
+écran et il parle par-dessus tout de suite (`seated`) — sa réplique est la
+légende de ce que vous êtes en train de lire, *« a résumé only tells you what I
+did, not how, or why »*. La feuille redescend toute seule quand il a fini, et
+c'est là que la **boîte de dialogue** s'ouvre. Un clic ne l'écourte pas ; la
+pastille Skip, oui. L'anneau dessiné au sol a exactement le rayon du
 déclencheur (`SEAT_TRIGGER`) — ce que vous voyez est ce dans quoi il faut
 entrer. Collisions : tables, comptoir, bar de fenêtre — et Simon. Sous `prefers-reduced-motion`, pas de marche : déjà assis, accueil
 immédiat.
@@ -92,7 +92,7 @@ en muet il parle toujours, sous-titres compris, on ne l'entend simplement pas.
 | Glisser à la souris · molette · `Maj` | Tourner la caméra · reculer · sprinter |
 | Pastille 🔊 ou touche `M` | Coupe / rétablit la voix (mémorisé) |
 | Touche `0` (l'outro) | …et le café ferme : le serveur vient vous le dire, la salle se vide |
-| Cliquer n'importe où (feuille en plein écran) | Vous l'avez lue : elle retourne sur la table et la conversation commence |
+| Feuille en plein écran | Il la commente ; elle redescend quand il a fini, et la boîte s'ouvre |
 | Survoler le CV sur la table | La feuille se soulève, la mise au point se tire dessus (rack focus) |
 | Une section de la boîte (ou touches `1`–`5`) | Simon la raconte, sous-titres à l'écran, letterbox cinéma ; entendue en entier, elle garde un point vert |
 | Une section déjà entendue | *« Ah, you weren't listening »* (`reclick`), puis il la rejoue en entier |

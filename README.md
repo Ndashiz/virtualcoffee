@@ -11,8 +11,9 @@ welcome tells you to look for. Simon greets you the moment you step in and
 tells you to have a wander first; the conversation itself waits until you are
 actually in the chair.
 
-Sitting down raises the CV to near full-screen and you read it in silence. Put
-it back on the table and the **dialogue box** opens down the left: five
+Sitting down raises the CV to near full-screen and he starts talking over it
+straight away — the line is the caption to what you are reading. It goes back
+down on its own when he finishes, and the **dialogue box** opens down the left: five
 sections — work experience, education, skills, certifications, languages —
 each of which Simon talks you through out loud while he looks you in the eye —
 his words, read by a voice model (see "Voice"). A section you have heard right through keeps a green
