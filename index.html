@@ -2753,8 +2753,14 @@ function drawTV(t){
   /* polygonOffset + a 7 mm standoff: the picture and the bezel's front
      face were 1 mm apart, which z-fights at room distance — the frame
      wins over patches of the picture and the image reads as cropped */
-  const bezelMat=new THREE.MeshStandardMaterial({color:0x14161a,roughness:.45,
-    metalness:.35,envMapIntensity:.9,
+  /* Graphite, not black. The old 0x14161a frame was darker than the
+     studio behind the presenter, so on a dark wall the set had no visible
+     edge at all: the eye read the dark top two thirds of the picture as
+     "the television" and the red strap and the ticker under it as
+     something painted on the wall. A frame only does its job if it can be
+     told apart from BOTH the picture and the wall. */
+  const bezelMat=new THREE.MeshStandardMaterial({color:0x343a42,roughness:.38,
+    metalness:.45,envMapIntensity:1.1,
     polygonOffset:true,polygonOffsetFactor:2,polygonOffsetUnits:2});
   const armMat=new THREE.MeshStandardMaterial({color:0x1a1c20,roughness:.65});
   const screenMat=new THREE.MeshBasicMaterial({map:tex});
@@ -2765,14 +2771,18 @@ function drawTV(t){
      · the big one on the bare green stretch right of the fridge, under
        the jar shelf (bottom of the shelf: y=2.25). Nothing else has ever
        hung there and the room reads empty on that side. */
-  [{w:1.30,h:.77,pos:[-1.24,2.46,-4.7],rot:[.06,.13,0],glow:.32},
-   {w:2.06,h:1.19,pos:[5.68,1.56,-4.7],rot:[0,-.10,0],glow:.5}]
+  /* The frame is 6 cm all round and the bezel is SIZED FROM THE PICTURE,
+     not the other way round: the old pair of hand-set outer sizes left
+     4.3 cm above and below the small set and 3.9 cm on the big one, which
+     at room distance is not a frame, it is a rounding error. */
+  const FRAME=.06;
+  [{w:1.30,pos:[-1.24,2.46,-4.7],rot:[.06,.13,0],glow:.32},
+   {w:2.06,pos:[5.68,1.56,-4.7],rot:[0,-.10,0],glow:.5}]
   .forEach(function(d){
     const g=new THREE.Group();
-    const bezel=new THREE.Mesh(new THREE.BoxGeometry(d.w,d.h,.05),bezelMat);
+    const sw=d.w-FRAME*2,sh=sw*9/16;           /* 16:9, always */
+    const bezel=new THREE.Mesh(new THREE.BoxGeometry(d.w,sh+FRAME*2,.05),bezelMat);
     bezel.castShadow=true;g.add(bezel);
-    /* 16:9 inside the bezel, with a 4 cm frame all round */
-    const sw=d.w-.085,sh=sw*9/16;
     const screen=new THREE.Mesh(new THREE.PlaneGeometry(sw,sh),screenMat);
     screen.position.z=.032;g.add(screen);
     /* the painter draws into whatever context it is given: hand it the
