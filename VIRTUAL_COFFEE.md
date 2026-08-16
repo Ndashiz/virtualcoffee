@@ -3,7 +3,7 @@
 > **Un CV qu'on ne lit pas : on s'assied en face.**
 > Café 3D interactif servi sur <https://ndashiz.be/virtualcoffee/> — on est assis
 > à la table de Simon Goffin, on lit son CV, on le repose — et il raconte,
-> section par section, avec sa vraie voix enregistrée. Les cinq sections du CV
+> section par section, à voix haute. Les cinq sections du CV
 > entendues, un second palier s'ouvre : la personne derrière le CV.
 
 ---
@@ -15,15 +15,16 @@ Une page de CV classique dit « voilà ce que j'ai fait ». Virtual Coffee dit
 
 - **Le support** : au lieu d'un PDF, un lieu. Un petit café en 3D, chaleureux,
   vivant, dans lequel le visiteur est physiquement assis face au candidat.
-- **La voix** : au lieu de puces à lire, des sections **parlées** — enregistrées
-  par Simon lui-même, plus longues et plus personnelles que le texte du CV.
+- **La voix** : au lieu de puces à lire, des sections **parlées** — écrites par
+  Simon, plus longues et plus personnelles que le texte du CV.
 
 Le site est aussi sa propre démonstration : Simon est Product Manager et
 revendique de construire avec l'IA — le café est l'exhibit A, et il en parle
 lui-même dans « How I built this », au second palier.
 
-**Anglais uniquement** (le mode FR a été retiré : seule la voix anglaise est
-enregistrée, et une voix de synthèse cassait la promesse « ma vraie voix »).
+**Anglais uniquement** : les scripts n'existent qu'en anglais. La narration est
+rendue hors ligne par Kokoro (voix `bm_george`) à partir de ces mêmes textes —
+les mots sont de Simon, la voix non, et la carte d'accueil le dit.
 
 ## 2. Ce qu'on peut y faire
 

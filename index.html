@@ -9,7 +9,7 @@
      This page is a résumé, so it gets found before it gets rendered.
      The 3D café is invisible to crawlers and link-preview bots, hence
      the meta block below plus the semantic #cv-text panel in <body>. -->
-<meta name="description" content="Take a virtual coffee with Simon Goffin — Product Manager in private banking (Degroof Petercam), Brussels. An interactive 3D café where the résumé on the table talks back, in his own voice."/>
+<meta name="description" content="Take a virtual coffee with Simon Goffin — Product Manager in private banking (Degroof Petercam), Brussels. An interactive 3D café where the résumé on the table talks back, section by section."/>
 <meta name="author" content="Simon Goffin"/>
 <meta name="keywords" content="Simon Goffin, Product Manager, Product Owner, PSPO, Degroof Petercam, Brussels, CLM, onboarding, MiFID, AML, résumé, CV"/>
 <link rel="canonical" href="https://ndashiz.be/virtualcoffee/"/>
@@ -22,7 +22,7 @@
 <meta property="og:site_name" content="Virtual Coffee"/>
 <meta property="og:url" content="https://ndashiz.be/virtualcoffee/"/>
 <meta property="og:title" content="Virtual Coffee — Simon Goffin, Product Manager"/>
-<meta property="og:description" content="Pull up a chair. An interactive 3D café where my résumé sits on the table — tap a section and I'll tell you about it out loud, in my own voice."/>
+<meta property="og:description" content="Pull up a chair. An interactive 3D café where my résumé sits on the table — read it, put it down, and I'll talk you through it out loud."/>
 <meta property="og:image" content="https://ndashiz.be/virtualcoffee/og.jpg"/>
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
@@ -31,7 +31,7 @@
 
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="Virtual Coffee — Simon Goffin, Product Manager"/>
-<meta name="twitter:description" content="Pull up a chair. An interactive 3D café where my résumé sits on the table — tap a section and I'll tell you about it, in my own voice."/>
+<meta name="twitter:description" content="Pull up a chair. An interactive 3D café where my résumé sits on the table — read it, put it down, and I'll talk you through it out loud."/>
 <meta name="twitter:image" content="https://ndashiz.be/virtualcoffee/og.jpg"/>
 
 <link rel="icon" href="favicon.svg" type="image/svg+xml"/>
@@ -488,7 +488,7 @@
         <li><a href="mailto:goffin.simon@gmail.com">goffin.simon@gmail.com</a></li>
         <li>Brussels, Belgium</li>
       </ul>
-      <p class="cvnote">This is the flat reading of the café. In the 3D version I tell you all of this out loud, in my own voice — grab a coffee and come back.</p>
+      <p class="cvnote">This is the flat reading of the café. In the 3D version I talk you through all of this out loud, section by section — grab a coffee and come back.</p>
       <p class="cvnote"><strong>Privacy.</strong> This page keeps a headcount on my own server, and nothing else: which section was opened, whether you read it in EN or FR, and whether you arrived from LinkedIn, GitHub, a search engine or straight here. Counters only — no cookie, no third party, no analytics service, no access log, so no IP address is written down and nothing here can identify you. If your browser sends Global Privacy Control or Do Not Track, the visit is counted once and neither the language nor the referrer is sent at all.</p>
     </div>
 
@@ -813,9 +813,11 @@ const DATA={
           hand:"— Simon"}}
  }
 };
-/* Simon's real voice (EN), one file per key in DATA.speech. A key whose
-   file is missing (404) falls back to the browser voice with the same
-   subtitles, so the café is complete before a single clip is recorded.
+/* The narration (EN), one file per key in DATA.speech. Rendered offline
+   by Kokoro (bm_george) from these very strings — the words are Simon's,
+   the voice is not, and the how-to card says so. A key whose file is
+   missing (404) falls back to the browser voice with the same subtitles,
+   so the café stays complete whatever is in this folder.
 
    The v1 recordings are NOT here: they are parked in audio/en/v1/ because
    they carry the old, shorter scripts. Same filenames, different words —
@@ -5178,12 +5180,12 @@ const HOWTO={
      steps:["🚶 Arrow keys walk you in — have a wander, the place is mine",
             "🪑 The chair with the green cushion is yours — sit and the résumé comes up",
             "💬 Read it, put it down, then pick a section — I'll fill in the gaps",
-            "🔊 It's my real voice — turn your sound on (space hushes me)",
+            "🔊 My words, an AI voice — turn your sound on (space hushes me)",
             "📄 In a hurry? “Text résumé” gives you the flat version"],
      stepsTouch:["🚶 Tap the floor to walk — have a wander, the place is mine",
             "🪑 The chair with the green cushion is yours — sit and the résumé comes up",
             "💬 Read it, tap to put it down, then pick a section",
-            "🔊 It's my real voice — turn your sound on",
+            "🔊 My words, an AI voice — turn your sound on",
             "📄 In a hurry? “Text résumé” gives you the flat version"],
      btn:"Take a seat",
      /* Same card, other state. No new markup: #howto is already the
@@ -5192,7 +5194,7 @@ const HOWTO={
      closed:{title:"The café is closed\u00A0🌙",
              steps:["🌙 Lights down, room empty — Simon has gone home for the night",
                     "📄 The résumé did not close with it: the full text version is one tap away",
-                    "☕ Come back another day and I'll talk you through it out loud, in my own voice",
+                    "☕ Come back another day and I'll talk you through the whole thing out loud",
                     "🚪 Tap outside this card if you'd rather sit in the dark a minute"],
              btn:"Read the text résumé"}}
 };

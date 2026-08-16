@@ -14,8 +14,8 @@ actually in the chair.
 Sitting down raises the CV to near full-screen and you read it in silence. Put
 it back on the table and the **dialogue box** opens down the left: five
 sections — work experience, education, skills, certifications, languages —
-each of which Simon tells you about out loud, in his own recorded voice, while
-he looks you in the eye. A section you have heard right through keeps a green
+each of which Simon talks you through out loud while he looks you in the eye —
+his words, read by a voice model (see "Voice"). A section you have heard right through keeps a green
 marker; ask for it again and he says so before repeating himself. Work
 experience has two openings and picks the one that fits what you have already
 heard. Once all five are done a **second tier** opens — off the clock, AI long
@@ -26,7 +26,7 @@ you.
 
 There is a mute pill (or `M`) for the voice, a skip pill (or `space`) to cut
 him off, and the subtitles carry every word without sound. English only (the FR
-mode was retired in favour of the recorded voice). Under
+mode was retired: the scripts only exist in English). Under
 `prefers-reduced-motion` the walk is skipped: you appear seated at once.
 
 **Live** : <https://ndashiz.be/virtualcoffee/>
@@ -85,7 +85,7 @@ person.obj          Male NPC body — base mesh cut into 15 rig segments (~550 K
 fonts.css           @font-face for the three self-hosted families
 fonts/*.woff2       Space Grotesk · Inter · Caveat (latin + latin-ext)
 three.min.js        three.js r134, vendored
-audio/en/*.mp3      Simon's recorded voice, one file per clip (see "Voice")
+audio/en/*.mp3      The narration, one file per clip (see "Voice")
 audio/en/v1/*.mp3   The retired v1 recordings — kept, never loaded
 og.jpg              1200×630 share card, rendered from the scene itself
 favicon.svg
