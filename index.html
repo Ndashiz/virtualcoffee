@@ -547,7 +547,7 @@
         <li>Brussels, Belgium</li>
       </ul>
       <p class="cvnote">This is the flat reading of the café. In the 3D version I talk you through all of this out loud, section by section — grab a coffee and come back.</p>
-      <p class="cvnote"><strong>Privacy.</strong> This page keeps a headcount on my own server, and nothing else: which section was opened, whether you read it in EN or FR, and whether you arrived from LinkedIn, GitHub, a search engine or straight here. Counters only — no cookie, no third party, no analytics service, no access log, so no IP address is written down and nothing here can identify you. If your browser sends Global Privacy Control or Do Not Track, the visit is counted once and neither the language nor the referrer is sent at all.</p>
+      <p class="cvnote"><strong>Privacy.</strong> This page keeps a small audience log on my own server, and nothing else: when a visit started, roughly how long it lasted, which sections and which things on the walls were opened, whether you arrived from LinkedIn, GitHub, a search engine or straight here, and — if you followed a link I tagged for a particular post — that tag. Clicks are grouped into one visit by a random number this page invents when it loads: it stays in the tab's memory, is never written to your device, is gone the moment you close it, and is tied to nothing. No cookie, no third party, no analytics service, no access log, so no IP address is written down anywhere and nothing kept here can identify you. Per-visit lines are deleted after 30 days, daily totals after 90. Your sound and volume choices stay in your own browser and are never sent. If your browser sends Global Privacy Control or Do Not Track, none of that happens: the visit is counted once, and no grouping, language, referrer, timing or tag is sent at all.</p>
     </div>
 
   </div>
@@ -672,7 +672,7 @@ window.VC = (function(){
 
 <script>
 /* =====================================================================
-   VCPing — "is the bar open?", and a headcount
+   VCPing — "is the bar open?", and an honest headcount
    ---------------------------------------------------------------------
    WHY THIS IS ITS OWN <script>, HERE, BETWEEN THE OTHER TWO
 
@@ -692,21 +692,100 @@ window.VC = (function(){
    that reaches the visitor: a café that cannot count is still a café,
    and — the rule that outranks all the others — a café that cannot ask
    is OPEN.
+
+   ---------------------------------------------------------------------
+   WHAT IS SENT, AND WHY IT IS ALL IN A QUERY STRING
+
+   The café is on GitHub Pages and the switch is on the VPS, so every
+   ping is CROSS-ORIGIN and must stay a CORS "simple request": a GET,
+   with no custom header. That is not a style choice — a preflight from
+   here is answered by Jarvis's global cors() before the route is reached
+   and comes back without an Allow-Origin, so a preflight can NEVER be
+   made to work. A body was never an option; hence eight short params:
+
+     e  event      open · enter · section · read · cv · cvdl · linkedin · hb
+     i  item       which section, which newspaper, the TV, the jukebox
+     s  session    8 chars, random, per PAGE LOAD, kept in a variable
+     d  seconds    cumulative visible time, on heartbeats
+     l  language   r  referrer bucket
+     c  campaign   the tag on a shared link, so a LinkedIn post is countable
+     k  crew       1 = one of Simon's own devices, see CREW below
+
+   `s` is a grouping key, not an identity. It is generated here, lives in
+   a local variable, and is never written to the visitor's device: a
+   reload is a brand-new session and the browser remembers nothing. It
+   exists so six clicks by one person read as ONE visit instead of six.
+
+   ---------------------------------------------------------------------
+   CREW — keeping Simon's own testing out of Simon's own numbers
+
+   He opens this in production from a laptop and a phone, on whatever
+   network he is on that day, so there is nothing stable to match on: not
+   an IP (it moves, and nginx deliberately never forwards it), not a user
+   agent, and certainly not a fingerprint. So the device DECLARES itself,
+   once:
+
+       https://ndashiz.be/virtualcoffee/?crew=doubleshot     arm
+       https://ndashiz.be/virtualcoffee/?crew=off            disarm
+
+   That writes one flag to localStorage, strips the parameter back out of
+   the address bar (a screenshot or a copied link must not arm a stranger),
+   and every later ping carries `k=1`. The server then files the whole
+   visit under "self": no counter moves and no notification is sent.
+
+   The token is NOT a secret — this file is public. Its only job is to
+   stop an accidental arming from a shared URL. Someone who reads the
+   source and arms themselves has removed themselves from a headcount,
+   which is not a threat worth engineering against.
+
+   Storage can be lost (a cleared browser, a private window, Safari
+   evicting script-written storage after a week of not visiting). That is
+   why arming is not the only line: the Jarvis screen lists recent visits
+   with a "that was me" button that subtracts one afterwards.
    ===================================================================== */
 window.VCPing = (function(){
 
-  /* The server validates these as well. The copy here is not a second
-     line of defence, it is so that a typo in the scene never becomes a
-     query string the backend has to think about. */
-  var EVENTS = ['open','enter','cv','intro','experience','education','skills',
-                'certifications','languages','contact','outro','about'];
+  /* Absolute, and cross-origin: the café is served by GitHub Pages, the switch lives on
+     the VPS behind jarvis.ndashiz.be. The backend grants exactly this origin on exactly
+     this route. Keep the literal — deploy-virtualcoffee.sh greps for it, because a ping
+     pointing anywhere else fails OPEN and nothing on either side would ever tell you. */
+  var ENDPOINT = 'https://jarvis.ndashiz.be/api/vc/ping';
+
+  /* The server validates all of these as well. The copies here are not a second line of
+     defence, they are so that a typo in the scene never becomes a query string the
+     backend has to think about. Both lists must match store.ts. */
+  var EVENTS = ['open','enter','section','read','cv','cvdl','linkedin','hb'];
+  var ITEMS  = ['experience','education','skills','certifications','languages',
+                'personal','ai','banking','howibuilt','outro',
+                'press-property','press-sport','press-business','plaque','tv','jukebox'];
+
+  /* Arm a device with ?crew=<this>. Public by nature (see the header): it guards against
+     an accidental arming from a shared link, nothing more. */
+  var CREW_TOKEN = 'doubleshot', CREW_KEY = 'vc:crew';
+
+  /* Heartbeat every 15 s of VISIBLE time, and stop counting after 3 minutes with no sign
+     of life. A tab in the background accumulates nothing (visibilityState), and someone
+     who walked away mid-coffee stops accumulating too — the number is meant to read as
+     "time spent here", so it must not be inflated by an abandoned tab. Three minutes is
+     deliberately generous: a visitor listening to Simon talk through a section touches
+     nothing for the better part of a minute and is very much still there. */
+  var HB_MS = 15000, IDLE_MS = 180000;
+
+  /* One query parameter, without URLSearchParams (this block still runs on browsers the
+     rest of the page has already given up on, and it must never throw). */
+  function param(name){
+    try{
+      var m = new RegExp('[?&]' + name + '=([^&#]*)').exec(location.search);
+      return m ? decodeURIComponent(m[1].replace(/\+/g,' ')) : null;
+    }catch(_){ return null; }
+  }
 
   /* Global Privacy Control / Do Not Track. We still ASK the switch — a
      visitor has to be told the bar is closed either way, and that answer
      is a fact about Simon, not about them — but the request then carries
-     the event "open" and nothing else: no language, no referrer, and no
-     further request for anything they click. Said out loud in the privacy
-     note at the foot of the text resume. */
+     the event "open" and nothing else: no session, no language, no
+     referrer, no heartbeat, and no further request for anything they
+     click. Said out loud in the privacy note at the foot of the resume. */
   var PRIVATE = (function(){
     try {
       return navigator.globalPrivacyControl === true ||
@@ -715,7 +794,42 @@ window.VCPing = (function(){
     } catch (_) { return true; }     /* unreadable → assume the stricter answer */
   })();
 
-  /* document.referrer, bucketed into one of five words before it leaves
+  /* ── CREW ────────────────────────────────────────────────────────
+     Read the URL first, then the stored flag. Arming survives a storage
+     failure for the current page load at least, which is exactly the
+     case where the owner is watching and would notice nothing happened. */
+  var CREW = (function(){
+    /* A page served from localhost is ALWAYS crew, and cannot be disarmed.
+       Local dev pings the real jarvis.ndashiz.be — deliberately, so the switch can be tested
+       against the thing that actually answers — and a cross-origin browser blocks the RESPONSE
+       but never the REQUEST. So every local run, every headless test, every reload while
+       developing lands in the public counters, and it has already happened: an afternoon of
+       automated runs put a handful of phantom "direct" visits into a real day. Marking localhost
+       as crew keeps the round trip fully exercised and keeps the writes out of the numbers. */
+    try{
+      if (/^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(location.hostname)) return true;
+      if (location.protocol === 'file:') return true;
+    }catch(_){}
+    var q = param('crew');
+    try{
+      if (q === CREW_TOKEN){ localStorage.setItem(CREW_KEY,'1'); return true; }
+      if (q === 'off'){ localStorage.removeItem(CREW_KEY); return false; }
+      return localStorage.getItem(CREW_KEY) === '1';
+    }catch(_){ return q === CREW_TOKEN; }
+  })();
+
+  /* Take the token back out of the address bar. A crew link that survives into a
+     screenshot, a share sheet or a browser's autocomplete would quietly stop counting
+     whoever followed it next. Only `crew` is removed; a campaign tag beside it stays. */
+  if (param('crew')){
+    try{
+      var clean = location.search.replace(/([?&])crew=[^&]*/,'$1').replace(/[?&]+$/,'').replace(/^\?&/,'?');
+      history.replaceState(null,'',location.pathname + (clean === '?' ? '' : clean) + location.hash);
+    }catch(_){}
+  }
+
+  /* ── HOW THEY GOT HERE ───────────────────────────────────────────
+     document.referrer, bucketed into one of five words before it leaves
      the page. The URL itself never goes anywhere: the useful fact is
      "LinkedIn", not which post. Same-host navigation counts as direct,
      anything unrecognised as other. */
@@ -733,6 +847,34 @@ window.VCPing = (function(){
   }
   var REF = PRIVATE ? null : referrerBucket();
 
+  /* The campaign tag, and the reason it exists: the referrer is NOT reliable for the one
+     source that matters most. LinkedIn's in-app browser and its lnkd.in redirect very
+     often arrive with an empty document.referrer, which buckets a post's traffic as
+     "direct". Sharing ndashiz.be/virtualcoffee/?c=li-aug instead makes that post
+     countable on its own. Normalised hard, because the server's charset rule is what
+     keeps this — the only free-form field in the whole protocol — bounded. */
+  var CAMP = (function(){
+    if (PRIVATE) return null;
+    var raw = param('c') || param('utm_campaign') || param('utm_source') || '';
+    raw = String(raw).toLowerCase().replace(/[^a-z0-9-]/g,'').replace(/^-+/,'').slice(0,16);
+    return /^[a-z0-9][a-z0-9-]{0,15}$/.test(raw) ? raw : null;
+  })();
+
+  /* Eight characters, from the CSPRNG when there is one. A grouping key, never a secret
+     and never stored: it dies with the tab, and a reload is a different visit. */
+  var SID = (function(){
+    var abc = 'abcdefghijklmnopqrstuvwxyz0123456789', out = '', i;
+    try{
+      var a = new Uint8Array(8);
+      (window.crypto || window.msCrypto).getRandomValues(a);
+      for (i = 0; i < 8; i++) out += abc[a[i] % 36];
+      return out;
+    }catch(_){
+      for (i = 0; i < 8; i++) out += abc[(Math.random() * 36) | 0];
+      return out;
+    }
+  })();
+
   var closed = false, closedFns = [];
   function markClosed(){
     if (closed) return;
@@ -740,14 +882,25 @@ window.VCPing = (function(){
     closedFns.splice(0).forEach(function(fn){ try { fn(); } catch (e) { console.error(e); } });
   }
 
-  function send(event, isLoad){
+  function send(event, item, seconds){
     try {
       if (typeof fetch !== 'function') return;   /* pre-2017 browser: no ping, café stays open */
-      if (PRIVATE && !isLoad) return;            /* GPC: exactly one request, and only for the switch */
       if (EVENTS.indexOf(event) < 0) return;
+      var isLoad = event === 'open';
+      if (PRIVATE && !isLoad) return;            /* GPC: exactly one request, and only for the switch */
 
       var qs = 'e=' + event;
-      if (!PRIVATE) qs += '&l=' + (window.VC && VC.lang === 'fr' ? 'fr' : 'en') + '&r=' + REF;
+      /* `k` rides along even under GPC. Simon's own phone may well send Do Not Track, and
+         that visit still has to stay out of the numbers. */
+      if (CREW) qs += '&k=1';
+      if (!PRIVATE) {
+        qs += '&s=' + SID + '&l=' + (window.VC && VC.lang === 'fr' ? 'fr' : 'en') + '&r=' + REF;
+        if (CAMP) qs += '&c=' + CAMP;
+        if (item && ITEMS.indexOf(item) >= 0) qs += '&i=' + item;
+        if (typeof seconds === 'number' && isFinite(seconds) && seconds >= 0) {
+          qs += '&d=' + Math.floor(seconds);
+        }
+      }
 
       /* Two seconds, then we drop it. A café that hangs on its own
          analytics is worse than one that never counted the visit. */
@@ -755,16 +908,10 @@ window.VCPing = (function(){
       try { ctl = new AbortController(); } catch (_) {}
       if (ctl) timer = setTimeout(function(){ try { ctl.abort(); } catch (_) {} }, 2000);
 
-      /* Absolute, and cross-origin: the café is served by GitHub Pages, the switch lives on
-         the VPS behind jarvis.ndashiz.be. The backend grants exactly this origin on exactly
-         this route.
-
-         This MUST stay a CORS "simple request" — a GET with no custom header. A preflight
-         from here is answered by Jarvis's global cors() before the route is reached and comes
-         back without an Allow-Origin, so a preflight can never be made to work. Turn this into
+      /* This MUST stay a CORS "simple request" — a GET with no custom header. Turn it into
          a POST, or add a Content-Type, and the switch dies silently and permanently: the
          failure mode is fail-open, so nothing on either side will ever tell you. */
-      fetch('https://jarvis.ndashiz.be/api/vc/ping?' + qs, {
+      fetch(ENDPOINT + '?' + qs, {
         method: 'GET',
         mode: 'cors',
         credentials: 'omit',             /* nothing of the visitor's travels with it */
@@ -782,7 +929,60 @@ window.VCPing = (function(){
   }
 
   /* The load ping — the only one whose answer means anything. */
-  send('open', true);
+  send('open');
+
+  /* ── HOW LONG THEY STAYED ────────────────────────────────────────
+     Heartbeats, not an unload beacon. The whole system already fails
+     silently by design, so the last thing it needs is a measurement that
+     only ever fires at the one moment a browser is least likely to run
+     anything. A heartbeat that landed is a fact; the last one to land IS
+     the answer, and losing the final few seconds is the entire cost.
+
+     `d` is CUMULATIVE, never a delta: the server takes the maximum it
+     has seen, so a duplicated, delayed or dropped heartbeat costs
+     precision and never correctness. */
+  /* What the accruing time is currently being spent ON, or null for "in the café at
+     large". Set by the scene through PING.focus() when a newspaper, the plaque or the
+     television is open on screen; the server adds each heartbeat's growth to that item.
+     A `read` event says someone opened it, this says for how long. */
+  var FOCUS = null;
+  function beat(){}   /* replaced below unless the visitor sent Do Not Track */
+
+  if (!PRIVATE) (function(){
+    var visible = 0, lastTick = Date.now(), lastAct = Date.now(), sent = -1;
+
+    function poke(){ lastAct = Date.now(); }
+    try {
+      ['pointerdown','pointermove','keydown','wheel','touchstart'].forEach(function(ev){
+        addEventListener(ev, poke, { passive: true, capture: true });
+      });
+    } catch (_) { /* an old browser without options-object listeners: no idle detection */ }
+
+    function accrue(){
+      var now = Date.now(), gap = (now - lastTick) / 1000;
+      lastTick = now;
+      /* Cap the slice: a laptop coming out of sleep reports one enormous gap, and that is
+         not time anybody spent looking at a café. */
+      if (gap > 0 && gap < 60 &&
+          document.visibilityState !== 'hidden' &&
+          now - lastAct < IDLE_MS) visible += gap;
+    }
+    beat = function(){
+      accrue();
+      var whole = Math.floor(visible);
+      /* `whole > 0` and not just `> sent`: a tab that opened in the background, or a bounce
+         closed inside the first second, has nothing to report, and `d=0` is a request that
+         tells the server something it already assumed. */
+      if (whole > 0 && whole > sent){ sent = whole; send('hb', FOCUS, whole); }
+    };
+
+    setInterval(beat, HB_MS);
+    /* Going hidden is the last moment the page is reliably alive — on mobile it is very
+       often the only one. Flush there rather than trusting pagehide. */
+    document.addEventListener('visibilitychange', function(){
+      if (document.visibilityState === 'hidden') beat();
+    });
+  })();
 
   /* The text resume still earns a count of its own, but the pill it used
      to hang off is gone: wrap VC.openCV instead, which is now the single
@@ -793,8 +993,22 @@ window.VCPing = (function(){
   try {
     if (window.VC && typeof VC.openCV === 'function') {
       var openCV = VC.openCV;
-      VC.openCV = function(){ openCV.apply(null, arguments); send('cv', false); };
+      VC.openCV = function(){ openCV.apply(null, arguments); send('cv'); };
     }
+  } catch (_) {}
+
+  /* Say so, on the owner's own devices only. Without this, arming is invisible and the
+     failure mode — storage silently evicted, flag never set — looks exactly like it
+     working. A visitor never sees this element because it is never created for them. */
+  if (CREW) try {
+    var badge = document.createElement('div');
+    badge.textContent = 'crew · not counted';
+    badge.setAttribute('aria-hidden','true');
+    badge.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:99999;' +
+      'font:600 10px/1 Inter,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;' +
+      'color:#20303a;background:#e8b661;padding:6px 11px;border-radius:999px;opacity:.8;' +
+      'pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,.35)';
+    (document.body || document.documentElement).appendChild(badge);
   } catch (_) {}
 
   return {
@@ -806,7 +1020,17 @@ window.VCPing = (function(){
     },
     /* Fire-and-forget. Deliberately ignores the reply: a visitor already
        seated is not thrown out because Simon flipped the sign. */
-    tap: function(event){ send(event, false); }
+    tap: function(event, item, seconds){ send(event, item, seconds); },
+    /* Point the dwell clock at something, or at nothing.
+       Flushes FIRST, so the seconds since the last heartbeat are credited to whatever was
+       open before the switch — closing a newspaper after eight seconds has to record eight
+       seconds against that newspaper, not against whatever is opened next. */
+    focus: function(item){
+      try { beat(); } catch (_) {}
+      FOCUS = (item && ITEMS.indexOf(item) >= 0) ? item : null;
+    },
+    /* Read by the scene only to keep its own debug overlay honest. */
+    crew: CREW
   };
 })();
 </script>
@@ -947,7 +1171,7 @@ const CV_FILE="";
 /* The ping lives in a separate <script> on purpose (see its header). If that
    block never ran, the café simply goes uncounted and always open — it must
    not be able to throw in here. */
-const PING=window.VCPing||{tap(){},whenClosed(){}};
+const PING=window.VCPing||{tap(){},whenClosed(){},focus(){}};
 
 let lang=VC.lang, current=null, speaking=false, audioEl=null, queue=[], lastKey=null;
 const RM=matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1572,9 +1796,13 @@ function artTex(kind){return ctex(256,320,(x,w,h)=>{
    the entire reason for opening it. `live` ones repaint every frame, so a
    television carries on broadcasting while you read it. See openZoom(). */
 const READABLES=[];
-function addReadable(mesh,title,w,h,redraw,live){
+/* `key` is the name this thing has in the counters, and it is deliberately NOT the title:
+   titles are prose meant for the hint bubble ("The Daily Salfari — sport") and get rewritten
+   whenever the copy does, which would silently start a brand-new counter and orphan the old
+   one. The key is a closed enum shared with VCPing and with the server's store.ts. */
+function addReadable(mesh,title,key,w,h,redraw,live){
   mesh.userData.readable=READABLES.length;
-  READABLES.push({mesh:mesh,title:title,w:w,h:h,redraw:redraw,live:!!live});
+  READABLES.push({mesh:mesh,title:title,key:key,w:w,h:h,redraw:redraw,live:!!live});
 }
 
 /* ---------------- EMPLOYEE OF THE MONTH ----------------
@@ -1673,7 +1901,7 @@ function drawEotm(x){
     new THREE.MeshStandardMaterial({map:tex,roughness:.82,
       emissive:0x2a2418,emissiveMap:tex,emissiveIntensity:.22}));
   sheet.position.z=.026;g.add(sheet);
-  addReadable(sheet,"Employee of the Month",EOTM_W,EOTM_H,drawEotm,false);
+  addReadable(sheet,"Employee of the Month","plaque",EOTM_W,EOTM_H,drawEotm,false);
   /* front wall (face at z=3.81), just right of the trophy cabinet, which
      ends at x=.92 — and dead ahead of anyone who now walks the length of
      the room to see what the far wall holds */
@@ -1924,6 +2152,7 @@ PRESS.forEach((art,i)=>{
       emissive:0x2a2418,emissiveMap:tex,emissiveIntensity:.22}));
   sheet.position.z=.023;g.add(sheet);
   addReadable(sheet,"The Daily Salfari — "+art.kicker.replace(/ /g,"").toLowerCase(),
+    "press-"+art.kicker.replace(/ /g,"").toLowerCase(),
     PRESS_W,PRESS_H,x=>drawArticle(x,art),false);
   /* one under each sconce: the model hangs its three appliques at
      x = 2.437 / 4.132 / 5.827 on the front wall, and the frames take
@@ -3122,7 +3351,10 @@ function drawTV(t){
     screen.position.z=.032;g.add(screen);
     /* the painter draws into whatever context it is given: hand it the
        overlay's and it broadcasts there instead, at twice the resolution */
-    addReadable(screen,"HENRY TV — live",512,288,function(gg){
+    /* Both sets — the small one over the counter and the big one by the fridge — carry the
+       same key: they show the same feed, and "did anyone watch the television" is one
+       question, not two. */
+    addReadable(screen,"HENRY TV — live","tv",512,288,function(gg){
       const keep=TV.ctx;TV.ctx=gg;drawTV(clock.elapsedTime);TV.ctx=keep;
     },true);
     const arm=new THREE.Mesh(new THREE.BoxGeometry(.18,.18,.08),armMat);
@@ -5605,7 +5837,9 @@ function playSection(key){
   abortChain();
   current=key;drawResume();          /* the sheet lights the matching block */
   promptEl.style.display="none";
-  PING.tap(key);
+  /* Fires before the audio chain starts, and covers the keyboard shortcuts too — every way
+     of choosing a section goes through playSection. */
+  PING.tap("section",key);
   const clips=sectionClips(key);
   /* "Ah, you weren't listening" — only ever in front of a repeat */
   if(heard.has(key))clips.unshift("reclick");
@@ -5683,6 +5917,7 @@ if(skipBtn){
    render of the CV, so the download is that canvas — nothing to keep in
    step, nothing extra to ship. CV_FILE overrides it when a PDF exists. */
 document.getElementById("cvDl").addEventListener("click",function(e){
+  PING.tap("cvdl");                               /* someone left with the CV — worth knowing */
   if(CV_FILE){this.href=CV_FILE;return;}          /* a real file: let the browser have it */
   e.preventDefault();
   cnv.toBlob(b=>{
@@ -5699,6 +5934,9 @@ document.getElementById("cvDl").addEventListener("click",function(e){
   const li=document.getElementById("liLink");
   li.hidden=true;
   if(LINKEDIN_URL)li.href=LINKEDIN_URL;
+  /* The one exit we can see. The ping is fire-and-forget and the navigation is not held up
+     for it — a link that waits on a counter is a broken link. */
+  li.addEventListener("click",()=>PING.tap("linkedin"));
 }
 /* "See the resume": the sheet comes back up in the reading pose — the
    same beat as sitting down, minus the monologue. A second tap, a click
@@ -6499,6 +6737,12 @@ function paintZoom(){
   g.setTransform(1,0,0,1,0,0);
 }
 function openZoom(it){
+  /* Every way of opening anything on the walls funnels through here — the seated click,
+     the tap-to-walk order, the keyboard — so this one line counts the newspapers, the
+     plaque and the television, and there is nowhere else to forget. */
+  PING.tap("read",it.key);
+  /* From here on the dwell clock belongs to this item rather than to the café at large. */
+  PING.focus(it.key);
   zoomItem=it;
   zoomCap.textContent=it.title;
   paintZoom();
@@ -6519,6 +6763,10 @@ function openZoom(it){
 }
 function closeZoom(){
   if(!zoomItem)return;
+  /* Hands the seconds since the last heartbeat to the thing that was open, then points the
+     clock back at the café. Without the flush, a glance shorter than one heartbeat would
+     record the open and none of the time. */
+  PING.focus(null);
   zoomItem=null;zoomEl.hidden=true;
   zoomLoad.hidden=true;zoomPlayer.hidden=true;
 }
