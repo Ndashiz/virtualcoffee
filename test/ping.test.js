@@ -87,6 +87,19 @@ function run({ search = '', dnt = false, storage = {}, visible = true, hostname 
       now += seconds * 1000;
       intervals.forEach((fn) => fn());
     },
+    /**
+     * Move the clock WITHOUT firing the intervals — the seconds that pass between two
+     * heartbeats.
+     *
+     * The suite could not express "and then eight seconds later" before this existed, because
+     * tick() couples the clock to the interval: any beat() called out of band saw a zero gap,
+     * accrued nothing, and was swallowed by the `whole > sent` guard. Two assertions below
+     * named a flush and in fact proved nothing — both flushes could be deleted from index.html
+     * with the suite still green. Anything testing an on-demand flush must advance() first.
+     */
+    advance(seconds) {
+      now += seconds * 1000;
+    },
     poke() {
       (listeners.pointerdown || []).forEach((fn) => fn());
     },
@@ -231,17 +244,22 @@ console.log('\n— how long they stayed —');
   t.tick(15);
   t.ping.focus('press-sport');
   t.tick(15);
-  t.ping.focus(null);
-  check('time is attributed to whatever was open, and flushed on the way out', t.sent.map(mask).slice(1), [
+  t.advance(8);        /* eight seconds inside the current window, unseen by any heartbeat */
+  t.ping.focus(null);  /* …and they belong to the newspaper, which is why focus() flushes first */
+  check('closing a newspaper mid-window still books its seconds against it', t.sent.map(mask).slice(1), [
     'e=hb&s=<sid>&l=en&r=direct&d=15',
     'e=hb&s=<sid>&l=en&r=direct&i=press-sport&d=30',
+    'e=hb&s=<sid>&l=en&r=direct&i=press-sport&d=38',
   ]);
 }
 {
   const t = run();
   t.tick(15);
-  t.hide();
-  check('going hidden flushes what was accrued', t.sent.map(mask).slice(-1), ['e=hb&s=<sid>&l=en&r=direct&d=15']);
+  t.advance(9);  /* nine seconds no heartbeat has sent */
+  t.hide();      /* going hidden is the last moment the page runs — they must not be lost */
+  check('going hidden flushes the seconds no heartbeat has sent', t.sent.map(mask).slice(-1), [
+    'e=hb&s=<sid>&l=en&r=direct&d=24',
+  ]);
 }
 
 console.log('\n— the vocabulary —');

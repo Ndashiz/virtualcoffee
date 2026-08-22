@@ -958,17 +958,18 @@ window.VCPing = (function(){
       });
     } catch (_) { /* an old browser without options-object listeners: no idle detection */ }
 
-    function accrue(){
+    /* `stillWatching` is only ever passed by the visibility flush — see below. */
+    function accrue(stillWatching){
       var now = Date.now(), gap = (now - lastTick) / 1000;
       lastTick = now;
       /* Cap the slice: a laptop coming out of sleep reports one enormous gap, and that is
          not time anybody spent looking at a café. */
       if (gap > 0 && gap < 60 &&
-          document.visibilityState !== 'hidden' &&
+          (stillWatching || document.visibilityState !== 'hidden') &&
           now - lastAct < IDLE_MS) visible += gap;
     }
-    beat = function(){
-      accrue();
+    beat = function(stillWatching){
+      accrue(stillWatching);
       var whole = Math.floor(visible);
       /* `whole > 0` and not just `> sent`: a tab that opened in the background, or a bounce
          closed inside the first second, has nothing to report, and `d=0` is a request that
@@ -976,11 +977,16 @@ window.VCPing = (function(){
       if (whole > 0 && whole > sent){ sent = whole; send('hb', FOCUS, whole); }
     };
 
-    setInterval(beat, HB_MS);
-    /* Going hidden is the last moment the page is reliably alive — on mobile it is very
-       often the only one. Flush there rather than trusting pagehide. */
+    setInterval(function(){ beat(); }, HB_MS);
+    /* Going hidden is the last moment the page is reliably alive — on mobile it is very often
+       the only one. Flush there rather than trusting pagehide.
+       `beat(true)` deliberately: by the time this listener runs the page has ALREADY flipped to
+       hidden, so accrue()'s own visibility test would throw away the very slice we are here to
+       save. Those seconds WERE watched — they elapsed before the switch, not after it. Without
+       the override this flush could only ever re-send what a heartbeat had already sent, which
+       is nothing at all, and every mobile visit quietly lost its last partial window. */
     document.addEventListener('visibilitychange', function(){
-      if (document.visibilityState === 'hidden') beat();
+      if (document.visibilityState === 'hidden') beat(true);
     });
   })();
 
