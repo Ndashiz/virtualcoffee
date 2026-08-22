@@ -224,10 +224,11 @@ To exercise the closed café locally, see "Trying the closed café locally" belo
 
 ## The switch — "is the bar open?"
 
-One public endpoint, called once on load:
+One public endpoint, doing two jobs. The **load ping** asks whether the bar is
+open; every ping after it only reports, and its answer is deliberately ignored.
 
 ```
-GET  https://jarvis.ndashiz.be/api/vc/ping?e=<event>&l=<lang>&r=<ref>
+GET  https://jarvis.ndashiz.be/api/vc/ping?e=open&s=<session>&l=<lang>&r=<ref>
 →    200  {"open": true}          Cache-Control: no-store
                                   Access-Control-Allow-Origin: https://ndashiz.be
                                   Vary: Origin
@@ -237,20 +238,44 @@ Absolute, and **cross-origin**: the café is on GitHub Pages, the switch is on t
 VPS. The grant is scoped to this one route — see "The CORS contract" below, which
 is the part of this feature most likely to be broken by a well-meaning edit.
 
-Everything it can carry is a closed enum, validated again server-side, and
-anything else is dropped on the floor:
+| Param | Values | What it is |
+|---|---|---|
+| `e` | `open` `enter` `section` `read` `cv` `cvdl` `linkedin` `hb` | what happened |
+| `i` | the ten section keys · `press-property` `press-sport` `press-business` · `plaque` `tv` `jukebox` | what it happened *to* |
+| `s` | eight lowercase alphanumerics | groups pings into one visit |
+| `d` | whole seconds, **cumulative**, capped at 21 600 (6 h) | how long, so far |
+| `l` | `en` `fr` | |
+| `r` | `linkedin` `github` `google` `direct` `other` | bucketed in the browser |
+| `c` | `^[a-z0-9][a-z0-9-]{0,15}$` | campaign tag off a shared link |
+| `k` | `1` | one of Simon's own devices — count nothing |
 
-| Param | Values |
-|---|---|
-| `e` | `open` `enter` `cv` `experience` `education` `skills` `certifications` `languages` `personal` `ai` `banking` `howibuilt` `outro` |
-| `l` | `en` `fr` |
-| `r` | `linkedin` `github` `google` `direct` `other` |
+`e` and `i` are closed enums, revalidated server-side; anything else is dropped on
+the floor. The endpoint never answers 4xx or 5xx — a malformed query gets a 200
+and the switch, because the café must not be able to break itself.
 
-There is **no free-text field anywhere**, on purpose: this endpoint is reachable
-by anyone on the internet with no session, and the hard bound on what it can
-write is what makes that safe. It also never returns 4xx or 5xx — a malformed
-query is answered 200 with the switch, because the café must not be able to
-break itself.
+### The two free-text fields, and what actually keeps them safe
+
+An earlier version of this file said there was **no free-text field anywhere**,
+and leaned on that as the reason a public, unauthenticated, unthrottled endpoint
+was safe. That is no longer true: `s` and `c` are both invented by the visitor.
+The argument has to be made properly now, because it is the only thing standing
+between this route and everyone on the internet.
+
+A charset bound is not enough on its own — it still lets one caller write an
+unlimited number of *distinct* keys, and it is distinct keys that grow a file.
+Both fields are bounded by **cardinality** as well:
+
+- `s` — sessions live in a ring of 400, aged out after 30 days. A flood of
+  invented ids costs the least recently *active* rows and nothing else. Evicting
+  by age of creation instead would throw away tabs that are still beating.
+- `c` — at most 24 distinct slugs a day; the 25th and beyond land in `other`.
+
+One trap worth naming, because it cost a real fix. `constructor` satisfies the
+campaign pattern — eleven lowercase letters. Read back with a plain `map[key]` it
+returns `Object.prototype.constructor`, which is not nullish, so `?? 0` never
+fires and `Object + 1` quietly turns a counter into a string that grows by a
+character per ping. The server reads **own properties only**. Anything keyed by
+text a stranger supplies has to.
 
 ### It fails open, and that is the whole design
 
@@ -266,27 +291,113 @@ Cloudflare not routed yet — leaves the café **open**. A resume that disappear
 because a server hiccuped is worse than one that stays open when it was meant to
 be shut.
 
-Only the **load** ping honours the answer. The pings sent when you sit down, open
-a section or open the text resume deliberately ignore it: a visitor already
-seated is not thrown out because Simon flipped the sign mid-sentence.
+Only the **load** ping honours the answer. Everything sent afterwards ignores it:
+a visitor already seated is not thrown out because Simon flipped the sign
+mid-sentence.
+
+### One visit, not one request
+
+`s` is eight characters from the CSPRNG, invented when the page loads. It is a
+grouping key, never a secret: it is **never stored**, not even in
+`sessionStorage`, so it dies with the tab and a reload is honestly a new visit.
+
+The server counts a visit per **arrival**, not per request. Booking the language,
+the referrer and the campaign once per visit rather than once per ping is the
+whole point: counted per ping, a talkative visitor who opened six sections
+registered as six people "from LinkedIn", and the question was always how many
+*people* came from LinkedIn.
+
+### How long they stayed
+
+Heartbeats every 15 s, not an unload beacon. This system already fails silently
+by design; the last thing it needs is a measurement that only ever fires at the
+one moment a browser is least likely to run anything. A heartbeat that landed is
+a fact, the last one to land *is* the answer, and losing the final few seconds is
+the entire cost.
+
+`d` is **cumulative, never a delta** — "since the start, this many seconds". The
+server adds only what has grown since it last heard, so a duplicated, delayed or
+dropped heartbeat costs precision and never correctness, and a replayed old value
+can never push a total backwards.
+
+The clock only runs on a tab that is visible and has been touched in the last
+three minutes, and a single gap longer than 60 s is discarded outright: a laptop
+coming out of sleep reports one enormous interval, and that is not time anybody
+spent looking at a café.
+
+Two flushes exist outside the interval, and both are load-bearing:
+
+- **`PING.focus(item)`** flushes *first*, then re-aims the clock. Closing a
+  newspaper eight seconds after the last heartbeat has to record eight seconds
+  against **that** newspaper, not against whatever is opened next.
+- **`visibilitychange`** flushes when the tab goes hidden — on mobile, very often
+  the last moment the page runs at all. It passes an explicit "these seconds were
+  watched" flag, because by the time the listener fires the page is *already*
+  hidden and the accrual test would otherwise throw away the exact slice it is
+  there to save. Without that flag the flush is a no-op and every mobile visit
+  quietly loses its last partial window. Both flushes are covered by mutation, in
+  `test/ping.test.js` — deleting either one turns the suite red.
+
+### What was open, and for how long
+
+`e=read&i=<key>` says a thing on the walls was opened; the heartbeats that follow
+carry the same `i` and say for how long. One is a count, the other a duration,
+and they are separate events on purpose — a heartbeat naming an item must not be
+read as a fresh opening every fifteen seconds.
+
+Room objects carry a **stable key**, not their title: `addReadable` takes one
+explicitly. Titles are prose — "The Daily Salfari — sport" — rewritten whenever
+the copy is, and a rewritten title would silently open a brand-new counter and
+orphan the old one. Both televisions share the key `tv`: they show the same feed,
+and "did anyone watch the television" is one question rather than two.
+
+The jukebox is counted but **not** timed. Its panel is not a zoom — it can stay
+open while the visitor walks the room — so pointing the dwell clock at it would
+credit it every second until something else was opened. It takes the `read`
+count and leaves the clock where it was. Timing it properly needs a decision
+about what "open while walking away" should mean, and that is parked, not
+forgotten.
+
+### Simon's own devices
+
+Two mechanisms, because they answer different problems.
+
+`localhost` and friends are **never** counted, with nothing to arm and nothing to
+remember. Local development pings the real backend on purpose — a cross-origin
+browser blocks the *response*, never the *request* — so without this every dev
+reload and every headless run lands in the public counters. That has already
+happened for real, which is why the test asserts it host by host.
+
+Anywhere else, a device arms itself once with `?crew=<token>`, keeps the flag in
+`localStorage`, and strips the token back out of the address bar so a link shared
+by accident does not hand the exemption to a stranger. `?crew=off` disarms.
+
+And for what is already counted, the Jarvis side has **"that was me"**: it takes
+back from a visit exactly what it contributed — same seconds, same items, same
+language, referrer and campaign — once, idempotently, and never below zero. That
+is why a visit is booked to the day it *started*: the credit and the debit have
+to share one day key, or a visit spanning midnight is added to two days and taken
+back from one.
 
 ### Where the ping lives, and why it is its own `<script>`
 
-`index.html` now has three script blocks: the `VC` shell, **the ping**, then the
-café. The ping sits between the other two on purpose.
+`index.html` has three script blocks: the `VC` shell, **the ping**, then the café.
+The ping sits between the other two on purpose.
 
 Not inside the shell: a syntax error anywhere in that IIFE leaves `window.VC`
 undefined, and `VC` is what swaps in the text resume when the 3D fails. A visit
 counter must never be able to take the fallback down with it, and a separate
 `<script>` is a parser boundary — the worst that block can do is not run.
 
-Not after the scene either: the answer decides whether the café opens at all,
-and the scene paints its first frame as soon as `three.min.js` has parsed.
-Firing from where it is starts the request while those 600 kB are still on the
-wire, so the answer normally lands while the welcome card is still up.
+Not after the scene either: the answer decides whether the café opens at all, and
+the scene paints its first frame as soon as `three.min.js` has parsed. Firing
+from where it is starts the request while those 600 kB are still on the wire, so
+the answer normally lands while the welcome card is still up.
 
-The scene reads it through a shim, `const PING = window.VCPing || {tap(){}, whenClosed(){}}`,
-so a café whose ping block never ran is simply an uncounted café.
+The scene reads it through a shim,
+`const PING = window.VCPing || {tap(){}, whenClosed(){}, focus(){}}`, so a café
+whose ping block never ran is simply an uncounted café. Add a method to `VCPing`
+and it goes in the shim too, or the fallback path throws where the real one works.
 
 ### The CORS contract — the fragile part
 
@@ -309,7 +420,8 @@ route is reached, and comes back *without* an `Allow-Origin`, so a preflight can
 never be made to work here. Change the ping to a `POST`, or add a
 `Content-Type`, and the switch dies **silently and permanently**: everything
 fails open, so nothing on either side reports it. `deploy-virtualcoffee.sh`
-greps for both mistakes.
+greps for both mistakes. It is also why every field above travels in the query
+string, however unfashionable that looks.
 
 **Do not add `ndashiz.be` to `ALLOWED_ORIGINS`.** It is the obvious-looking
 shortcut and it is the dangerous one: the global `cors()` applies
@@ -326,8 +438,11 @@ grant, so the route strips it explicitly. There is a test asserting the header i
 
 ### Privacy
 
-Counters, on Simon's own server, and nothing else. No cookie, no third party, no
-analytics product, and `access_log off` on the `location /api/vc/` block in
+A small audience log on Simon's own server, and nothing else: when a visit
+started, roughly how long it lasted, which sections and which things on the walls
+were opened, the referrer bucketed into one of five words, and a campaign tag if
+the link carried one. No cookie, no third party, no analytics product, and
+`access_log off` on the `location /api/vc/` block in
 `jarvis/deploy/nginx-jarvis-root.conf` — with no HTTP logger in the Jarvis backend
 either, so **no IP address is written down anywhere**. nginx is also told not to
 forward `X-Real-IP` / `X-Forwarded-For` to the backend: it has no use for them.
@@ -335,16 +450,21 @@ forward `X-Real-IP` / `X-Forwarded-For` to the backend: it has no use for them.
 That one nginx line is load-bearing for a public promise. If the vhost is ever
 replaced without it, the sentence printed on the CV becomes false.
 
-`document.referrer` is bucketed into one of five words *in the browser*, before
-anything leaves the page. The URL itself never travels — the useful fact is
-"LinkedIn", not which post.
+`document.referrer` is bucketed *in the browser*, before anything leaves the page.
+The URL itself never travels — the useful fact is "LinkedIn", not which post.
 
-If the browser sends **Global Privacy Control** or **Do Not Track**, the page
-still asks the switch — a visitor has to be told the bar is closed either way,
-and that answer is a fact about Simon, not about them — but the request then
-carries `e=open` and nothing else: no language, no referrer, and no further ping
-for anything they click. The same sentence is in the text resume itself, in both
-languages, because a privacy note nobody can read is decoration.
+Per-visit lines are deleted after 30 days, daily totals after 90.
+
+If the browser sends **Global Privacy Control** or **Do Not Track**, none of it
+happens: the visit is counted once and the request carries `e=open` and nothing
+else — no grouping key, no language, no referrer, no timing, no tag, and no
+further ping for anything they click. There are no heartbeats at all.
+
+**The note printed on the CV is the contract, not this file.** It is in
+`index.html`, in both languages, and it says all of the above in the second
+person. When the code and that note disagree, the note is what a visitor read —
+so the code is what has to move. A privacy claim nobody can read is decoration;
+one that has quietly stopped being true is worse.
 
 ## When the bar is closed
 
