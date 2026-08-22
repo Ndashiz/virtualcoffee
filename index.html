@@ -3314,10 +3314,65 @@ function addPose(buf,pose,w){
     if(s.z)t.z+=s.z*w;
   }
 }
-function applyPose(rig,buf){
+/* ---------------- WHAT A JOINT MAY DO ----------------
+   The range of every joint, in degrees, straight off ANATOMIE.md (the
+   hundred criteria Simon supplied). This table is the whole point: a
+   skeleton with thirty hand-written gestures scattered across two
+   thousand lines cannot be kept honest gesture by gesture — one stray
+   number is all it takes, and one stray number is what we had (Simon's
+   own rest pose bent his elbow BACKWARDS, +.5 on a hinge that only
+   closes). So the rules live here, at the single point every layer's
+   pose lands, and no animation written later can break them.
+
+   Signs follow the rig: negative x is forward for an arm, positive x is
+   backward for a leg — so the elbow (#41-43) closes toward -x and the
+   knee (#91-93) toward +x, and neither passes straight.
+   `zIn` / `zOut` are asymmetric on purpose: a limb's z swings it toward
+   the body on one side and away on the other, so the same number would
+   mean adduction on the left and abduction on the right (#33, #83-84).
+   A hinge gets z:[0,0] — an elbow does not bend sideways (#44, #47). */
+const DEG=Math.PI/180;
+const LIMITS={
+  /* head+neck split the ±80° of #1; #2-#4 give the rest */
+  head:    {x:[-45*DEG,45*DEG],  y:[-45*DEG,45*DEG],  z:[-25*DEG,25*DEG]},
+  neck:    {x:[-25*DEG,35*DEG],  y:[-35*DEG,35*DEG],  z:[-20*DEG,20*DEG]},
+  /* #11-#15: the lumbar rotates barely at all, the thorax does the work */
+  chest:   {x:[-25*DEG,50*DEG],  y:[-45*DEG,45*DEG],  z:[-35*DEG,35*DEG]},
+  spine:   {x:[-25*DEG,60*DEG],  y:[-15*DEG,15*DEG],  z:[-35*DEG,35*DEG]},
+  pelvis:  {x:[-30*DEG,30*DEG],  y:[-40*DEG,40*DEG],  z:[-20*DEG,20*DEG]},
+  /* #26-#30, #33: 180° up, 60° back, and it never crosses the torso */
+  shoulder:{x:[-180*DEG,60*DEG], y:[-90*DEG,90*DEG],  zIn:30*DEG, zOut:180*DEG},
+  elbow:   {x:[-150*DEG,5*DEG],  y:[-90*DEG,90*DEG],  z:[0,0]},
+  wrist:   {x:[-80*DEG,70*DEG],  y:[-90*DEG,90*DEG],  z:[-35*DEG,35*DEG]},
+  hip:     {x:[-120*DEG,20*DEG], y:[-40*DEG,60*DEG],  zIn:30*DEG, zOut:45*DEG},
+  knee:    {x:[-5*DEG,150*DEG],  y:[0,0],             z:[0,0]}
+};
+/* #7 and #25: nothing turns faster than 300°/s, and what tries to is
+   damped rather than snapped. Also the cheapest insurance there is
+   against a pose popping when a layer hands over to another. */
+const MAX_RATE=300*DEG;
+function clamp2(lo,hi,v){return v<lo?lo:v>hi?hi:v;}
+function applyPose(rig,buf,dt){
+  if(!rig.prev)rig.prev=makePoseBuffer();
+  const step=MAX_RATE*(dt||1/60);
   for(let i=0;i<JOINT_NAMES.length;i++){
     const n=JOINT_NAMES[i],j=rig.J[n],v=buf[n];
-    if(j)j.rotation.set(v.x,v.y,v.z);
+    if(!j)continue;
+    const L=LIMITS[n.replace(/[LR]$/,"")];
+    let x=v.x,y=v.y,z=v.z;
+    if(L){
+      x=clamp2(L.x[0],L.x[1],x);
+      y=clamp2(L.y[0],L.y[1],y);
+      if(L.zIn===undefined)z=clamp2(L.z[0],L.z[1],z);
+      else if(n.charAt(n.length-1)==="L")z=clamp2(-L.zOut,L.zIn,z);
+      else z=clamp2(-L.zIn,L.zOut,z);
+    }
+    const p=rig.prev[n];
+    x=p.x+clamp2(-step,step,x-p.x);
+    y=p.y+clamp2(-step,step,y-p.y);
+    z=p.z+clamp2(-step,step,z-p.z);
+    p.x=x;p.y=y;p.z=z;
+    j.rotation.set(x,y,z);
   }
 }
 /* ---------------- HANDS ----------------
@@ -3329,23 +3384,35 @@ function applyPose(rig,buf){
    cast costs 18 boxes of geometry rather than 108. It is also cheaper
    than what it replaces — a 10x10 sphere was ~180 triangles a wrist,
    this is 72. */
-const GEO_PALM=new THREE.BoxGeometry(.062,.055,.028);
-const GEO_FINGER=new THREE.BoxGeometry(.013,.042,.017);
-const GEO_THUMB=new THREE.BoxGeometry(.017,.032,.019);
+/* Sized off the reference sheet rather than by eye: palm 10.8 cm, hand
+   8.8 cm across, middle finger 8.0, thumb 6.2 — at ~88%, which keeps
+   them stylised next to an oversized head without going back to the
+   mittens they were (the first pass built them barely half-size, and a
+   half-size hand on a full-size arm reads as a glove). */
+const GEO_PALM=new THREE.BoxGeometry(.078,.095,.030);
+const GEO_FINGER=new THREE.BoxGeometry(.017,.070,.019);
+const GEO_THUMB=new THREE.BoxGeometry(.021,.052,.022);
 /* The hand hangs off -Y, the direction the forearm already points, so a
    hand built here works in every pose the rig can reach without a single
-   extra rotation in the animation layers. */
+   extra rotation in the animation layers.
+   The whole group is then turned a quarter turn about Y, and that is the
+   difference between a person and a scarecrow: an arm at rest carries
+   its palm facing the THIGH, not the room. Built palm-forward and turned
+   here so the four fingers still spread across the palm (front to back
+   once turned, which is exactly how they sit) and the thumb lands
+   forward on both sides. */
 function buildHand(parent,mat,sgn){
   const h=new THREE.Group();
-  h.position.y=-.012;
+  h.position.y=-.014;
+  h.rotation.y=-sgn*Math.PI/2;
   const palm=new THREE.Mesh(GEO_PALM,mat);
-  palm.position.y=-.028;palm.userData.slot="skin";h.add(palm);
+  palm.position.y=-.048;palm.userData.slot="skin";h.add(palm);
   /* four fingers across the palm's width, the middle one longest —
      a flat rank of four reads as a comb, not a hand */
-  const LEN=[.86,1,.94,.78];
+  const LEN=[.90,1,.95,.75];
   for(let i=0;i<4;i++){
     const f=new THREE.Mesh(GEO_FINGER,mat);
-    f.position.set(-.0225+i*.015,-.055-.021*LEN[i],.002);
+    f.position.set(-.0285+i*.019,-.095-.035*LEN[i],.002);
     f.scale.y=LEN[i];
     f.rotation.z=(i-1.5)*.05;
     f.userData.slot="skin";h.add(f);
@@ -3353,7 +3420,7 @@ function buildHand(parent,mat,sgn){
   /* the thumb is what makes it read as a hand at all: off the side,
      angled across, and on the inner edge — mirrored per side */
   const th=new THREE.Mesh(GEO_THUMB,mat);
-  th.position.set(sgn*.031,-.05,.008);
+  th.position.set(sgn*.042,-.082,.010);
   th.rotation.z=sgn*.62;
   th.userData.slot="skin";h.add(th);
   parent.add(h);
@@ -3361,7 +3428,7 @@ function buildHand(parent,mat,sgn){
 }
 function buildPerson(opts){
   const o=Object.assign({shirt:0x8a5540,pants:0x2e2e38,skin:0xe8b58c,
-    hair:0x1d1d24,scale:1,fem:false},opts||{});
+    hair:0x1d1d24,eye:0x4a2f1c,scale:1,fem:false},opts||{});
   const root=new THREE.Group();
   const J={};
   function joint(parent,name,x,y,z){
@@ -3379,9 +3446,12 @@ function buildPerson(opts){
     parent.add(m);return m;
   }
   const pelvis=joint(root,"pelvis",0,.86,0);
+  /* hips 33 cm on him, 42 on her — the femoral heads sit wider apart on
+     a woman, and it is half of why the two silhouettes read apart */
+  const hipX=o.fem?.104:.09;
   for(const s of[-1,1]){
     const S=s<0?"L":"R";
-    const hip=joint(pelvis,"hip"+S,.09*s,0,0);
+    const hip=joint(pelvis,"hip"+S,hipX*s,0,0);
     put(hip,new THREE.CylinderGeometry(.055,.05,.44,10),mP,0,-.22,0,true,"pants");
     const knee=joint(hip,"knee"+S,0,-.44,0);
     put(knee,new THREE.CylinderGeometry(.05,.044,.38,10),mP,0,-.19,0,true,"pants");
@@ -3390,7 +3460,11 @@ function buildPerson(opts){
   }
   const spine=joint(pelvis,"spine",0,.1,0);
   const chest=joint(spine,"chest",0,.16,0);
-  const torso=put(chest,new THREE.CylinderGeometry(.165,.205,.52,16),mS,0,0,0,true,"shirt");
+  /* Shoulder-to-hip is 1.45 on a man and 0.92 on a woman: he tapers to
+     the waist, she flares to the hip. One cylinder each way, and the
+     silhouette does the telling before the hair ever gets a chance. */
+  const torso=put(chest,new THREE.CylinderGeometry(o.fem?.155:.178,
+    o.fem?.215:.192,.52,16),mS,0,0,0,true,"shirt");
   /* A NECK YOU CAN SEE. The trapezius pad used to top out at .3535 and the
      skull started at .37: a centimetre and a half of throat, which from
      any distance is a head sitting straight on a pair of shoulders. The
@@ -3403,8 +3477,10 @@ function buildPerson(opts){
   /* long enough to reach INTO the skull at the top and under the pad at
      the bottom: a neck that merely spans the gap shows a seam at both
      ends the moment he turns his head */
-  put(neck,new THREE.CylinderGeometry(.05,.055,.15,12),mSk,0,.06,0,false,"skin");
-  const head=joint(neck,"head",0,.26,0);
+  put(neck,new THREE.CylinderGeometry(.052,.058,.16,12),mSk,0,.065,0,false,"skin");
+  /* .28, not .26: the sheet wants 8-15 cm of neck, and at .26 only six
+     showed between the collar line and the jaw */
+  const head=joint(neck,"head",0,.28,0);
   put(head,new THREE.SphereGeometry(.15,18,16),mSk,0,0,0,true,"skin");
   const hair=put(head,new THREE.SphereGeometry(.155,18,14),mH,0,.06,-.015,false,"hair");
   hair.scale.set(1,.72,1);
@@ -3414,10 +3490,13 @@ function buildPerson(opts){
      where a real ear sits, and coloured as skin so reskin() carries
      them. Marked as accessories so the mesh path's skull strip spares
      them like the nose and the brows. */
+  /* The sheet puts an ear between the brow line and the base of the
+     nose. Brow sits at .044, the nose bottom at about -.037: centred on
+     .003 and .081 tall, which is also the 6.4 cm the sheet asks for. */
   const ears=[];
   for(const e of[-1,1]){
-    const ear=put(head,new THREE.SphereGeometry(.034,10,8),mSk,.142*e,-.006,-.012,false,"skin");
-    ear.scale.set(.42,1.05,.72);
+    const ear=put(head,new THREE.SphereGeometry(.034,10,8),mSk,.142*e,.003,-.012,false,"skin");
+    ear.scale.set(.42,1.19,.72);
     ear.rotation.z=.12*e;
     ear.userData.acc="ear";
     ears.push(ear);
@@ -3436,13 +3515,25 @@ function buildPerson(opts){
      never does */
   ears.forEach(e=>{e.visible=!o.fem;});
   {
-    const back=new THREE.Mesh(new THREE.SphereGeometry(.152,16,14),mH);
-    back.position.set(0,-.055,-.03);
-    back.scale.set(1.03,1.32,.86);
+    /* One mass, and it has two jobs it used to fail at both ends.
+       SIDES: it must be wider than the skull, or a sliver of bare temple
+       shows between the cap and the strands — and a patch of skin that
+       shape, at that height, reads as an ear sticking out of the hair,
+       which is exactly what it was mistaken for.
+       THROAT: and it must hang BEHIND the neck. At .86 deep and centred
+       on -.03 it wrapped forward past the windpipe and swallowed it;
+       pulled back to -.045 and slimmed to .80, its front edge at neck
+       height lands behind the throat, so the neck reads in front of the
+       hair the way it does on a person. */
+    const back=new THREE.Mesh(new THREE.SphereGeometry(.152,18,16),mH);
+    back.position.set(0,-.02,-.045);
+    back.scale.set(1.08,1.30,.80);
     back.userData.slot="hair";longHair.add(back);
+    /* the two that frame the face, kept off the throat: they stop at the
+       jaw, and they sit out at the temple rather than in front of it */
     for(const e of[-1,1]){
-      const strand=new THREE.Mesh(new THREE.BoxGeometry(.055,.2,.06),mH);
-      strand.position.set(.113*e,-.055,.03);
+      const strand=new THREE.Mesh(new THREE.BoxGeometry(.062,.22,.075),mH);
+      strand.position.set(.126*e,-.045,.012);
       strand.rotation.z=.05*e;
       strand.userData.slot="hair";longHair.add(strand);
     }
@@ -3456,10 +3547,16 @@ function buildPerson(opts){
   const nose=put(head,new THREE.SphereGeometry(.025,10,8),mSk,0,-.012,.144,false,"skin");
   nose.scale.set(.85,1,.95);
   nose.userData.acc="nose";        /* survives humanizeRig's skull strip */
+  /* EYE SPACING. The gap between two eyes is one eye wide — the sheet
+     allows 0.8 to 1.2, and past that a face stops reading as a face.
+     These sat at ±.052 with a .038 eyeball: a gap of 1.7 eye widths,
+     which is why every head had that faintly reptilian stare. ±.040
+     brings it to 1.1. The brows and the mouth follow the pupils. */
+  const EYE_X=.040;
   for(const e of[-1,1]){
     /* clear of the hair cap in front (it stops around y=.03 at x=0) and
        sitting ON the skull, .022 above the eye it belongs to */
-    const brow=put(head,new THREE.BoxGeometry(.05,.011,.013),mH,.052*e,.044,.135,false,"hair");
+    const brow=put(head,new THREE.BoxGeometry(.05,.011,.013),mH,EYE_X*e,.044,.135,false,"hair");
     brow.rotation.z=-.14*e;
     brow.userData.acc="brow";      /* not the hair cap: do not rescale it */
   }
@@ -3469,10 +3566,14 @@ function buildPerson(opts){
     /* .136: the eyeball must break the skull surface (r=.15) to be seen,
        and a whole millimetre of white is the difference between an eye
        and a freckle */
-    eg.position.set(.052*e,.022,.136);
+    eg.position.set(EYE_X*e,.022,.136);
     head.add(eg);
     put(eg,new THREE.SphereGeometry(.019,10,10),stdMat(0xf3efe7,.35),0,0,0,false);
-    put(eg,new THREE.SphereGeometry(.011,8,8),stdMat(0x23232b,.4),0,0,.013,false);
+    /* An iris with a colour in it, and a pupil in front of that. It used
+       to be one near-black ball — which is the one eye colour the sheet
+       rules out, and it made every extra look like a doll. */
+    put(eg,new THREE.SphereGeometry(.011,10,8),stdMat(o.eye,.35),0,0,.013,false,"eye");
+    put(eg,new THREE.SphereGeometry(.0052,8,6),stdMat(0x120d0a,.3),0,0,.0205,false);
     /* the eyelid ROTATES shut — squashing the eyeball reads as a lens
        collapsing into the face */
     const lid=new THREE.Mesh(
@@ -3481,7 +3582,10 @@ function buildPerson(opts){
     eg.add(lid);
     eyes.push({eg:eg,lid:lid});
   }
-  const mouth=put(head,new THREE.BoxGeometry(.048,.009,.012),
+  /* the mouth runs pupil to pupil, ±10% — it was .048 against an .080
+     pupil span, a third too narrow, which is what made every mouth read
+     as pursed */
+  const mouth=put(head,new THREE.BoxGeometry(EYE_X*2,.010,.012),
     stdMat(0x8a4a3a,.6),0,-.052,.14,false);
   mouth.userData.acc="mouth";   /* humanizeRig moves it onto the sculpted lips */
   /* ARMS ON THE BODY, not beside it. The joints used to sit at |x|=.225
@@ -3494,16 +3598,22 @@ function buildPerson(opts){
      NOT further in: the torso flares to .205 at the hem, and a joint at
      .198 swallowed the whole arm into the silhouette. Seen head-on, the
      cast had no arms at all. Attached is the goal; absorbed is not. */
-  const shX=o.fem?.204:.215;
+  /* Off the reference sheet: shoulders 47 cm on a man, 39 on a woman —
+     so hers come in by a sixth, not by the token 5 % the first pass
+     used. Upper arm 34 / forearm 28 (31 / 25 for her), and at these
+     lengths the fingertips land at mid-thigh in the neutral pose, which
+     is the check the sheet actually asks for. */
+  const shX=o.fem?.178:.215;
+  const UP=o.fem?.272:.30, FORE=o.fem?.222:.25;
   for(const s of[-1,1]){
     const S=s<0?"L":"R";
     const sh=joint(chest,"shoulder"+S,shX*s,.225,0);
     const cap=put(sh,new THREE.SphereGeometry(.062,12,10),mS,0,0,0,true,"shirt");
     cap.scale.set(1,.92,1);
-    put(sh,new THREE.CylinderGeometry(.045,.04,.28,10),mS,0,-.14,0,true,"shirt");
-    const el=joint(sh,"elbow"+S,0,-.28,0);
-    put(el,new THREE.CylinderGeometry(.04,.036,.24,10),mS,0,-.12,0,true,"shirt");
-    const wr=joint(el,"wrist"+S,0,-.24,0);
+    put(sh,new THREE.CylinderGeometry(.045,.04,UP,10),mS,0,-UP/2,0,true,"shirt");
+    const el=joint(sh,"elbow"+S,0,-UP,0);
+    put(el,new THREE.CylinderGeometry(.04,.036,FORE,10),mS,0,-FORE/2,0,true,"shirt");
+    const wr=joint(el,"wrist"+S,0,-FORE,0);
     /* the wrist bone itself, then the hand off it */
     put(wr,new THREE.SphereGeometry(.032,10,8),mSk,0,0,0,false,"skin");
     buildHand(wr,mSk,s);
@@ -3772,7 +3882,10 @@ const BAR={GRIND:0,TAMP:1,PULL:2,SERVE:3,IDLE:4};
    stool: seat at .795, pelvis lands at .85 — rootY just below zero so
    the seated base pose still applies (SEAT_POSE gates on rootY<0). */
 const worker=makeAgent("worker","worker",{shirt:0x3f4a63,pants:0x2e2e38,skin:0xc48a5e,hair:0x14100c});
-worker.pos.set(1.324,0,-2.735);worker.yaw=Math.PI-.4;worker.rootY=-.01;
+/* square to the counter, because the laptop is straight in front of him:
+   at yaw pi-.4 he sat 23 degrees off his own keyboard, and no arm pose
+   can reach across that (#39 — reach follows the arm, not wishes) */
+worker.pos.set(1.324,0,-2.735);worker.yaw=Math.PI;worker.rootY=-.01;
 const laptop=new THREE.Group();
 {
   const base=new THREE.Mesh(new THREE.BoxGeometry(.3,.012,.21),
@@ -3843,7 +3956,11 @@ const PALETTES={
   shirt:[0x8a5540,0x51606e,0x35543f,0x6e4a63,0xc9973c,0x2c4a6e,0x7d3b3b,0xa86b4a],
   pants:[0x2e2e38,0x3a3230,0x23232b,0x453b33],
   skin:[0xe8b58c,0xd9a578,0xeac39a,0xe0af83,0xc48a5e,0x8d5a3b],
-  hair:[0x1d1d24,0x4a3524,0x2c2018,0x14100c,0x3a2c1c,0x8a8a8a]
+  hair:[0x1d1d24,0x4a3524,0x2c2018,0x14100c,0x3a2c1c,0x8a8a8a],
+  /* brown, hazel, blue, green, amber — the five the sheet allows, and
+     grey is not among them (the irises used to be one near-black ball,
+     which is grey's colourless cousin and the reason the cast stared) */
+  eye:[0x4a2f1c,0x6b5230,0x2f5d8a,0x3f6b45,0xa9752c]
 };
 function pickPal(arr){return arr[(Math.random()*arr.length)|0];}
 const visitor=makeAgent("visitor","visitor",{});
@@ -3852,7 +3969,8 @@ visitor.vTimer=8+Math.random()*10;     /* first visit soon after entering */
 visitor.vLeg=0;visitor.vDir=1;visitor.vPauseT=0;visitor.active=false;
 function reskin(a){
   const o={shirt:pickPal(PALETTES.shirt),pants:pickPal(PALETTES.pants),
-    skin:pickPal(PALETTES.skin),hair:pickPal(PALETTES.hair)};
+    skin:pickPal(PALETTES.skin),hair:pickPal(PALETTES.hair),
+    eye:pickPal(PALETTES.eye)};
   /* the stroller and the guest are rebuilt every visit, so their gender
      is rolled with the rest of the wardrobe rather than fixed at birth */
   setFem(a.rig,Math.random()<.5);
@@ -4545,16 +4663,28 @@ function sitLayer(a,buf,dt){
   }
   addPose(buf,SEAT_POSE,easeInOut(s.k));
 }
+/* ---- typing ----
+   These angles are SOLVED, not guessed. The old pair (-.62 shoulder,
+   -.95 elbow) put his wrists 12 cm below the keyboard and pointing into
+   the room: he was typing on thin air, a foot short of his own laptop.
+   Two-link IK against the real numbers — shoulder at y 1.335, keyboard
+   at 1.231 and .50 forward, upper arm .30, forearm .25 — gives shoulder
+   -1.044 and elbow -.794, which lands the wrist at (-.085, +.500) from
+   the shoulder: on the keys.
+   The wrists then pronate (#45) so the palms face DOWN on the keyboard
+   rather than inward at each other, and bend to lay the fingers on the
+   keys (#57, #72) — the hands are built palm-to-thigh, which is right
+   for an arm at rest and wrong for one at a keyboard. */
 function typingLayer(a,buf,ac){
   if(!a.typing)return;
   /* typing pause ~1 s in 6: hands still, head lifts a touch —
      "thinking about the sentence" */
   const amp=Math.sin(ac*.9)>.86?0:1;
   addPose(buf,{
-    shoulderL:{x:-.62},shoulderR:{x:-.62},
-    elbowL:{x:-.95},elbowR:{x:-.95},
-    wristL:{x:-.12+Math.sin(ac*21.7)*.055*amp},
-    wristR:{x:-.12+Math.sin(ac*24.3+1.3)*.055*amp},
+    shoulderL:{x:-1.044,z:.2},shoulderR:{x:-1.044,z:-.2},
+    elbowL:{x:-.794},elbowR:{x:-.794},
+    wristL:{x:1.20+Math.sin(ac*21.7)*.05*amp,y:-1.5},
+    wristR:{x:1.20+Math.sin(ac*24.3+1.3)*.05*amp,y:1.5},
     chest:{x:.09},head:{x:.14-(1-amp)*.06}
   },1);
 }
@@ -4574,7 +4704,7 @@ function animateAgents(dt){
     typingLayer(a,a.buf,ac);
     breathLayer(a,a.buf,ac);
     gazeLayer(a,a.buf,dt,ac);
-    applyPose(a.rig,a.buf);
+    applyPose(a.rig,a.buf,dt);
     blinkLayer(a,dt);
     a.rig.root.position.x=a.pos.x;
     a.rig.root.position.z=a.pos.z;
@@ -4802,10 +4932,14 @@ const SK=0xe8b58c;
   placket.position.set(0,1.1,.235);simon.add(placket);
   for(const s of[-1,1]){
     const sh=new THREE.Group();sh.position.set(.27*s,1.31,0);
-    sh.rotation.x=-1.12;sh.rotation.z=.32*s;
+    /* -.55 / -.75 rather than -1.12 / +.5: the elbow used to sit at
+       POSITIVE .5, a forearm folded backwards out of the arm (#43).
+       Re-solved so his hands land where they always did, with the
+       hinge closing the only way a hinge closes. */
+    sh.rotation.x=-.55;sh.rotation.z=.32*s;
     const upper=new THREE.Mesh(new THREE.CylinderGeometry(.052,.047,.3),mShirt);
     upper.position.y=-.15;upper.castShadow=true;sh.add(upper);
-    const elbow=new THREE.Group();elbow.position.y=-.3;elbow.rotation.x=.5;
+    const elbow=new THREE.Group();elbow.position.y=-.3;elbow.rotation.x=-.75;
     const fore=new THREE.Mesh(new THREE.CylinderGeometry(.045,.04,.3),mShirt);
     fore.position.y=-.15;fore.castShadow=true;elbow.add(fore);
     const hand=new THREE.Mesh(new THREE.SphereGeometry(.052,12,10),mSkin);

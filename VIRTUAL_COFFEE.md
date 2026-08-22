@@ -294,9 +294,28 @@ les épaules. Simon a eu le même traitement : col descendu, tête remontée à
 1,67 (`SIMON_HEAD_Y`, autour de quoi la boucle d'animation la fait respirer). Pas plus — à .198 le torse (qui s'évase à .205 à
 l'ourlet) avalait le bras entier : de face, plus personne n'avait de bras.
 Attaché, oui ; absorbé, non. Enfin **la moitié du café est féminine**
-(`fem`) : cheveux longs tombant sur la nuque, épaules un rien plus étroites —
-et cheveux détachés veut dire oreilles couvertes, donc pas dessinées du tout
-plutôt que dessinées et traversant les mèches.
+(`fem`) : cheveux longs tombant sur la nuque, et la silhouette que demande la
+fiche morphologique — épaules/hanches 1,45 chez l'homme, 0,92 chez la femme,
+lui qui s'affine à la taille, elle qui s'évase à la hanche. Cheveux détachés
+veut dire oreilles couvertes (pas dessinées du tout, plutôt que dessinées et
+traversant les mèches), et la masse passe **derrière** la gorge, pour que le
+cou se lise devant les cheveux.
+
+**[`ANATOMIE.md`](ANATOMIE.md) fait foi** — deux fiches morphologiques et cent
+critères d'articulation — et ce n'est pas de la doc décorative : la table
+`LIMITS` encode ces critères et s'applique dans `applyPose()`, le seul endroit
+où toutes les poses atterrissent. Un coude ne s'hyperétend pas, un genou ne
+plie pas à l'envers, une charnière ne plie pas de côté, et rien ne tourne à
+plus de 300°/s — quoi qu'écrive une gesticulation ajoutée plus tard. Ce garde-
+fou existe parce que l'inverse avait déjà échoué : la pose de repos de Simon
+tenait un coude à +.5, avant-bras replié à l'envers hors du bras, pendant des
+mois sans que personne le voie.
+
+La pose de frappe est **résolue, pas estimée** : cinématique inverse à deux
+segments sur les vrais chiffres (épaule à 1,335, clavier à 1,231 et .50 devant,
+bras .30, avant-bras .25) — les poignets tombent sur les touches, là où les
+angles choisis à la main les laissaient 12 cm trop bas et pointés dans le
+vide.
 Le passant et l'invité tirent leur genre au sort avec le reste du vestiaire
 dans `reskin()`. Et **l'horloge du mur tourne** — heure locale du visiteur,
 trotteuse comprise, au lieu d'être figée à l'heure du chargement.

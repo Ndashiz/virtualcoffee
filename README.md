@@ -94,6 +94,7 @@ copy under `/var/www/virtualcoffee/` drifts the moment you stop deploying to it.
 
 ```
 index.html          Everything: markup, CSS, the VC shell, the scene code
+ANATOMIE.md         Body measurements + 100 joint criteria — the cast's reference
 cafe.obj.txt        The café itself — real 3D model, ~95k tris (5.1 MB, ~980 KB gzipped)
 tex/*.png           13 baked label maps — trophy cabinet, diplomas, van (~376 KB)
 person.obj          Male NPC body — base mesh cut into 15 rig segments (~550 KB)
@@ -182,10 +183,27 @@ straight onto a pair of shoulders. Simon got the same treatment, his collar
 lowered and his head lifted to 1.67 (`SIMON_HEAD_Y`, which the animate loop
 breathes around).
 
-Half the cast are **women**, told by longer hair falling to the nape; worn
-down, that hair takes the ears with it (they are not drawn at all, rather than
-drawn and poking through the strands). The stroller and the guest roll their
-gender with the rest of the wardrobe in `reskin()`. And the wall clock **runs**: it reads
+Half the cast are **women**, told by longer hair falling to the nape and by
+the silhouette the reference sheet asks for (shoulder-to-hip 1.45 on a man,
+0.92 on a woman — he tapers to the waist, she flares to the hip); worn down,
+that hair takes the ears with it, and hangs behind the throat so the neck
+still reads in front of it. The stroller and the guest roll their gender with
+the rest of the wardrobe in `reskin()`.
+
+**[`ANATOMIE.md`](ANATOMIE.md) is the reference for all of this** — two
+morphology sheets and a hundred joint criteria — and it is not decoration: the
+`LIMITS` table in the scene encodes those criteria and is enforced in
+`applyPose()`, the single point every animation layer's pose lands on. An
+elbow cannot hyperextend, a knee cannot bend forward, a hinge cannot bend
+sideways and nothing turns faster than 300°/s, no matter what a gesture
+written later asks for. That guard exists because the alternative had already
+failed: Simon's own rest pose sat at +.5 on the elbow — a forearm folded
+backwards out of his arm — and nobody caught it for months.
+
+The typing pose is **solved rather than eyeballed**: two-link IK from the real
+numbers (shoulder at 1.335, keyboard at 1.231 and .50 forward, upper arm .30,
+forearm .25) lands the laptop guy's wrists on the keys, where the old
+hand-picked angles left them 12 cm low and pointing into the room. And the wall clock **runs**: it reads
 the visitor's own time, second hand included, instead of being stamped once at
 load and drifting for the rest of the visit.
 
