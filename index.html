@@ -6,12 +6,12 @@
 <title>Virtual Coffee — Simon Goffin, Product Manager</title>
 
 <!-- ── Discovery ──────────────────────────────────────────────────
-     This page is a résumé, so it gets found before it gets rendered.
+     This page is a resume, so it gets found before it gets rendered.
      The 3D café is invisible to crawlers and link-preview bots, hence
      the meta block below plus the semantic #cv-text panel in <body>. -->
-<meta name="description" content="Take a virtual coffee with Simon Goffin — Product Manager in private banking (Degroof Petercam), Brussels. An interactive 3D café where the résumé on the table talks back, section by section."/>
+<meta name="description" content="Take a virtual coffee with Simon Goffin — Product Manager in private banking (Degroof Petercam), Brussels. An interactive 3D café where the resume on the table talks back, section by section."/>
 <meta name="author" content="Simon Goffin"/>
-<meta name="keywords" content="Simon Goffin, Product Manager, Product Owner, PSPO, Degroof Petercam, Brussels, CLM, onboarding, MiFID, AML, résumé, CV"/>
+<meta name="keywords" content="Simon Goffin, Product Manager, Product Owner, PSPO, Degroof Petercam, Brussels, CLM, onboarding, MiFID, AML, resume, CV"/>
 <link rel="canonical" href="https://ndashiz.be/virtualcoffee/"/>
 <meta name="theme-color" content="#14263d"/>
 <meta name="color-scheme" content="dark"/>
@@ -22,16 +22,16 @@
 <meta property="og:site_name" content="Virtual Coffee"/>
 <meta property="og:url" content="https://ndashiz.be/virtualcoffee/"/>
 <meta property="og:title" content="Virtual Coffee — Simon Goffin, Product Manager"/>
-<meta property="og:description" content="Pull up a chair. An interactive 3D café where my résumé sits on the table — read it, put it down, and I'll talk you through it out loud."/>
+<meta property="og:description" content="Pull up a chair. An interactive 3D café where my resume sits on the table — read it, put it down, and I'll talk you through it out loud."/>
 <meta property="og:image" content="https://ndashiz.be/virtualcoffee/og.jpg"/>
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
-<meta property="og:image:alt" content="A warm 3D café: Simon sits at a table with a coffee and his résumé."/>
+<meta property="og:image:alt" content="A warm 3D café: Simon sits at a table with a coffee and his resume."/>
 <meta property="og:locale" content="en_GB"/>
 
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="Virtual Coffee — Simon Goffin, Product Manager"/>
-<meta name="twitter:description" content="Pull up a chair. An interactive 3D café where my résumé sits on the table — read it, put it down, and I'll talk you through it out loud."/>
+<meta name="twitter:description" content="Pull up a chair. An interactive 3D café where my resume sits on the table — read it, put it down, and I'll talk you through it out loud."/>
 <meta name="twitter:image" content="https://ndashiz.be/virtualcoffee/og.jpg"/>
 
 <link rel="icon" href="favicon.svg" type="image/svg+xml"/>
@@ -75,9 +75,9 @@
     color:#9fb4bc;letter-spacing:2.4px;text-transform:uppercase;margin-top:2px;}
 
   /* Stacking, bottom to top: overlays 12 · sign 20 · prompt 20 ·
-     how-to 50 · text résumé 60 · tools 70.
-     The tools sit on top of everything on purpose — the résumé pill
-     must stay reachable from inside the text résumé (for a visitor with
+     how-to 50 · text resume 60 · tools 70.
+     The tools sit on top of everything on purpose — the resume pill
+     must stay reachable from inside the text resume (for a visitor with
      no WebGL that panel IS the site) and from the welcome card. */
   .tools{position:fixed;top:calc(16px + env(safe-area-inset-top));
     right:calc(16px + env(safe-area-inset-right));z-index:70;
@@ -89,7 +89,7 @@
     font-family:"Space Grotesk",sans-serif;font-size:13px;transition:.18s;}
   .pill:hover{color:var(--gold);border-color:var(--gold);}
 
-  /* Mute: icon only — the label would push "Text résumé" off a narrow
+  /* Mute: icon only — the label would push "Text resume" off a narrow
      screen, and the speaker glyph is the one control nobody needs told.
      Hidden until the scene wires it: no audio exists without the scene,
      and a dead toggle is worse than no toggle. */
@@ -103,7 +103,7 @@
   #muteBtn[aria-pressed="true"] .on{display:none;}
   #muteBtn[aria-pressed="true"] .off{display:block;}
 
-  /* ── Text résumé ───────────────────────────────────────────────
+  /* ── Text resume ───────────────────────────────────────────────
      Not a second-class citizen: it is the accessible reading of the
      café (keyboard, screen readers, sound off), what a visitor without
      WebGL gets, and what a crawler that never runs the 3D can index. */
@@ -336,7 +336,7 @@
 </style>
 </head>
 <body>
-<h1 class="visually-hidden">Simon Goffin — Product Manager, Brussels. Virtual Coffee, an interactive 3D résumé.</h1>
+<h1 class="visually-hidden">Simon Goffin — Product Manager, Brussels. Virtual Coffee, an interactive 3D resume.</h1>
 
 <div id="app"></div>
 <div class="bars t"></div><div class="bars b"></div>
@@ -359,7 +359,7 @@
       <path d="M13.2 8.2l3.8 3.6M17 8.2l-3.8 3.6"/>
     </svg>
   </button>
-  <button class="pill" id="cvBtn" aria-expanded="false" aria-controls="cv-text">Text résumé</button>
+  <button class="pill" id="cvBtn" aria-expanded="false" aria-controls="cv-text">Text resume</button>
 </div>
 <div class="aside" id="aside" role="status" aria-live="polite"></div>
 <div class="seathud" id="seatHud" aria-hidden="true">
@@ -367,21 +367,21 @@
     <path d="M17 3 L27 21 L17 16.5 L7 21 Z"/>
   </svg>
 </div>
-<div class="prompt" id="prompt">Hover the résumé on the table &amp; tap a section&nbsp;☕</div>
+<div class="prompt" id="prompt">Hover the resume on the table &amp; tap a section&nbsp;☕</div>
 
 <!-- ════════════════════════════════════════════════════════════════
      THE DIALOGUE BOX
      Opens once the visitor has read the sheet and it has gone back on
-     the table. It is the ONLY way to pick a section now — the résumé is
+     the table. It is the ONLY way to pick a section now — the resume is
      something you read, not a menu you click. Built from TALK at run
      time; empty in the markup so a no-WebGL visitor never sees a dead
-     panel (the text résumé is their version of this).
+     panel (the text resume is their version of this).
      ════════════════════════════════════════════════════════════════ -->
 <div class="talk" id="talk" hidden aria-hidden="true">
   <p class="tlead" id="talkLead"></p>
   <div class="topts" id="talkOpts" role="group" aria-label="What Simon can tell you about"></div>
   <div class="tlinks" id="talkLinks" hidden>
-    <button class="tlink" id="cvPeek" type="button">📄 See the résumé</button>
+    <button class="tlink" id="cvPeek" type="button">📄 See the resume</button>
     <a class="tlink" id="cvDl" href="#" download>⬇ Download it</a>
     <a class="tlink" id="liLink" href="#" target="_blank" rel="noopener">in — LinkedIn</a>
   </div>
@@ -428,7 +428,7 @@
      TEXT RÉSUMÉ
      Both languages ship as static markup rather than being built from
      the DATA object below: a crawler or a link-preview bot that never
-     executes the 3D still reads the whole résumé. It is also the only
+     executes the 3D still reads the whole resume. It is also the only
      way to READ what Simon says — the spoken sections have no
      subtitles since the recordings replaced them.
      Keep this in step with DATA when the CV changes.
@@ -505,7 +505,7 @@
    Everything here runs BEFORE three.js and never touches it, because it
    has to keep working when the 3D does not: no WebGL, a driver refusing
    the context, a crawler, someone on a keyboard. In those cases the text
-   résumé IS the site, so its language switch and its open/close must not
+   resume IS the site, so its language switch and its open/close must not
    live inside the scene's script.
 
    The scene subscribes with VC.onLang(fn) and reads VC.fontsReady.
@@ -528,7 +528,7 @@ window.VC = (function(){
   })();
 
   /* ── Font readiness ─────────────────────────────────────────────
-     The résumé sheet and the chalkboard are painted into canvas
+     The resume sheet and the chalkboard are painted into canvas
      textures. A canvas draw does NOT wait for a webfont: it silently
      bakes the fallback face and never repaints. document.fonts.ready
      alone is not enough either — it resolves once nothing is pending,
@@ -546,10 +546,10 @@ window.VC = (function(){
      English only, by request. The plumbing stayed one-language deep:
      the getter and onLang survive so nothing downstream throws. */
   function relabel(){
-    cvBtn.textContent = panel.hidden ? 'Text résumé' : 'Close ✕';
+    cvBtn.textContent = panel.hidden ? 'Text resume' : 'Close ✕';
   }
 
-  /* ── Text résumé panel ──────────────────────────────────────────
+  /* ── Text resume panel ──────────────────────────────────────────
      One pill drives it both ways, so there is no second close button
      to collide with anything on a narrow screen. */
   let onOpen = null;                       // the scene hangs "stop talking" here
@@ -576,7 +576,7 @@ window.VC = (function(){
     if (e.target === panel && !cvBtn.hidden) closeCV();
   });
 
-  /* No WebGL: there is no café to come back to, so the résumé is not an
+  /* No WebGL: there is no café to come back to, so the resume is not an
      overlay any more — it is the page. Drop the scene chrome with it. */
   function textOnly(reason){
     console.warn('[virtual-coffee] 3D unavailable —', reason);
@@ -609,7 +609,7 @@ window.VC = (function(){
    WHY THIS IS ITS OWN <script>, HERE, BETWEEN THE OTHER TWO
 
    Not inside the VC shell above: a syntax error anywhere in that IIFE
-   leaves window.VC undefined, and VC is what swaps in the text résumé
+   leaves window.VC undefined, and VC is what swaps in the text resume
    when the 3D fails. A visit counter must never be able to take the
    fallback down with it — a separate <script> is a parser boundary, so
    the worst this block can do is not run.
@@ -638,7 +638,7 @@ window.VCPing = (function(){
      is a fact about Simon, not about them — but the request then carries
      the event "open" and nothing else: no language, no referrer, and no
      further request for anything they click. Said out loud in the privacy
-     note at the foot of the text résumé. */
+     note at the foot of the text resume. */
   var PRIVATE = (function(){
     try {
       return navigator.globalPrivacyControl === true ||
@@ -716,7 +716,7 @@ window.VCPing = (function(){
   /* The load ping — the only one whose answer means anything. */
   send('open', true);
 
-  /* The text résumé is the one thing reachable in every state of this
+  /* The text resume is the one thing reachable in every state of this
      page, so its pill earns a count of its own. The VC shell registered
      its own click listener first, so aria-expanded here already reflects
      the new state: we count openings, not closings. */
@@ -758,7 +758,7 @@ window.VCPing = (function(){
    prototype stays readable.
    ===================================================================== */
 (function(){
-if(!VC.hasWebGL) return;                  /* VC already swapped in the text résumé */
+if(!VC.hasWebGL) return;                  /* VC already swapped in the text resume */
 if(typeof THREE==="undefined"){ VC.textOnly("three.js failed to load"); return; }
 
 /* ---------------- CONTENT ---------------- */
@@ -790,7 +790,7 @@ const DATA={
      The running order lives in TALK/sectionClips(), not here. */
   speech:{
    welcome:`Hey — there you are. Good to finally have the time for that coffee together. Look, before we sit down, have a wander. This place is mine — and I don't just mean I rent it. I did the plumbing, the wiring, all of it. Every detail in here I put there myself, which explains both the good bits and the odd bits. So take a look around. When you're ready, the chair with the green cushion is yours, and we'll talk properly.`,
-   seated:`There it is. Take a proper look — it's all there in black and white. But a résumé only tells you what I did, not how, or why, or whether I was any good at it. So pick a section and I'll fill in the gaps. Wherever you want to start.`,
+   seated:`There it is. Take a proper look — it's all there in black and white. But a resume only tells you what I did, not how, or why, or whether I was any good at it. So pick a section and I'll fill in the gaps. Wherever you want to start.`,
    reclick:`Ah, you weren't listening. No worries, happens to the best of us — here it is again.`,
    education:`So, economics at Solvay — bachelor then master. I went there because I'm genuinely a fan of macro, of geopolitics, of the way political decisions land in an economy. And I liked that it runs on mathematics. Not always a fun game, that part, but a real one. After my studies I had this nagging feeling I needed to do something about coding. I'd taken a few courses on the side, basic SQL, a bit of Python. But I also wanted to go abroad before starting work. So I went to Amsterdam for Le Wagon — a full-stack bootcamp, backend and frontend. Nine weeks doesn't make you a developer. It makes you someone engineers can't bluff, and that's exactly what I wanted. Then COVID happened, I started my first job remotely from Amsterdam, and stayed a few extra months. No regrets there.`,
    /* Work experience has two openings — see sectionClips(). Both run
@@ -805,7 +805,7 @@ const DATA={
    ai:`Honestly? I think it's one of the biggest revolutions my generation will live through. Genuinely disruptive, across every industry. From a business perspective, what it does is automate the low-value work — the boring, repetitive tasks that eat the day — so people can put their brain juice on the things that actually add value. That's the real gain. And beyond efficiency, it lets people be creative in ways they couldn't before. Which is exactly what I'm doing in my evenings, building this café you're sitting in. And from a client perspective — take banking. A huge number of checks that were done manually can now be automated. Which means the client gets bothered less, because we can derive and cross-check information far more easily than ever before. Fewer documents to chase, fewer questions we already know the answer to. That's the shift I care about. Not the flashy demos — the fifty small manual steps that quietly disappear.`,
    banking:`It started with Monopoly, which is a slightly embarrassing origin story for a banking career, but there it is. I worked out fairly young that you don't build anything on that board without the bank — and that the person handling the money was quietly having the best time. That idea stuck: for an individual, the financial system is genuinely the most powerful mechanism there is for building something. So I studied economics, and the parts I actually enjoyed were monetary theory, banking theory, macro. Not the fashionable subjects. I'm still the person who reads central bank decisions on a Thursday evening, which I'm told is not normal. But what keeps me here is something else. In a bank, it doesn't matter which department you're in — you can walk up to almost anyone and talk about the markets, the news, what a rate decision means. There's a shared language running through the whole building, and I've worked in places where that doesn't exist. It's flatter. That common spirit is rare, and it's the reason I'd struggle to leave. Also the coffee is terrible everywhere in this industry, and somehow nobody minds. Which tells you something about us.`,
    howibuilt:`Fair question, and I'll admit something first: I'm hyperactive. I can't sit still in front of a television doing nothing. So my evenings go into making things — either with my hands, renovating, working with wood, or projects like this one. This café was built entirely in the evenings. About a month, mostly while sitting with my family with the TV on. I used Claude, ElevenLabs, Kimi and Emergence AI, all working together. And it's not just what you see. The site runs on my own backend, which I call Jarvis, on a server I built myself — a Raspberry Pi 5 — with AI helping me set it up. Now — am I an IT guy? No. But I know how to prompt, and I know how to use AI by borrowing exactly what I do at work. Defining the key features and the user stories. Setting acceptance criteria. Defining the non-regression tests the AI has to run after every feature I ask for. Working across separate environments, so I test before I release anything. So it was never about knowing how to code. It's about knowing how to use these tools properly — and that turns out to be the same discipline as the day job.`,
-   outro:`And that's the lot. You've been more patient than most, so thank you for that. Two things before you go. There's a download button for the résumé, if you want it on paper — or on a screen, more likely. And there's a link to my LinkedIn. Now, if you listened at all, you'll have picked up that I'm a social animal. The more people I'm around, the more alive I am — that's just how I'm wired. So this whole thing has been me talking at you, which is a fairly one-sided way to have coffee. If any of it resonated, get in touch. I'm always happy to widen the circle. Let's see if we can turn this into a real coffee. Who knows.`},
+   outro:`And that's the lot. You've been more patient than most, so thank you for that. Two things before you go. There's a download button for the resume, if you want it on paper — or on a screen, more likely. And there's a link to my LinkedIn. Now, if you listened at all, you'll have picked up that I'm a social animal. The more people I'm around, the more alive I am — that's just how I'm wired. So this whole thing has been me talking at you, which is a fairly one-sided way to have coffee. If any of it resonated, get in touch. I'm always happy to widen the circle. Let's see if we can turn this into a real coffee. Who knows.`},
   /* ── Closed café ─────────────────────────────────────────────────
      Every word the closed state puts on screen lives here, beside the
      open copy, for one reason: applyLang() repaints the sign, the
@@ -814,11 +814,11 @@ const DATA={
      exactly until someone taps FR, and then silently reverts. */
   closed:{
    sign:["Virtual Coffee","closed — back tomorrow"],
-   prompt:"Bar closed — the résumé stayed open, up there ↗",
+   prompt:"Bar closed — the resume stayed open, up there ↗",
    board:{title:"CLOSED",
           lines:["Machine off, lights down.",
                  "Back tomorrow.",
-                 "The résumé is still on the counter."],
+                 "The resume is still on the counter."],
           hand:"— Simon"}}
  }
 };
@@ -854,7 +854,7 @@ const AUDIO={
 };
 
 /* ── The running order ───────────────────────────────────────────────
-   Two tiers. The five that make up the résumé come first; the four that
+   Two tiers. The five that make up the resume come first; the four that
    make up the person unlock once all five have been heard through. The
    outro unlocks with them and is the only way to end the visit.
    `k` is both the mp3 key and the counter event. */
@@ -866,7 +866,7 @@ const TALK={
         ["banking","Why banking"],["howibuilt","How I built this"]],
  outro:["outro","And to wrap up… ☕"]
 };
-/* Where the outro sends you. The download is built from the résumé
+/* Where the outro sends you. The download is built from the resume
    canvas — the sheet on the table IS the CV, at 1240×1754 — so there is
    no PDF to keep in step with it. Point CV_FILE at a real file and the
    button links to that instead. */
@@ -3679,7 +3679,7 @@ const GUEST_PATH=[[4.0,-1.15],[3.0,-.7],[3.0,-.6],[2.2,-.28],[1.4,.55],[0,.95],[
    page promises "you sit across a café table from me", and the model's
    spare chair sat at his elbow. Same radius from the table centre as his
    own seat (.93), swung round to face him; the small x offset is what
-   keeps the avatar clear of the résumé and of Simon in the wide shot,
+   keeps the avatar clear of the resume and of Simon in the wide shot,
    which a dead-centre seat would both eclipse. */
 const GUEST_SEAT={x:-.64,z:.52,yaw:Math.atan2(0-(-.64),-1.08-.52)};
 const SEAT_TRIGGER=.55;      /* stand inside this and the interview starts */
@@ -4211,11 +4211,11 @@ function tickGuest(a,dtT){
   /* Seated, he HOLDS Simon's gaze. Handing him back to the free gaze
      system between sentences is what made him look shifty — a listener
      who keeps scanning the room reads as bored, not alive. He still
-     drops his eyes to the résumé for a beat every ~9 s, which is what a
+     drops his eyes to the resume for a beat every ~9 s, which is what a
      real listener does and what keeps him from staring. */
   if(a.state==="sit"||a.state==="seated"){
     /* seeded on the first tick, or an undefined timer fires immediately
-       and he spends the whole greeting reading the résumé */
+       and he spends the whole greeting reading the resume */
     if(a.glanceT===undefined)a.glanceT=jit(9,.35);
     a.glanceT-=dtT;
     if(a.glanceT<=0){a.glanceT=jit(9,.35);a.glanceFor=1.2;}
@@ -4388,7 +4388,7 @@ function behaviourTick(dtT){
    says the line every closing time is made of, and the regulars drift
    out through the door.
 
-   Deliberately DECOR ONLY. Simon stays, the résumé stays clickable, the
+   Deliberately DECOR ONLY. Simon stays, the resume stays clickable, the
    sections still play — this is the room emptying around a conversation
    that is still yours to have, not the page shutting down. That is
    closeCafe()'s job, and this is not it. */
@@ -5019,7 +5019,7 @@ function pick(e){
 }
 addEventListener("pointermove",e=>{
   if(TOUCH)return;
-  /* pick() owns the cursor over the résumé and Simon; the wall is the
+  /* pick() owns the cursor over the resume and Simon; the wall is the
      one thing it does not know about */
   if(!pick(e)&&!zoomItem&&pickReadable(e.clientX,e.clientY))
     document.body.style.cursor="pointer";
@@ -5241,7 +5241,7 @@ function renderTalk(){
   const wasTier2=tier2;
   tier2=unlocked();
   talkLead.textContent=tier2
-    ?(outroSeen?"Anything you want to hear again?":"That's the résumé covered. Now the person behind it.")
+    ?(outroSeen?"Anything you want to hear again?":"That's the resume covered. Now the person behind it.")
     :"Pick a section and I'll fill in the gaps.";
   talkOpts.innerHTML="";
   let n=0;
@@ -5281,7 +5281,7 @@ if(skipBtn){
     if(reading)endReading();       /* or the sheet hangs there for ever */
   });
 }
-/* The résumé you can keep. The sheet on the table is a real 1240×1754
+/* The resume you can keep. The sheet on the table is a real 1240×1754
    render of the CV, so the download is that canvas — nothing to keep in
    step, nothing extra to ship. CV_FILE overrides it when a PDF exists. */
 document.getElementById("cvDl").addEventListener("click",function(e){
@@ -5302,7 +5302,7 @@ document.getElementById("cvDl").addEventListener("click",function(e){
   li.hidden=true;
   if(LINKEDIN_URL)li.href=LINKEDIN_URL;
 }
-/* "See the résumé": the sheet comes back up in the reading pose — the
+/* "See the resume": the sheet comes back up in the reading pose — the
    same beat as sitting down, minus the monologue. A second tap, a click
    beside it, or space puts it back down. Works mid-sentence on purpose:
    he keeps talking, you keep the subtitles, and the sheet drops on its
@@ -5453,7 +5453,7 @@ setInterval(function(){
 },400);
 
 /* ---- keyboard: the dialogue box, by number ----
-   1-5 are the résumé, 6-9 the second tier, 0 the wrap-up — the same
+   1-5 are the resume, 6-9 the second tier, 0 the wrap-up — the same
    numbers the box prints down its left edge, and locked keys do nothing
    rather than jumping the queue. Space hushes him. */
 function keyItem(d){
@@ -5485,7 +5485,7 @@ function paintSign(){
   const s=cafeClosed?DATA[lang].closed.sign:DATA[lang].sign;
   document.getElementById("sign").innerHTML=s[0]+"<small>"+s[1]+"</small>";
 }
-/* Opening the flat résumé shuts Simon up — and if the sheet beat was in
+/* Opening the flat resume shuts Simon up — and if the sheet beat was in
    flight it COMPLETES it, skip-style. stopSpeaking alone used to strand
    the visitor: the seated line never reached its natural end, so
    endReading never ran, the dialogue box never opened, and closing the
@@ -5497,25 +5497,25 @@ if("speechSynthesis"in window){speechSynthesis.getVoices();speechSynthesis.onvoi
 const HOWTO={
  en:{title:"Welcome to my virtual coffee\u00A0☕",
      steps:["🚶 Arrow keys walk you in — have a wander, the place is mine",
-            "🪑 The chair with the green cushion is yours — sit and the résumé comes up",
+            "🪑 The chair with the green cushion is yours — sit and the resume comes up",
             "💬 Read it, put it down, then pick a section — I'll fill in the gaps",
             "🔊 My words, an AI voice — turn your sound on (space hushes me)",
-            "📄 In a hurry? “Text résumé” gives you the flat version"],
+            "📄 In a hurry? “Text resume” gives you the flat version"],
      stepsTouch:["🚶 Tap the floor to walk — have a wander, the place is mine",
-            "🪑 The chair with the green cushion is yours — sit and the résumé comes up",
+            "🪑 The chair with the green cushion is yours — sit and the resume comes up",
             "💬 Read it, tap to put it down, then pick a section",
             "🔊 My words, an AI voice — turn your sound on",
-            "📄 In a hurry? “Text résumé” gives you the flat version"],
+            "📄 In a hurry? “Text resume” gives you the flat version"],
      btn:"Take a seat",
      /* Same card, other state. No new markup: #howto is already the
         full-screen thing that explains the café, so when there is no café
         it is the thing that says so. */
      closed:{title:"The café is closed\u00A0🌙",
              steps:["🌙 Lights down, room empty — Simon has gone home for the night",
-                    "📄 The résumé did not close with it: the full text version is one tap away",
+                    "📄 The resume did not close with it: the full text version is one tap away",
                     "☕ Come back another day and I'll talk you through the whole thing out loud",
                     "🚪 Tap outside this card if you'd rather sit in the dark a minute"],
-             btn:"Read the text résumé"}}
+             btn:"Read the text resume"}}
 };
 function renderHowto(){
   const el=document.getElementById("howto");
@@ -5560,7 +5560,7 @@ function startEntrance(){
      that is a quarter-minute of nothing happening */
   guest.speed=.95;
   guest.active=true;guest.vPauseT=0;guest.walkK=0;guest.walkPhase=0;
-  guest.prop=paper;                    /* idle glances go to the résumé */
+  guest.prop=paper;                    /* idle glances go to the resume */
   guest.rig.root.visible=true;guest.blob.visible=true;
   if(RM){                              /* no cutscene: already seated, talk now */
     guest.pos.set(GUEST_SEAT.x,0,GUEST_SEAT.z);
@@ -5602,7 +5602,7 @@ function startEntrance(){
 /* ---------------- SITTING DOWN ----------------
    You sit, the sheet comes up near full-screen, and he starts talking
    over it straight away — the seated line IS the caption to what you are
-   reading ("a résumé only tells you what I did, not how, or why"). The
+   reading ("a resume only tells you what I did, not how, or why"). The
    sheet goes back down on its own when he finishes it, and only then
    does the dialogue box open. For someone who has read it in five
    seconds there are three ways to cut it short, all equivalent: a click
@@ -5651,7 +5651,7 @@ document.getElementById("howto").addEventListener("click",e=>{
    the whole trick, and it is why the closed state costs one function and
    no asset.
 
-   What it must never do is hide the text résumé — the CV is the point of
+   What it must never do is hide the text resume — the CV is the point of
    the page. The pill stays, the panel stays, and the card's only button
    goes straight to it. VC.textOnly() looks like the obvious tool here and
    is the wrong one: it HIDES the pill and force-opens the panel, which is
@@ -5736,7 +5736,7 @@ const SHOTS={
      of 1.75 smears everything past 7 m — which in a 10 m room is the
      counter, the chalkboard, the window and every extra in the place.
      A range this wide means NOTHING blurs by distance; the only rack
-     focus left is the deliberate one, when you hover the résumé. */
+     focus left is the deliberate one, when you hover the resume. */
   gameplay: {pos:[.42,1.42,2.6], look:[0,1.12,-.95], fov:52,focus:3.5, range:14, roll:.006, shake:1},
   /* Third-person chase for the walk in — the arrays below are rewritten
      every frame by updateFollowShot(). Nothing else changes: the same
@@ -5878,7 +5878,7 @@ function updateFollowShot(dt){
 }
 /* --- look controls: drag to orbit, wheel to dolly. No pointer lock — it
    would seize the cursor on a page whose whole point is a clickable
-   résumé, and the browser's own prompt would land mid-walk. --- */
+   resume, and the browser's own prompt would land mid-walk. --- */
 /* Tap-to-walk. Without it a phone could never reach the chair now that
    the autopilot is gone — there are no arrow keys to press. A TAP is a
    move order; a DRAG is a look, and the two are told apart by distance
@@ -5963,7 +5963,7 @@ function updateReadHint(dt){
   readHint.classList.add("on");
 }
 function pickReadable(cx,cy){
-  /* NOT gated on `entered` the way pick() is: the résumé only exists once
+  /* NOT gated on `entered` the way pick() is: the resume only exists once
      you are in the chair, but the wall is the whole reason to walk the
      room BEFORE sitting down. */
   if(!READABLES.length||!CAFE.ready)return null;
@@ -6030,7 +6030,7 @@ let dragId=null,dragX=0,dragY=0,dragT=0,dragMoved=0,dragSX=0,dragSY=0;
 function lookActive(){
   if(guest.state!=="walk"||RM||cafeClosed)return false;
   if(zoomItem)return false;          /* something is open over the room */
-  /* the text résumé is a scrollable panel over the whole page: while it
+  /* the text resume is a scrollable panel over the whole page: while it
      is open the wheel belongs to it, not to the camera */
   const cv=document.getElementById("cv-text");
   return !cv||cv.hidden;
@@ -6327,7 +6327,7 @@ function animate(){
   let srcTex=RT_HDR.texture;
   /* a wide range means the CoC is zero everywhere, so the whole bokeh
      pass is a full-screen no-op — skip it and keep the frame budget for
-     the walk. It comes back the moment the résumé pulls focus, and the
+     the walk. It comes back the moment the resume pulls focus, and the
      #coc debug view keeps it alive: that view reads this pass's alpha,
      and skipping it left the one instrument for auditing blur showing a
      flat white screen. */

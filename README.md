@@ -1,6 +1,6 @@
 # Virtual Coffee
 
-An interactive 3D résumé. "Take a seat" spawns your character by the door and
+An interactive 3D resume. "Take a seat" spawns your character by the door and
 **the arrow keys are yours** (physical WASD works too, which lands on ZQSD for
 AZERTY, or a tap on the floor — the only control a phone has): nothing moves
 until you move it, so Simon calls you over out loud. A third-person camera
@@ -22,7 +22,7 @@ marker; ask for it again and he says so before repeating himself. Work
 experience has two openings and picks the one that fits what you have already
 heard. Once all five are done a **second tier** opens — off the clock, AI long
 term, why banking, how I built this — along with the wrap-up. The box carries
-a permanent **See the résumé / Download it** row from its first option (seeing
+a permanent **See the resume / Download it** row from its first option (seeing
 the sheet again or keeping it must never be more than one tap away); the outro
 adds the LinkedIn link and ends the visit. When Simon finishes that outro the
 barista comes over, says they're closing, and the room empties around you.
@@ -55,7 +55,7 @@ That is the whole deployment. There is no server to restart and nothing to copy.
 Moving it there was tried and deliberately reversed. Serving the café from the
 VPS would have made the switch same-origin and removed every line of CORS below
 — but it would also have made **the CV itself depend on a personal VPS being up**.
-A résumé that 404s because a box rebooted is a worse failure than a switch that
+A resume that 404s because a box rebooted is a worse failure than a switch that
 occasionally cannot be flipped, so the dependency runs the other way: Pages
 serves the page, and only the *switch* asks the VPS.
 
@@ -110,7 +110,7 @@ produces. Faces merge into one mesh per material (~55 draw calls); materials
 are assigned by the model's French `usemtl` names (`chene_sol`, `laiton`,
 `marbre`, …) and dressed with the same procedural canvas textures as before —
 the chalkboard still repaints through `drawMenu()`, closed side included. If
-the fetch fails, the room is gone but the table, Simon and the résumé are all
+the fetch fails, the room is gone but the table, Simon and the resume are all
 procedural: the conversation survives on a bare parquet.
 
 The map also carries what the room could never show before: a **front wall**
@@ -212,12 +212,12 @@ if (d && d.open === false) markClosed();
 
 Strictly `false`. Every other outcome on earth — DNS failure, 502, an adblocker
 eating the request, malformed JSON, `fetch` missing, the 2 s timeout firing,
-Cloudflare not routed yet — leaves the café **open**. A résumé that disappears
+Cloudflare not routed yet — leaves the café **open**. A resume that disappears
 because a server hiccuped is worse than one that stays open when it was meant to
 be shut.
 
 Only the **load** ping honours the answer. The pings sent when you sit down, open
-a section or open the text résumé deliberately ignore it: a visitor already
+a section or open the text resume deliberately ignore it: a visitor already
 seated is not thrown out because Simon flipped the sign mid-sentence.
 
 ### Where the ping lives, and why it is its own `<script>`
@@ -226,7 +226,7 @@ seated is not thrown out because Simon flipped the sign mid-sentence.
 café. The ping sits between the other two on purpose.
 
 Not inside the shell: a syntax error anywhere in that IIFE leaves `window.VC`
-undefined, and `VC` is what swaps in the text résumé when the 3D fails. A visit
+undefined, and `VC` is what swaps in the text resume when the 3D fails. A visit
 counter must never be able to take the fallback down with it, and a separate
 `<script>` is a parser boundary — the worst that block can do is not run.
 
@@ -293,7 +293,7 @@ If the browser sends **Global Privacy Control** or **Do Not Track**, the page
 still asks the switch — a visitor has to be told the bar is closed either way,
 and that answer is a fact about Simon, not about them — but the request then
 carries `e=open` and nothing else: no language, no referrer, and no further ping
-for anything they click. The same sentence is in the text résumé itself, in both
+for anything they click. The same sentence is in the text resume itself, in both
 languages, because a privacy note nobody can read is decoration.
 
 ## When the bar is closed
@@ -314,7 +314,7 @@ a real café flips at closing time, so the closed state costs no new asset.
 
 Three rules held it together, and they are easy to break by accident:
 
-- **Closing the bar never hides the text résumé.** The CV is the point of the
+- **Closing the bar never hides the text resume.** The CV is the point of the
   page. The pill stays, the panel stays, and the closed card's only button goes
   straight to it. `VC.textOnly()` looks like the obvious tool and is the wrong
   one — it *hides* the pill and force-opens the panel, which is the no-WebGL
@@ -365,7 +365,7 @@ deterministic (see below).
 
 ### Fonts must be loaded *before* the textures are baked
 
-The résumé sheet and the chalkboard menu are `CanvasTexture`s drawn with
+The resume sheet and the chalkboard menu are `CanvasTexture`s drawn with
 `ctx.fillText`. A canvas draw does not wait for a webfont: it silently bakes
 whatever face is available and never repaints. `document.fonts.ready` is not
 enough either — it resolves when nothing is *pending*, and a face used only
@@ -376,21 +376,21 @@ use, and the scene repaints both textures once it settles.
 
 ### `VC` is deliberately outside the 3D script
 
-`index.html` has three scripts. The first builds `window.VC` — the text résumé
+`index.html` has three scripts. The first builds `window.VC` — the text resume
 panel and the WebGL probe. The second is
 [the ping](#where-the-ping-lives-and-why-it-is-its-own-script). The third is
 the café.
 
 The split exists because **the shell has to survive the scene failing**. No
 WebGL, a blocklisted driver, a dead GPU process, `three.min.js` not loading —
-in every one of those cases the text résumé becomes the whole page, and its
+in every one of those cases the text resume becomes the whole page, and its
 open/close pill still has to work. If it lived in the scene's script it would
 die with it.
 
 The scene bails out early:
 
 ```js
-if(!VC.hasWebGL) return;                 // VC already swapped in the text résumé
+if(!VC.hasWebGL) return;                 // VC already swapped in the text resume
 if(typeof THREE==="undefined"){ VC.textOnly("three.js failed to load"); return; }
 ```
 
@@ -398,7 +398,7 @@ which is the only reason that script is wrapped in an IIFE. Its body keeps the
 prototype's flat indentation on purpose, so the diff against the original stays
 readable.
 
-### The text résumé is not a fallback, it is the second half of the site
+### The text resume is not a fallback, it is the second half of the site
 
 It is what a screen reader reads, what a keyboard user gets, what a crawler
 indexes, and what a visitor without WebGL sees. It ships as **static markup**
@@ -411,10 +411,10 @@ The cost is two copies of the content. **When the CV changes, update both** —
 ### Stacking order
 
 `overlays 12 · sign 20 · prompt 20 · dialogue box 23 · subtitles 24 · skip 25 ·
-how-to 50 · text résumé 60 · tools 70`
+how-to 50 · text resume 60 · tools 70`
 
-The tools cluster is on top of everything on purpose: the résumé pill has to be
-reachable from inside the text résumé and from the welcome card, both of which
+The tools cluster is on top of everything on purpose: the resume pill has to be
+reachable from inside the text resume and from the welcome card, both of which
 cover the screen.
 
 ### The speech bubble is clamped, not free-floating
@@ -458,7 +458,7 @@ whole thing.
 
 ### Mute
 
-The pill next to "Text résumé" (or the `M` key) cuts the voice, and the choice
+The pill next to "Text resume" (or the `M` key) cuts the voice, and the choice
 is remembered in `localStorage["vc:muted"]` — sound off is a first-class way to
 read this page, not a failure state.
 
@@ -477,7 +477,7 @@ Spoken sections are captioned, GTA-style: white text, no box, hard shadow,
 bottom-centred. The mp3s carry no cue track, so sentences are spread pro-rata
 by character count over `audioEl.duration` (±0.4 s — fine for captions); the
 TTS fallback captions per uttered sentence. That closes the gap the recordings
-had opened for anyone with sound off or hard of hearing — the **text résumé**
+had opened for anyone with sound off or hard of hearing — the **text resume**
 remains the full readable version, and carries the "Off the clock" content too.
 
 ## Credits

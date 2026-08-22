@@ -46,10 +46,10 @@ au-dessus, colonne de lumière visible d'un bout à l'autre de la salle — et s
 vous lui tournez le dos, un curseur en bord d'écran pointe vers elle. Entrez
 dans l'anneau et **l'entretien démarre** : la feuille monte en quasi plein
 écran et il parle par-dessus tout de suite (`seated`) — sa réplique est la
-légende de ce que vous êtes en train de lire, *« a résumé only tells you what I
-did, not how, or why »*. La feuille redescend toute seule quand il a fini, et
-c'est là que la **boîte de dialogue** s'ouvre. Un clic ne l'écourte pas ; la
-pastille Skip, oui. L'anneau dessiné au sol a exactement le rayon du
+légende de ce que vous êtes en train de lire, *« a resume only tells you what I
+did, not how, or why »*. La feuille redescend toute seule quand il a fini — ou
+dès un clic à côté d'elle — et c'est là que la **boîte de dialogue** s'ouvre.
+La pastille Skip et `espace` l'écourtent aussi. L'anneau dessiné au sol a exactement le rayon du
 déclencheur (`SEAT_TRIGGER`) — ce que vous voyez est ce dans quoi il faut
 entrer. Collisions : tables, comptoir, bar de fenêtre — et Simon. Sous `prefers-reduced-motion`, pas de marche : déjà assis, accueil
 immédiat.
@@ -79,7 +79,7 @@ fixe. Contrepartie assumée : le café est un décor habillé pour être vu depu
 la chaise du client, donc en tournant franchement l'objectif on finit par
 apercevoir les coulisses.
 
-**Le son se coupe** (pastille à côté de « Text résumé », ou touche `M`, choix
+**Le son se coupe** (pastille à côté de « Text resume », ou touche `M`, choix
 mémorisé). Pas via `audioEl.muted` : la bouche de Simon est pilotée par
 l'amplitude réelle du mp3 via un `AnalyserNode`, donc couper l'élément lui
 figerait la mâchoire. Un `GainNode` maître est placé **après** l'analyseur —
@@ -100,8 +100,8 @@ en muet il parle toujours, sous-titres compris, on ne l'entend simplement pas.
 | Cliquer Simon | La section « off the clock » (deux bières sur la table), une fois le palier ouvert |
 | L'outro (ou touche `0`) | Le lien LinkedIn apparaît, puis le café ferme |
 | Pastille ⏭ Skip ou `espace` | Le fait taire — la section reste alors non entendue |
-| « 📄 See the résumé » / « ⬇ Download it » | Sous la boîte dès la première option, même pendant qu'il parle : la feuille remonte, ou le CV se télécharge |
-| « Text résumé » (ou sans WebGL) | La version texte complète, accessible et indexable — un clic dans la marge sombre la referme |
+| « 📄 See the resume » / « ⬇ Download it » | Sous la boîte dès la première option, même pendant qu'il parle : la feuille remonte, ou le CV se télécharge |
+| « Text resume » (ou sans WebGL) | La version texte complète, accessible et indexable — un clic dans la marge sombre la referme |
 
 Sur mobile, la boîte devient un panneau en bas d'écran, sur deux colonnes.
 
