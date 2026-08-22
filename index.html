@@ -75,10 +75,10 @@
     color:#9fb4bc;letter-spacing:2.4px;text-transform:uppercase;margin-top:2px;}
 
   /* Stacking, bottom to top: overlays 12 · sign 20 · prompt 20 ·
-     how-to 50 · text resume 60 · tools 70.
-     The tools sit on top of everything on purpose — the resume pill
-     must stay reachable from inside the text resume (for a visitor with
-     no WebGL that panel IS the site) and from the welcome card. */
+     how-to 50 · text resume 60 · tools 70 · skip link 80.
+     The tools stay on top so the mute pill is reachable from over the
+     welcome card; the skip link outranks even them, because a control
+     you can only reach by Tab is worth nothing if something covers it. */
   .tools{position:fixed;top:calc(16px + env(safe-area-inset-top));
     right:calc(16px + env(safe-area-inset-right));z-index:70;
     display:flex;gap:8px;align-items:center;}
@@ -89,8 +89,9 @@
     font-family:"Space Grotesk",sans-serif;font-size:13px;transition:.18s;}
   .pill:hover{color:var(--gold);border-color:var(--gold);}
 
-  /* Mute: icon only — the label would push "Text resume" off a narrow
-     screen, and the speaker glyph is the one control nobody needs told.
+  /* Mute: icon only — the speaker glyph is the one control nobody needs
+     told, and it is the only pill left in the bar now that the text
+     resume has no button of its own.
      Hidden until the scene wires it: no audio exists without the scene,
      and a dead toggle is worse than no toggle. */
   /* the [hidden] rule must come with the display, or the attribute is
@@ -110,6 +111,23 @@
   .cv{position:fixed;inset:0;z-index:60;overflow-y:auto;overscroll-behavior:contain;
     background:#141c24;padding:74px 20px 72px;}   /* top clears the .tools bar */
   .cv[hidden]{display:none;}
+  /* Its own close button, since the pill that used to double as one is
+     gone. Sticky rather than fixed: it belongs to the panel, so it rides
+     the scroll instead of hovering over the café behind it. */
+  .cvclose{position:sticky;top:0;float:right;z-index:1;
+    width:42px;height:42px;border-radius:50%;
+    border:1px solid #3a4d56;background:rgba(22,28,33,.94);color:var(--gold);
+    font:600 18px/1 "Space Grotesk",sans-serif;cursor:pointer;
+    backdrop-filter:blur(3px);transition:.15s;}
+  .cvclose:hover{background:var(--gold);color:#20303a;border-color:var(--gold);}
+  .cvclose[hidden]{display:none;}
+  .cvclose:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+  /* Invisible until it takes focus, then a real button at the top left. */
+  .skiplink{position:fixed;top:-100px;left:14px;z-index:80;
+    background:var(--gold);color:#20303a;border-radius:0 0 10px 10px;
+    padding:11px 18px;text-decoration:none;font:700 14px "Space Grotesk",sans-serif;
+    transition:top .15s;}
+  .skiplink:focus{top:0;}
   .cvsheet{max-width:760px;margin:0 auto;color:#dfe8f2;font-size:15.5px;line-height:1.62;}
   .cvsheet header{border-bottom:1px solid #2b3a46;padding-bottom:22px;margin-bottom:10px;}
   .cvsheet h1{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:34px;
@@ -273,10 +291,20 @@
   @keyframes tpop{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
   .tlinks{display:flex;gap:7px;margin-top:5px;flex-wrap:wrap;}
   .tlinks[hidden]{display:none;}
-  .tlink{border:1px solid var(--gold);border-radius:999px;background:rgba(244,183,64,.12);
-    color:var(--gold);padding:8px 14px;text-decoration:none;cursor:pointer;
-    font-family:"Space Grotesk",sans-serif;font-size:13px;font-weight:600;transition:.15s;}
-  .tlink:hover{background:var(--gold);color:#20303a;}
+  /* The two that matter — see the CV, keep the CV — are SOLID gold on
+     dark ink. The old 12%-tint pills sat on a bright café and had to be
+     hunted for; these read from across the room and pass contrast at a
+     glance. The other two stay outlined, so the row still has a first
+     and a second rank instead of four shouting buttons. */
+  .tlink{border:1px solid var(--gold);border-radius:999px;
+    background:var(--gold);color:#1b2630;
+    padding:8px 14px;text-decoration:none;cursor:pointer;
+    font-family:"Space Grotesk",sans-serif;font-size:13px;font-weight:700;
+    box-shadow:0 3px 12px rgba(0,0,0,.45);transition:.15s;}
+  .tlink:hover{background:#ffd07a;border-color:#ffd07a;color:#141c24;}
+  .tlink.ghost{background:rgba(15,21,27,.92);color:var(--gold);font-weight:600;}
+  .tlink.ghost:hover{background:var(--gold);color:#1b2630;}
+  .tlink:focus-visible{outline:2px solid #fff;outline-offset:2px;}
 
   .skip{position:fixed;z-index:25;right:calc(18px + env(safe-area-inset-right));
     bottom:calc(11vh + 16px);border:1px solid #3a4d56;border-radius:999px;
@@ -353,6 +381,10 @@
 </head>
 <body>
 <h1 class="visually-hidden">Simon Goffin — Product Manager, Brussels. Virtual Coffee, an interactive 3D resume.</h1>
+<!-- The café has no "Text resume" pill any more. This is how a keyboard
+     or a screen reader still opens the flat version: first in the tab
+     order, off-screen until it takes focus. -->
+<a class="skiplink" id="cvSkip" href="#cv-text">Read the text version of this resume</a>
 
 <div id="app"></div>
 <div class="bars t"></div><div class="bars b"></div>
@@ -375,7 +407,6 @@
       <path d="M13.2 8.2l3.8 3.6M17 8.2l-3.8 3.6"/>
     </svg>
   </button>
-  <button class="pill" id="cvBtn" aria-expanded="false" aria-controls="cv-text">Text resume</button>
 </div>
 <div class="aside" id="aside" role="status" aria-live="polite"></div>
 <div class="seathud" id="seatHud" aria-hidden="true">
@@ -399,8 +430,8 @@
   <div class="tlinks" id="talkLinks" hidden>
     <button class="tlink" id="cvPeek" type="button">📄 See the resume</button>
     <a class="tlink" id="cvDl" href="#" download>⬇ Download it</a>
-    <a class="tlink" id="liLink" href="#" target="_blank" rel="noopener">in — LinkedIn</a>
-    <button class="tlink" id="standUp" type="button"
+    <a class="tlink ghost" id="liLink" href="#" target="_blank" rel="noopener">in — LinkedIn</a>
+    <button class="tlink ghost" id="standUp" type="button"
             title="Get up and have a wander — your progress stays">🚶 Leave the table</button>
   </div>
 </div>
@@ -456,6 +487,8 @@
      Keep this in step with DATA when the CV changes.
      ════════════════════════════════════════════════════════════════ -->
 <main class="cv" id="cv-text" hidden>
+  <button class="cvclose" id="cvClose" type="button"
+          aria-label="Close the text resume" title="Close (Esc)">✕</button>
   <div class="cvsheet">
 
     <div data-cvlang="en">
@@ -534,7 +567,6 @@
    ===================================================================== */
 window.VC = (function(){
   const panel  = document.getElementById('cv-text');
-  const cvBtn  = document.getElementById('cvBtn');
   const subs   = [];
 
   /* ── WebGL probe ────────────────────────────────────────────────
@@ -567,51 +599,65 @@ window.VC = (function(){
   /* ── Language ───────────────────────────────────────────────────
      English only, by request. The plumbing stayed one-language deep:
      the getter and onLang survive so nothing downstream throws. */
-  function relabel(){
-    cvBtn.textContent = panel.hidden ? 'Text resume' : 'Close ✕';
-  }
 
   /* ── Text resume panel ──────────────────────────────────────────
-     One pill drives it both ways, so there is no second close button
-     to collide with anything on a narrow screen. */
+     The pill that used to open this is GONE from the café — the sheet
+     on the table and "See the resume" cover that job now, and the tools
+     bar was two pills competing to show the same document. The panel
+     itself stays exactly where it was, because it is not decoration:
+     it is what a crawler indexes, what a no-WebGL visitor gets (see
+     textOnly), what the closed café offers, and what a screen reader
+     reaches through the skip link at the top of the page.
+
+     `panelOnly` is the difference between the two lives of this panel.
+     As an OVERLAY it can be closed — the ✕, Escape, the dark gutter.
+     As the PAGE (no WebGL) there is nothing behind it, so none of those
+     are wired. Guarding on the pill's visibility, as this used to, is
+     what broke the moment the pill stopped existing. */
   let onOpen = null;                       // the scene hangs "stop talking" here
+  let panelOnly = false;
+  const cvClose = document.getElementById('cvClose');
   function openCV(){
     panel.hidden = false;
-    cvBtn.setAttribute('aria-expanded', 'true');
     panel.scrollTop = 0;
-    relabel();
     if (onOpen) onOpen();
   }
   function closeCV(){
+    if (panelOnly) return;
     panel.hidden = true;
-    cvBtn.setAttribute('aria-expanded', 'false');
-    relabel();
   }
-  cvBtn.addEventListener('click', () => panel.hidden ? openCV() : closeCV());
+  if (cvClose) cvClose.addEventListener('click', closeCV);
   addEventListener('keydown', e => {
-    if (e.key === 'Escape' && !panel.hidden && !cvBtn.hidden) closeCV();
+    if (e.key === 'Escape' && !panel.hidden) closeCV();
   });
-  /* The dark gutter around the sheet closes it too — the classic modal
-     gesture. Same guard as Escape: with the pill hidden the panel IS the
-     page (no WebGL), and closing it would leave nothing at all. */
+  /* the dark gutter around the sheet closes it too — the classic modal
+     gesture, and the one people try before they look for a button */
   panel.addEventListener('click', e => {
-    if (e.target === panel && !cvBtn.hidden) closeCV();
+    if (e.target === panel) closeCV();
   });
 
   /* No WebGL: there is no café to come back to, so the resume is not an
-     overlay any more — it is the page. Drop the scene chrome with it. */
+     overlay any more — it is the page. Drop the scene chrome with it,
+     and with it every way of closing the panel (see panelOnly). */
   function textOnly(reason){
     console.warn('[virtual-coffee] 3D unavailable —', reason);
-    ['howto', 'sign', 'prompt', 'app'].forEach(id => {
+    ['howto', 'sign', 'prompt', 'app', 'cvSkip'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });
     document.querySelectorAll('.vig, .grade').forEach(el => el.remove());
     document.body.style.overflow = 'auto';
+    panelOnly = true;
     panel.hidden = false;
-    cvBtn.hidden = true;
+    if (cvClose) cvClose.hidden = true;
   }
-  relabel();
+  /* The skip link: the text version has no button in the café any more,
+     so this is how a keyboard or a screen reader still reaches it —
+     first thing in the tab order, invisible until focused. */
+  {
+    const skip = document.getElementById('cvSkip');
+    if (skip) skip.addEventListener('click', e => { e.preventDefault(); openCV(); });
+  }
   if (!hasWebGL) textOnly('no WebGL context');
 
   return {
@@ -738,15 +784,17 @@ window.VCPing = (function(){
   /* The load ping — the only one whose answer means anything. */
   send('open', true);
 
-  /* The text resume is the one thing reachable in every state of this
-     page, so its pill earns a count of its own. The VC shell registered
-     its own click listener first, so aria-expanded here already reflects
-     the new state: we count openings, not closings. */
+  /* The text resume still earns a count of its own, but the pill it used
+     to hang off is gone: wrap VC.openCV instead, which is now the single
+     door into that panel (closed-café card, skip link, the scene). The
+     no-WebGL path sets the panel up directly and is deliberately NOT
+     counted — nobody chose it. Wrapped defensively: a café that cannot
+     count is still a café. */
   try {
-    var cvBtn = document.getElementById('cvBtn');
-    if (cvBtn) cvBtn.addEventListener('click', function(){
-      if (cvBtn.getAttribute('aria-expanded') === 'true') send('cv', false);
-    });
+    if (window.VC && typeof VC.openCV === 'function') {
+      var openCV = VC.openCV;
+      VC.openCV = function(){ openCV.apply(null, arguments); send('cv', false); };
+    }
   } catch (_) {}
 
   return {
@@ -837,7 +885,7 @@ const DATA={
      exactly until someone taps FR, and then silently reverts. */
   closed:{
    sign:["Virtual Coffee","closed — back tomorrow"],
-   prompt:"Bar closed — the resume stayed open, up there ↗",
+   prompt:"Bar closed — the resume is still yours to read",
    board:{title:"CLOSED",
           lines:["Machine off, lights down.",
                  "Back tomorrow.",
@@ -2567,18 +2615,10 @@ if(!RM){
     scene.add(shaft);shafts.push(shaft);
   }
 }
-const DUST_N=140;
-const dustArr=new Float32Array(DUST_N*3);
-for(let i=0;i<DUST_N;i++){
-  dustArr[i*3]=-2.9+Math.random()*3.4;
-  dustArr[i*3+1]=.4+Math.random()*2.4;
-  dustArr[i*3+2]=-3+Math.random()*3.4;
-}
-const dustGeo=new THREE.BufferGeometry();
-dustGeo.setAttribute("position",new THREE.BufferAttribute(dustArr,3));
-const dust=new THREE.Points(dustGeo,new THREE.PointsMaterial({color:0xffe9c0,size:.022,
-  transparent:true,opacity:.26,depthWrite:false,blending:THREE.AdditiveBlending}));
-scene.add(dust);
+/* The floating dust is GONE — Simon's call. 140 additive motes drifting
+   through the room read as a dirty lens, not as sunlight, and they were
+   the first thing the eye caught in the wide shot. The shafts stay: they
+   are daylight, and daylight without specks in it is just a clean room. */
 /* wall art — left of the chalkboard, and above the fridge */
 [[-2.3,2.35,-4.72,0,0],[4.03,2.9,-4.72,0,1]].forEach(p=>{
   const a=new THREE.Mesh(new THREE.PlaneGeometry(.66,.82),
@@ -3179,6 +3219,7 @@ const fan=new THREE.Group();
   scene.add(fan);
 }
 const clockG=new THREE.Group();
+let updateClock=function(){};   /* the block below hangs the real one here */
 {
   const face=new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,.03,28),
     new THREE.MeshStandardMaterial({color:0xf0ead8,roughness:.4,envMapIntensity:.8}));
@@ -3191,9 +3232,38 @@ const clockG=new THREE.Group();
   hourHand.geometry.translate(0,.04,0);hourHand.position.z=.02;clockG.add(hourHand);
   const minHand=new THREE.Mesh(new THREE.BoxGeometry(.01,.12,.008),handMat);
   minHand.geometry.translate(0,.06,0);minHand.position.z=.025;clockG.add(minHand);
-  const now=new Date();
-  hourHand.rotation.z=-((now.getHours()%12)+now.getMinutes()/60)/12*Math.PI*2;
-  minHand.rotation.z=-now.getMinutes()/60*Math.PI*2;
+  /* A second hand, and it MOVES. The clock used to be stamped once at
+     load: right when you walked in, quietly wrong by the time Simon had
+     talked you through the outro — and a wall clock frozen at 14:03 is
+     the kind of detail that tells a visitor the room is a picture. Now
+     it runs on the visitor's own clock (their machine, their timezone),
+     the sweep is continuous, and the hands are re-solved every frame:
+     three trig calls, next to nothing, and the room keeps time. */
+  const secHand=new THREE.Mesh(new THREE.BoxGeometry(.005,.14,.005),
+    new THREE.MeshStandardMaterial({color:0xa8341f}));
+  secHand.geometry.translate(0,.062,0);secHand.position.z=.029;clockG.add(secHand);
+  /* twelve marks, so the hands have something to be read against */
+  {
+    const tickMat=new THREE.MeshStandardMaterial({color:0x2a3442});
+    const tickGeo=new THREE.BoxGeometry(.008,.022,.006);
+    for(let i=0;i<12;i++){
+      const tk=new THREE.Mesh(tickGeo,tickMat);
+      const a=i/12*Math.PI*2;
+      tk.position.set(Math.sin(a)*.128,Math.cos(a)*.128,.018);
+      tk.rotation.z=-a;
+      clockG.add(tk);
+    }
+  }
+  updateClock=function(){
+    const n=new Date();
+    const sec=n.getSeconds()+n.getMilliseconds()/1000;
+    const min=n.getMinutes()+sec/60;
+    const hr=(n.getHours()%12)+min/60;
+    hourHand.rotation.z=-hr/12*Math.PI*2;
+    minHand.rotation.z=-min/60*Math.PI*2;
+    secHand.rotation.z=-sec/60*Math.PI*2;
+  };
+  updateClock();
   clockG.position.set(3.38,2.88,-4.71);
   scene.add(clockG);
 }
@@ -3250,9 +3320,48 @@ function applyPose(rig,buf){
     if(j)j.rotation.set(v.x,v.y,v.z);
   }
 }
+/* ---------------- HANDS ----------------
+   The wrist used to end in a ball. From the chair that is a mitten, and
+   the one gesture the whole café runs on — a raised hand while somebody
+   talks — was a lollipop. So: a palm, four fingers and a thumb set off
+   the side of it. Every geometry here is built ONCE and shared by all
+   nine people (and both their hands): a hand is 6 boxes, so the whole
+   cast costs 18 boxes of geometry rather than 108. It is also cheaper
+   than what it replaces — a 10x10 sphere was ~180 triangles a wrist,
+   this is 72. */
+const GEO_PALM=new THREE.BoxGeometry(.062,.055,.028);
+const GEO_FINGER=new THREE.BoxGeometry(.013,.042,.017);
+const GEO_THUMB=new THREE.BoxGeometry(.017,.032,.019);
+/* The hand hangs off -Y, the direction the forearm already points, so a
+   hand built here works in every pose the rig can reach without a single
+   extra rotation in the animation layers. */
+function buildHand(parent,mat,sgn){
+  const h=new THREE.Group();
+  h.position.y=-.012;
+  const palm=new THREE.Mesh(GEO_PALM,mat);
+  palm.position.y=-.028;palm.userData.slot="skin";h.add(palm);
+  /* four fingers across the palm's width, the middle one longest —
+     a flat rank of four reads as a comb, not a hand */
+  const LEN=[.86,1,.94,.78];
+  for(let i=0;i<4;i++){
+    const f=new THREE.Mesh(GEO_FINGER,mat);
+    f.position.set(-.0225+i*.015,-.055-.021*LEN[i],.002);
+    f.scale.y=LEN[i];
+    f.rotation.z=(i-1.5)*.05;
+    f.userData.slot="skin";h.add(f);
+  }
+  /* the thumb is what makes it read as a hand at all: off the side,
+     angled across, and on the inner edge — mirrored per side */
+  const th=new THREE.Mesh(GEO_THUMB,mat);
+  th.position.set(sgn*.031,-.05,.008);
+  th.rotation.z=sgn*.62;
+  th.userData.slot="skin";h.add(th);
+  parent.add(h);
+  return h;
+}
 function buildPerson(opts){
   const o=Object.assign({shirt:0x8a5540,pants:0x2e2e38,skin:0xe8b58c,
-    hair:0x1d1d24,scale:1},opts||{});
+    hair:0x1d1d24,scale:1,fem:false},opts||{});
   const root=new THREE.Group();
   const J={};
   function joint(parent,name,x,y,z){
@@ -3290,6 +3399,40 @@ function buildPerson(opts){
   put(head,new THREE.SphereGeometry(.15,18,16),mSk,0,0,0,true,"skin");
   const hair=put(head,new THREE.SphereGeometry(.155,18,14),mH,0,.06,-.015,false,"hair");
   hair.scale.set(1,.72,1);
+  /* EARS. Nobody had any — from the side every head was an egg, which is
+     exactly the angle the chase camera spends most of its time at. Two
+     flattened spheres on the skull line (r=.15), tucked slightly back
+     where a real ear sits, and coloured as skin so reskin() carries
+     them. Marked as accessories so the mesh path's skull strip spares
+     them like the nose and the brows. */
+  for(const e of[-1,1]){
+    const ear=put(head,new THREE.SphereGeometry(.034,10,8),mSk,.142*e,-.006,-.012,false,"skin");
+    ear.scale.set(.42,1.05,.72);
+    ear.rotation.z=.12*e;
+    ear.userData.acc="ear";
+  }
+  /* LONGER HAIR, for the half of the café that has it. Built on every
+     head and simply hidden on the short-haired ones, so reskin() can
+     flip a stroller's gender without rebuilding a rig: one mass falling
+     behind the skull to the nape, and two strands framing the face.
+     It rides the head joint, so it turns with a glance — no simulation,
+     and none missed at this scale. */
+  const longHair=new THREE.Group();
+  longHair.visible=!!o.fem;
+  longHair.userData.acc="longhair";
+  {
+    const back=new THREE.Mesh(new THREE.SphereGeometry(.152,16,14),mH);
+    back.position.set(0,-.055,-.03);
+    back.scale.set(1.03,1.32,.86);
+    back.userData.slot="hair";longHair.add(back);
+    for(const e of[-1,1]){
+      const strand=new THREE.Mesh(new THREE.BoxGeometry(.055,.2,.06),mH);
+      strand.position.set(.113*e,-.055,.03);
+      strand.rotation.z=.05*e;
+      strand.userData.slot="hair";longHair.add(strand);
+    }
+  }
+  head.add(longHair);
   /* A FACE, not two dots. Two eyes and a mouth on a bare egg read as a
      mannequin from any angle that is not dead-on — the cast kept turning
      up faceless in the wide shot. What fixes it is what fixes it on
@@ -3326,18 +3469,44 @@ function buildPerson(opts){
   const mouth=put(head,new THREE.BoxGeometry(.048,.009,.012),
     stdMat(0x8a4a3a,.6),0,-.052,.14,false);
   mouth.userData.acc="mouth";   /* humanizeRig moves it onto the sculpted lips */
+  /* ARMS ON THE BODY, not beside it. The joints used to sit at |x|=.225
+     with a .045 arm hanging off them: the arm's inner edge landed at .18
+     against a torso whose radius up there is .168, so every character
+     wore their arms like handles, with daylight through the gap.
+     The fix is 1 cm of joint and a deltoid: at .215 the arm just kisses
+     the torso, and the cap (r .062, so .153..277) buries its inner face
+     in the chest — no gap survives a shrug, a wave or a walk.
+     NOT further in: the torso flares to .205 at the hem, and a joint at
+     .198 swallowed the whole arm into the silhouette. Seen head-on, the
+     cast had no arms at all. Attached is the goal; absorbed is not. */
+  const shX=o.fem?.204:.215;
   for(const s of[-1,1]){
     const S=s<0?"L":"R";
-    const sh=joint(chest,"shoulder"+S,.225*s,.24,0);
+    const sh=joint(chest,"shoulder"+S,shX*s,.225,0);
+    const cap=put(sh,new THREE.SphereGeometry(.062,12,10),mS,0,0,0,true,"shirt");
+    cap.scale.set(1,.92,1);
     put(sh,new THREE.CylinderGeometry(.045,.04,.28,10),mS,0,-.14,0,true,"shirt");
     const el=joint(sh,"elbow"+S,0,-.28,0);
     put(el,new THREE.CylinderGeometry(.04,.036,.24,10),mS,0,-.12,0,true,"shirt");
     const wr=joint(el,"wrist"+S,0,-.24,0);
-    put(wr,new THREE.SphereGeometry(.045,10,10),mSk,0,0,0,false,"skin");
+    /* the wrist bone itself, then the hand off it */
+    put(wr,new THREE.SphereGeometry(.032,10,8),mSk,0,0,0,false,"skin");
+    buildHand(wr,mSk,s);
   }
   root.scale.setScalar(o.scale);
   scene.add(root);
-  return {root:root,J:J,eyes:eyes,mouth:mouth,torso:torso,opts:o};
+  return {root:root,J:J,eyes:eyes,mouth:mouth,torso:torso,opts:o,longHair:longHair};
+}
+/* Gender is one flag and two consequences: the long hair appears, and
+   the shoulders come in a touch. Kept to that on purpose — the cast is
+   stylised, and anything more turns into caricature fast. */
+function setFem(rig,on){
+  if(!rig.longHair)return;
+  rig.opts.fem=!!on;
+  rig.longHair.visible=!!on;
+  const x=on?.204:.215;
+  if(rig.J.shoulderL)rig.J.shoulderL.position.x=-x;
+  if(rig.J.shoulderR)rig.J.shoulderR.position.x=x;
 }
 
 /* --- anim toolkit: anticipation -> action -> recovery --- */
@@ -3542,7 +3711,7 @@ function updateGroups(dtT){
    at x≥-1.74, window wall at x=-3.25, high table down to z=-3.34). */
 const G_STAND=makeGroup(-2.45,-3.84,0);
 const standA=makeAgent("standA","stand",{shirt:0x7d3b3b,pants:0x2e2e38,skin:0xe8b58c,hair:0x1d1d24});
-const standB=makeAgent("standB","stand",{shirt:0x51606e,pants:0x3a3230,skin:0xd9a578,hair:0x4a3524});
+const standB=makeAgent("standB","stand",{shirt:0x51606e,pants:0x3a3230,skin:0xd9a578,hair:0x4a3524,fem:true});
 const standC=makeAgent("standC","stand",{shirt:0x46524a,pants:0x2a3038,skin:0xe0af83,hair:0x6b5340});
 G_STAND.members=[standA,standB,standC];
 [standA,standB,standC].forEach(a=>{a.group=G_STAND;});
@@ -3554,7 +3723,7 @@ standA.talkative=1.8;   /* the raconteur gets extra turns */
 /* Barista behind the counter, working a legible 5-beat loop. The model's
    aisle (counter back z=-4.18, back cabinet front z=-4.53) is narrow, but
    the counter top at y=1.22 hides everything below his chest anyway. */
-const barista=makeAgent("barista","barista",{shirt:0x35543f,pants:0x23232b,skin:0xeac39a,hair:0x2c2018});
+const barista=makeAgent("barista","barista",{shirt:0x35543f,pants:0x23232b,skin:0xeac39a,hair:0x2c2018,fem:true});
 barista.pos.set(.42,0,-4.3);barista.yaw=.35;
 {
   const apron=new THREE.Mesh(new THREE.BoxGeometry(.3,.4,.03),
@@ -3607,7 +3776,7 @@ worker.prop=laptop;
 const WK={TYPE:0,THINK:1,SIP:2,STRETCH:3};
 
 /* Drinker at the window bar, real 4-phase sip cycle (no sine) */
-const drinker=makeAgent("drinker","drinker",{shirt:0x6e4a63,pants:0x2e2e38,skin:0xe0af83,hair:0x14100c});
+const drinker=makeAgent("drinker","drinker",{shirt:0x6e4a63,pants:0x2e2e38,skin:0xe0af83,hair:0x14100c,fem:true});
 drinker.pos.set(-1.706,0,-1.809);drinker.yaw=-Math.PI/2;drinker.rootY=-.01;
 {
   const scarf=new THREE.Mesh(new THREE.TorusGeometry(.09,.035,10,18),
@@ -3624,7 +3793,7 @@ drinker.prop=sitCup;
 
 /* Reader one stool over, backlit by the window, page turn every 30-55 s
    (the model even leaves him a cup on the bar) */
-const reader=makeAgent("reader","reader",{shirt:0xc9973c,pants:0x2e2e38,skin:0xdcae86,hair:0x3a2c1c});
+const reader=makeAgent("reader","reader",{shirt:0xc9973c,pants:0x2e2e38,skin:0xdcae86,hair:0x3a2c1c,fem:true});
 reader.pos.set(-1.706,0,-.809);reader.yaw=-Math.PI/2;reader.rootY=-.01;
 const bookG=new THREE.Group();
 let bookPages=null;
@@ -3666,6 +3835,9 @@ visitor.vLeg=0;visitor.vDir=1;visitor.vPauseT=0;visitor.active=false;
 function reskin(a){
   const o={shirt:pickPal(PALETTES.shirt),pants:pickPal(PALETTES.pants),
     skin:pickPal(PALETTES.skin),hair:pickPal(PALETTES.hair)};
+  /* the stroller and the guest are rebuilt every visit, so their gender
+     is rolled with the rest of the wardrobe rather than fixed at birth */
+  setFem(a.rig,Math.random()<.5);
   a.rig.root.traverse(m=>{
     if(!m.isMesh||!m.userData.slot)return;
     const s=m.userData.slot;
@@ -5069,10 +5241,23 @@ addEventListener("pointermove",e=>{
   if(TOUCH)return;
   /* pick() owns the cursor over the resume and Simon; the wall is the
      one thing it does not know about */
+  if(cvPanelOpen())return;             /* no hand cursor through the panel */
   if(!pick(e)&&!zoomItem&&pickReadable(e.clientX,e.clientY))
     document.body.style.cursor="pointer";
 });
+/* The flat resume is a full-screen panel, and a panel over the café must
+   swallow its own clicks. It never did: `lookActive()` returns false
+   while it is open, which is exactly the condition the readable branch
+   below treats as "safe to raycast" — so a click on the text landed on
+   whatever hung on the wall behind it, and a picture frame opened over
+   the CV you were reading. Its own ✕ sits top-right, where the wall
+   behind it is thick with readables, which is how this surfaced. */
+function cvPanelOpen(){
+  const p=document.getElementById("cv-text");
+  return !!p&&!p.hidden;
+}
 addEventListener("pointerdown",e=>{
+  if(cvPanelOpen())return;             /* the panel owns every click on it */
   /* The reading beat: the sheet is up across the whole frame. Clicking
      the sheet itself does nothing — you are reading it — but a click or
      tap BESIDE it puts it down, hushes the line and brings the options
@@ -5260,7 +5445,7 @@ function playSection(key){
   /* "Ah, you weren't listening" — only ever in front of a repeat */
   if(heard.has(key))clips.unshift("reclick");
   if(key==="outro"){outroSeen=true;if(LINKEDIN_URL)document.getElementById("liLink").hidden=false;}
-  playChain(clips,()=>{heard.add(key);current=null;drawResume();renderTalk();});
+  playChain(clips,()=>{heard.add(key);current=null;drawResume();renderTalk();saveVisit();});
   renderTalk();
 }
 /* Tapping Simon himself: the personal section if it is open, and
@@ -5393,6 +5578,7 @@ function leaveTable(){
   showSeatMarker(true);
   promptEl.style.display="";
   promptEl.textContent=DATA[lang].promptUp;
+  saveVisit();
 }
 {
   const standBtn=document.getElementById("standUp");
@@ -5594,12 +5780,12 @@ const HOWTO={
             "🪑 The chair with the green cushion is yours — sit and the resume comes up",
             "💬 Read it, put it down, then pick a section — I'll fill in the gaps",
             "🔊 My words, an AI voice — turn your sound on (space hushes me)",
-            "📄 In a hurry? “Text resume” gives you the flat version"],
+            "📄 In a hurry? “Download it” hands you the CV to keep"],
      stepsTouch:["🚶 Tap the floor to walk — have a wander, the place is mine",
             "🪑 The chair with the green cushion is yours — sit and the resume comes up",
             "💬 Read it, tap to put it down, then pick a section",
             "🔊 My words, an AI voice — turn your sound on",
-            "📄 In a hurry? “Text resume” gives you the flat version"],
+            "📄 In a hurry? “Download it” hands you the CV to keep"],
      btn:"Take a seat",
      /* Same card, other state. No new markup: #howto is already the
         full-screen thing that explains the café, so when there is no café
@@ -5738,6 +5924,70 @@ document.getElementById("enterBtn").addEventListener("click",()=>{
   PING.tap("enter");
   startEntrance();
 });
+
+/* ---------------- THE VISIT, REMEMBERED ----------------
+   Nothing in this page has ever restarted the entrance on its own — there
+   is no timer here that could. What restarts it is a RELOAD, and a tab
+   left alone gets reloaded for you: phone browsers discard a background
+   tab under memory pressure and re-fetch it when you come back, which is
+   why "left on the CV for ten minutes" comes back to the front door.
+
+   So the fix is not to hunt a timer, it is to make a reload cost nothing.
+   The visit rides in sessionStorage — per tab, gone when the tab closes,
+   which is exactly the life of one coffee — and on load, if there is one,
+   the guest is already in the chair with his green markers, his unlocked
+   tier and his outro state. No welcome, no walk, no monologue: you were
+   in the middle of a conversation, and you still are.
+
+   Deliberately silent: restoring plays no audio at all. There is no user
+   gesture on a reload, so a clip would be refused by the browser anyway —
+   and the first section you click is a gesture, which is when sound comes
+   back on its own. */
+const VISIT_KEY="vc:visit";
+const VISIT_TTL=6*3600*1000;      /* a stale pinned tab is not a visit */
+function saveVisit(){
+  if(!everSat||cafeClosed)return;
+  try{
+    sessionStorage.setItem(VISIT_KEY,JSON.stringify({
+      t:Date.now(),heard:Array.from(heard),outro:outroSeen,
+      fem:!!(guest.rig.opts&&guest.rig.opts.fem)}));
+  }catch(_){}                     /* private mode, quota — never fatal */
+}
+function loadVisit(){
+  try{
+    const v=JSON.parse(sessionStorage.getItem(VISIT_KEY)||"null");
+    if(!v||typeof v.t!=="number"||!Array.isArray(v.heard))return null;
+    if(Date.now()-v.t>VISIT_TTL)return null;
+    return v;
+  }catch(_){return null;}
+}
+/* every moment the state actually changes, plus the one moment the
+   browser guarantees before it takes the tab away */
+document.addEventListener("visibilitychange",()=>{if(document.hidden)saveVisit();});
+addEventListener("pagehide",saveVisit);
+{
+  const v=cafeClosed?null:loadVisit();
+  if(v){
+    v.heard.forEach(k=>heard.add(k));
+    outroSeen=!!v.outro;
+    dismissHowto();
+    entering=true;
+    reskin(guest);                /* a fresh coat, but the same person */
+    setFem(guest.rig,v.fem);
+    guest.rig.root.visible=true;guest.blob.visible=true;
+    guest.active=true;guest.prop=paper;
+    guest.pos.set(GUEST_SEAT.x,0,GUEST_SEAT.z);
+    guest.yaw=GUEST_SEAT.yaw;
+    guest.rootY=.56-.855*guest.rig.root.scale.x;
+    guest.sit={k:1,fx:GUEST_SEAT.x,fz:GUEST_SEAT.z,rY:guest.rootY};
+    guest.state="seated";
+    showSeatMarker(false);
+    everSat=true;                 /* the no-ceremony branch of arriveAtTable */
+    arriveAtTable();
+    showAside("Right where you left off ☕");
+    setTimeout(()=>showAside(""),5200);
+  }
+}
 /* Closed only: tapping the backdrop puts the card away so you can look at
    the dark room. Nothing else is behind it — the pill and the sign carry
    the message from then on. Deliberately not wired when the café is open:
@@ -5795,12 +6045,10 @@ function closeCafe(){
   shafts.forEach(s=>{s.visible=false;});       /* no daylight: it is night out */
   win.material.color.setHex(0x1b2331);         /* and the view dims with it */
 
-  /* Darker, tighter, and the dust keeps drifting through it — the only
-     thing still moving in the room. (RM already freezes it.) */
+  /* Darker and tighter: the closed room is the same room, one grade down */
   scene.fog.density=.11;
   scene.background.setHex(0x0c0a0a);
   applyGrade("vinewoodNight");
-  dust.material.opacity=.22;
 
   closeTalk();                                 /* nobody left to ask */
   drawMenu();                                  /* same slate, CLOSED side up */
@@ -6306,6 +6554,7 @@ function animate(){
     updateReadHint(dt);
     if(zoomItem&&zoomItem.live){paintZoom();updateZoomChrome();}
     if(!RM)fan.rotation.y+=dt*1.6;
+    updateClock();          /* the wall clock keeps the visitor's time */
   }
 
   /* Simon */
@@ -6390,16 +6639,7 @@ function animate(){
     s.material.opacity=ph<1.3?(.5*(1-ph/1.3)):0;
     s.scale.setScalar(1+ph*1.4);
   }
-  if(!RM){
-    const pos=dustGeo.attributes.position;
-    for(let i=0;i<DUST_N;i++){
-      let y=pos.getY(i)-dt*.05;
-      if(y<.35)y=2.7;
-      pos.setY(i,y);
-      pos.setX(i,pos.getX(i)+Math.sin(t*.5+i)*.0006);
-    }
-    pos.needsUpdate=true;
-  }
+  /* the dust drift that used to run here went with the motes themselves */
   /* One tween, two destinations. The pose can only be swapped while the
      sheet is flat on the table — swapping it mid-travel would teleport
      the sheet from one arc to the other. */

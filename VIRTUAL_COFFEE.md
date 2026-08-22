@@ -79,7 +79,7 @@ fixe. Contrepartie assumée : le café est un décor habillé pour être vu depu
 la chaise du client, donc en tournant franchement l'objectif on finit par
 apercevoir les coulisses.
 
-**Le son se coupe** (pastille à côté de « Text resume », ou touche `M`, choix
+**Le son se coupe** (la pastille haut-droite, ou touche `M`, choix
 mémorisé). Pas via `audioEl.muted` : la bouche de Simon est pilotée par
 l'amplitude réelle du mp3 via un `AnalyserNode`, donc couper l'élément lui
 figerait la mâchoire. Un `GainNode` maître est placé **après** l'analyseur —
@@ -102,9 +102,17 @@ en muet il parle toujours, sous-titres compris, on ne l'entend simplement pas.
 | Pastille ⏭ Skip ou `espace` | Le fait taire — la section reste alors non entendue |
 | « 📄 See the resume » / « ⬇ Download it » | Sous la boîte dès la première option, même pendant qu'il parle : la feuille remonte, ou le CV se télécharge |
 | « 🚶 Leave the table » | Il se lève (même animation qu'à l'assise, jouée à l'envers) et la salle est à vous ; l'anneau se rallume, et en revenant s'asseoir la boîte rouvre telle quelle — sections validées, palier, outro compris |
-| « Text resume » (ou sans WebGL) | La version texte complète, accessible et indexable — un clic dans la marge sombre la referme |
+| Version texte (sans WebGL, café fermé, ou lien d'évitement au clavier) | Le CV complet, accessible et indexable — sa croix ✕, `Échap` ou un clic dans la marge sombre la referment. La pastille qui l'ouvrait a disparu du café : la feuille sur la table et « See the resume » font le travail |
 
 Sur mobile, la boîte devient un panneau en bas d'écran, sur deux colonnes.
+
+**Un rechargement ne coûte rien.** La visite tient dans `sessionStorage` — un
+onglet, effacée à sa fermeture. Si la page revient (un téléphone qui vide un
+onglet d'arrière-plan, la raison habituelle du « laissé dix minutes, ça
+recommence à l'entrée »), on se retrouve directement à table : points verts,
+palier débloqué, outro. Ni accueil, ni marche, ni monologue — et volontairement
+aucun son, puisqu'un rechargement n'apporte aucun geste utilisateur : c'est la
+première section cliquée qui rallume la voix.
 
 ## 3. Le décor vit
 
@@ -273,6 +281,20 @@ audio/en/*.mp3      La voix de Simon, une piste par clip (15 clés, cf. README)
 audio/en/v1/*.mp3   Les enregistrements v1, retirés du circuit — jamais chargés
 og.jpg              Carte de partage 1200×630
 ```
+
+**Le cast capsule a eu sa passe d'anatomie** (2026-08-22) : des **mains à
+cinq doigts** (paume, quatre doigts, un pouce — géométries partagées par les
+neuf personnages et moins chères que la boule qu'elles remplacent), des
+**oreilles** sur chaque tête (de profil, tout le monde était un œuf, et c'est
+l'angle où la caméra passe sa vie), et des **épaules soudées au corps** : une
+coupole de deltoïde enterre son bord interne dans le torse, l'emmanchure
+rentrée d'un centimètre. Pas plus — à .198 le torse (qui s'évase à .205 à
+l'ourlet) avalait le bras entier : de face, plus personne n'avait de bras.
+Attaché, oui ; absorbé, non. Enfin **la moitié du café est féminine**
+(`fem`) : cheveux longs tombant sur la nuque, épaules un rien plus étroites.
+Le passant et l'invité tirent leur genre au sort avec le reste du vestiaire
+dans `reskin()`. Et **l'horloge du mur tourne** — heure locale du visiteur,
+trotteuse comprise, au lieu d'être figée à l'heure du chargement.
 
 **Les corps `person.obj` sont RETIRÉS** (`USE_PERSON_MESH=false` dans la
 scène) : à côté du cast capsule, les corps segmentés faisaient mannequins en

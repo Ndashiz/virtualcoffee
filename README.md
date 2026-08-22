@@ -31,6 +31,14 @@ box reopens exactly as you left it, green markers, tier and all. The outro
 adds the LinkedIn link and ends the visit. When Simon finishes that outro the
 barista comes over, says they're closing, and the room empties around you.
 
+**A reload costs nothing.** The visit rides in `sessionStorage` — per tab,
+gone when the tab closes — so a page that comes back (a phone discarding a
+background tab is the usual reason, and why "left alone for ten minutes" used
+to return you to the front door) puts you straight back in the chair with your
+green markers, your unlocked tier and your outro state. No welcome, no walk, no
+monologue, and deliberately no audio: there is no user gesture on a reload, so
+the first section you click is what turns the sound back on.
+
 There is a mute pill (or `M`) for the voice, a skip pill (or `space`) to cut
 him off, and the subtitles carry every word without sound. English only (the FR
 mode was retired: the scripts only exist in English). Under
@@ -163,6 +171,16 @@ joint that carries it**, so the swap is just "remove the cylinder under this
 joint, add this mesh under the same joint" and every behaviour written for the
 capsules (gaze, turn-taking, sip, walk, `reskin()`) drives either body
 untouched. Flip the flag to try again.
+
+Being the look again, the capsules got the pass they had been owed: **hands
+with five digits** (a palm, four fingers and a thumb, shared geometry, and
+cheaper than the ball they replace), **ears** on every head, and **shoulders
+that meet the body** — a deltoid cap bridges the joint, with the arm socket a
+centimetre in from where it used to float. Half the cast are **women**, told
+by longer hair falling to the nape; the stroller and the guest roll theirs with
+the rest of the wardrobe in `reskin()`. And the wall clock **runs**: it reads
+the visitor's own time, second hand included, instead of being stamped once at
+load and drifting for the rest of the visit.
 
 No build step, no bundler, no dependencies to install. Open `index.html` or:
 
@@ -307,8 +325,7 @@ reuses the room rather than adding to it: the people are gone (walkers, barista,
 the sitter, the reader — and Simon, his coffee, his croissant and his sheet of
 paper), two of the three pendants are out and the third burns low over the
 counter, the key light and the daylight shafts are off, the window has gone
-night-blue, the fog is tighter, and the dust keeps drifting through the dark as
-the only thing still moving. The chairs, tables, rug and plants stay exactly
+night-blue and the fog is tighter. The chairs, tables, rug and plants stay exactly
 where they were — that is what makes it read as *closed* rather than as
 *unfinished*.
 
@@ -462,9 +479,9 @@ whole thing.
 
 ### Mute
 
-The pill next to "Text resume" (or the `M` key) cuts the voice, and the choice
-is remembered in `localStorage["vc:muted"]` — sound off is a first-class way to
-read this page, not a failure state.
+The speaker pill — the only one left in the tools bar — or the `M` key cuts the
+voice, and the choice is remembered in `localStorage["vc:muted"]`: sound off is
+a first-class way to read this page, not a failure state.
 
 It is **not** `audioEl.muted`. The lipsync drives Simon's jaw from the real
 audio amplitude through an `AnalyserNode`, so cutting the element would freeze
