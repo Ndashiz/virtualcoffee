@@ -285,13 +285,18 @@ og.jpg              Carte de partage 1200×630
 **Le cast capsule a eu sa passe d'anatomie** (2026-08-22) : des **mains à
 cinq doigts** (paume, quatre doigts, un pouce — géométries partagées par les
 neuf personnages et moins chères que la boule qu'elles remplacent), des
-**oreilles** sur chaque tête (de profil, tout le monde était un œuf, et c'est
-l'angle où la caméra passe sa vie), et des **épaules soudées au corps** : une
-coupole de deltoïde enterre son bord interne dans le torse, l'emmanchure
-rentrée d'un centimètre. Pas plus — à .198 le torse (qui s'évase à .205 à
+**oreilles** (de profil, tout le monde était un œuf, et c'est l'angle où la
+caméra passe sa vie), des **épaules soudées au corps** — une coupole de
+deltoïde enterre son bord interne dans le torse, l'emmanchure rentrée d'un
+centimètre — et **un cou qu'on voit** : le pad de trapèze s'arrêtait à un
+centimètre et demi sous le crâne, ce qui donne une tête posée directement sur
+les épaules. Simon a eu le même traitement : col descendu, tête remontée à
+1,67 (`SIMON_HEAD_Y`, autour de quoi la boucle d'animation la fait respirer). Pas plus — à .198 le torse (qui s'évase à .205 à
 l'ourlet) avalait le bras entier : de face, plus personne n'avait de bras.
 Attaché, oui ; absorbé, non. Enfin **la moitié du café est féminine**
-(`fem`) : cheveux longs tombant sur la nuque, épaules un rien plus étroites.
+(`fem`) : cheveux longs tombant sur la nuque, épaules un rien plus étroites —
+et cheveux détachés veut dire oreilles couvertes, donc pas dessinées du tout
+plutôt que dessinées et traversant les mèches.
 Le passant et l'invité tirent leur genre au sort avec le reste du vestiaire
 dans `reskin()`. Et **l'horloge du mur tourne** — heure locale du visiteur,
 trotteuse comprise, au lieu d'être figée à l'heure du chargement.

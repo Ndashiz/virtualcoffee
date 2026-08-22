@@ -174,11 +174,18 @@ untouched. Flip the flag to try again.
 
 Being the look again, the capsules got the pass they had been owed: **hands
 with five digits** (a palm, four fingers and a thumb, shared geometry, and
-cheaper than the ball they replace), **ears** on every head, and **shoulders
-that meet the body** — a deltoid cap bridges the joint, with the arm socket a
-centimetre in from where it used to float. Half the cast are **women**, told
-by longer hair falling to the nape; the stroller and the guest roll theirs with
-the rest of the wardrobe in `reskin()`. And the wall clock **runs**: it reads
+cheaper than the ball they replace), **ears**, **shoulders that meet the body**
+— a deltoid cap bridges the joint, with the arm socket a centimetre in from
+where it used to float — and **a neck you can see**: the trapezius pad used to
+top out a centimetre and a half under the skull, which reads as a head set
+straight onto a pair of shoulders. Simon got the same treatment, his collar
+lowered and his head lifted to 1.67 (`SIMON_HEAD_Y`, which the animate loop
+breathes around).
+
+Half the cast are **women**, told by longer hair falling to the nape; worn
+down, that hair takes the ears with it (they are not drawn at all, rather than
+drawn and poking through the strands). The stroller and the guest roll their
+gender with the rest of the wardrobe in `reskin()`. And the wall clock **runs**: it reads
 the visitor's own time, second hand included, instead of being stamped once at
 load and drifting for the rest of the visit.
 

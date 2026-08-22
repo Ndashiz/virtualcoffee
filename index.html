@@ -3391,11 +3391,20 @@ function buildPerson(opts){
   const spine=joint(pelvis,"spine",0,.1,0);
   const chest=joint(spine,"chest",0,.16,0);
   const torso=put(chest,new THREE.CylinderGeometry(.165,.205,.52,16),mS,0,0,0,true,"shirt");
-  const pad=put(chest,new THREE.SphereGeometry(.17,16,12),mS,0,.26,0,true,"shirt");
-  pad.scale.set(1,.55,.9);
+  /* A NECK YOU CAN SEE. The trapezius pad used to top out at .3535 and the
+     skull started at .37: a centimetre and a half of throat, which from
+     any distance is a head sitting straight on a pair of shoulders. The
+     pad comes down and flattens, the neck itself gets its full length,
+     and the head rides .02 higher — six centimetres of neck, and the
+     cast stops looking like it was assembled from spare parts. */
+  const pad=put(chest,new THREE.SphereGeometry(.17,16,12),mS,0,.245,0,true,"shirt");
+  pad.scale.set(1,.5,.9);
   const neck=joint(chest,"neck",0,.28,0);
-  put(neck,new THREE.CylinderGeometry(.05,.05,.1,10),mSk,0,.05,0,false,"skin");
-  const head=joint(neck,"head",0,.24,0);
+  /* long enough to reach INTO the skull at the top and under the pad at
+     the bottom: a neck that merely spans the gap shows a seam at both
+     ends the moment he turns his head */
+  put(neck,new THREE.CylinderGeometry(.05,.055,.15,12),mSk,0,.06,0,false,"skin");
+  const head=joint(neck,"head",0,.26,0);
   put(head,new THREE.SphereGeometry(.15,18,16),mSk,0,0,0,true,"skin");
   const hair=put(head,new THREE.SphereGeometry(.155,18,14),mH,0,.06,-.015,false,"hair");
   hair.scale.set(1,.72,1);
@@ -3405,11 +3414,13 @@ function buildPerson(opts){
      where a real ear sits, and coloured as skin so reskin() carries
      them. Marked as accessories so the mesh path's skull strip spares
      them like the nose and the brows. */
+  const ears=[];
   for(const e of[-1,1]){
     const ear=put(head,new THREE.SphereGeometry(.034,10,8),mSk,.142*e,-.006,-.012,false,"skin");
     ear.scale.set(.42,1.05,.72);
     ear.rotation.z=.12*e;
     ear.userData.acc="ear";
+    ears.push(ear);
   }
   /* LONGER HAIR, for the half of the café that has it. Built on every
      head and simply hidden on the short-haired ones, so reskin() can
@@ -3420,6 +3431,10 @@ function buildPerson(opts){
   const longHair=new THREE.Group();
   longHair.visible=!!o.fem;
   longHair.userData.acc="longhair";
+  /* worn down, the hair covers the ears — theirs used to poke straight
+     through the side strands, which is the one thing hair like this
+     never does */
+  ears.forEach(e=>{e.visible=!o.fem;});
   {
     const back=new THREE.Mesh(new THREE.SphereGeometry(.152,16,14),mH);
     back.position.set(0,-.055,-.03);
@@ -3495,15 +3510,18 @@ function buildPerson(opts){
   }
   root.scale.setScalar(o.scale);
   scene.add(root);
-  return {root:root,J:J,eyes:eyes,mouth:mouth,torso:torso,opts:o,longHair:longHair};
+  return {root:root,J:J,eyes:eyes,mouth:mouth,torso:torso,opts:o,
+    longHair:longHair,ears:ears};
 }
-/* Gender is one flag and two consequences: the long hair appears, and
-   the shoulders come in a touch. Kept to that on purpose — the cast is
-   stylised, and anything more turns into caricature fast. */
+/* Gender is one flag and three consequences: the long hair appears, the
+   ears go under it, and the shoulders come in a touch. Kept to that on
+   purpose — the cast is stylised, and anything more turns into
+   caricature fast. */
 function setFem(rig,on){
   if(!rig.longHair)return;
   rig.opts.fem=!!on;
   rig.longHair.visible=!!on;
+  if(rig.ears)rig.ears.forEach(e=>{e.visible=!on;});
   const x=on?.204:.215;
   if(rig.J.shoulderL)rig.J.shoulderL.position.x=-x;
   if(rig.J.shoulderR)rig.J.shoulderR.position.x=x;
@@ -4745,7 +4763,10 @@ window.__guest=()=>({state:guest.state,
   x:+guest.pos.x.toFixed(2),z:+guest.pos.z.toFixed(2),
   rootY:+guest.rootY.toFixed(2),
   sit:guest.sit?{k:+guest.sit.k.toFixed(2),dir:guest.sit.dir||1}:null,
-  entered:entered,everSat:everSat,reading:reading,talkOpen:talkOpen});
+  entered:entered,everSat:everSat,reading:reading,talkOpen:talkOpen,
+  fem:!!(guest.rig.opts&&guest.rig.opts.fem),
+  longHair:!!(guest.rig.longHair&&guest.rig.longHair.visible),
+  ears:!!(guest.rig.ears&&guest.rig.ears[0]&&guest.rig.ears[0].visible)});
 window.__sit=()=>{
   if(!entering&&!entered)startEntrance();
   guest.pos.set(GUEST_SEAT.x,0,GUEST_SEAT.z);
@@ -4768,10 +4789,14 @@ const SK=0xe8b58c;
   const torso=new THREE.Mesh(new THREE.CylinderGeometry(.195,.245,.55,18),mShirt);
   torso.position.y=1.06;torso.castShadow=true;simon.add(torso);
   const shoulders=new THREE.Mesh(new THREE.SphereGeometry(.2,18,14),mShirt);
-  shoulders.scale.set(1,.55,.92);shoulders.position.y=1.33;shoulders.castShadow=true;simon.add(shoulders);
+  shoulders.scale.set(1,.55,.92);shoulders.position.y=1.31;shoulders.castShadow=true;simon.add(shoulders);
   const collar=new THREE.Mesh(new THREE.CylinderGeometry(.075,.085,.09,14),
     new THREE.MeshStandardMaterial({color:0xeef2f6,roughness:.7}));
-  collar.position.y=1.42;simon.add(collar);
+  collar.position.y=1.40;simon.add(collar);
+  /* the throat itself: from under the collar up into the skull, so no
+     seam shows at either end while he talks and turns */
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.07,.078,.2,14),mSkin);
+  neck.position.y=1.40;simon.add(neck);
   const placket=new THREE.Mesh(new THREE.BoxGeometry(.035,.42,.012),
     new THREE.MeshStandardMaterial({color:0x1c3654}));
   placket.position.set(0,1.1,.235);simon.add(placket);
@@ -4789,7 +4814,13 @@ const SK=0xe8b58c;
     if(s>0)simon.userData.rShoulder=sh;
   }
 }
-const simonHead=new THREE.Group();simonHead.position.set(0,1.6,-1.08);scene.add(simonHead);
+/* Simon's head rides .07 higher than it used to, and his collar came
+   down to meet it: the skull used to bottom out at 1.415 against a
+   collar whose top was 1.465, so the man had no neck at all — a head
+   set straight into a shirt. The two constants are named because the
+   animate loop breathes his head around this exact height. */
+const SIMON_HEAD_Y=1.67;
+const simonHead=new THREE.Group();simonHead.position.set(0,SIMON_HEAD_Y,-1.08);scene.add(simonHead);
 {
   const mSkin=new THREE.MeshStandardMaterial({color:SK,roughness:.6});
   const skull=new THREE.Mesh(new THREE.SphereGeometry(.185,24,20),mSkin);
@@ -6558,7 +6589,7 @@ function animate(){
   }
 
   /* Simon */
-  simonHead.position.y=1.6+Math.sin(t*1.2)*.008;
+  simonHead.position.y=SIMON_HEAD_Y+Math.sin(t*1.2)*.008;
   simonHead.rotation.z=Math.sin(t*.9)*.02;
   /* SIMON LOOKS AT YOU — at the person, not past them.
      His pupils used to be painted straight ahead and never moved, so any
