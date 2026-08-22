@@ -103,6 +103,9 @@ fonts/*.woff2       Space Grotesk · Inter · Caveat (latin + latin-ext)
 three.min.js        three.js r134, vendored
 audio/en/*.mp3      The narration, one file per clip (see "Voice")
 audio/en/v1/*.mp3   The retired v1 recordings — kept, never loaded
+audio/music/*.m4a   The jukebox's three tracks — composed by preprocess_music.py,
+                    lazy-loaded, never fetched before someone presses play
+preprocess_music.py The tracks' source: a small numpy DAW + afconvert (AAC 128k)
 og.jpg              1200×630 share card, rendered from the scene itself
 favicon.svg
 .nojekyll           skip the Jekyll build on Pages
@@ -469,6 +472,54 @@ It is pinned over Simon's head by projecting a 3D point each frame, anchored
 `translate(-50%,-100%)`. The longest answer is taller than the gap between his
 head and the top of the window, so the position is clamped to the viewport and
 the café sign fades out while a bubble is up.
+
+## The jukebox — silent disco
+
+On the front wall, between the press frames and the plant, stands a jukebox.
+It is a room object like the plaque and the televisions — same hint bubble,
+same tap — but what opens is a player, not a picture: pick a track and it
+hands out **wireless headsets**. Your character puts one on, five regulars
+put down what they were doing, walk over one by one, take a headset off the
+rail as they arrive, and dance **to the actual audio** — a per-frame RMS
+drives head, shoulders, hips and knees, each dancer on an individual phase,
+rate and amplitude so the five are visibly together and never in sync. The
+barista never leaves the bar, and the reader never looks up from her book,
+because in every real café one person ignores the party.
+
+The framing — headsets everywhere, one transmitter — is what keeps the
+audio honest. The gain chain is
+
+```
+elements → track gains (crossfade) → analyser → distance → duck → volume → mute → out
+```
+
+with the analyser tapped **upstream** of every gain: the crowd dances to the
+track itself, not to how loud you currently hear it, so walking away, muting
+or ducking never stops the dance. Distance is camera → transmitter: full
+inside 3 m, floored at 25 % past 12 m — the signal weakens, it never cuts,
+and the dancers stay at the box rather than following you. Any voice clip —
+mp3 or browser-voice fallback — ducks the music to 20 % in ~300 ms and
+releases half a second after the line ends: Simon always wins. The music
+mute is its own pill in the HUD (the note), separate from Simon's; each
+silences only its own graph.
+
+**Sitting down at the table ends the party, crowd only**: the five walk back
+to positions and orientations recorded once at scene init (`JB_HOME`, never
+recomputed — recomputing is how positions drift across cycles), while the
+music keeps playing in your headset at the seated distance level. The exit —
+in the panel, or the eject pill in the HUD from anywhere — takes every
+headset off, sends everyone home the way they came (mid-arrival dancers turn
+around from wherever they are), fades the music out and returns every gain
+to nominal. The user volume survives in `localStorage` (`vc:musicVol`).
+
+The three tracks are **composed and rendered by `preprocess_music.py`** —
+a few hundred lines of numpy synthesizing disco, funk and lo-fi at matched
+loudness (≈ −14 LUFS), encoded to AAC 128k by macOS's own `afconvert`. The
+same answer the café gives everywhere else: nothing licensed, nothing
+external, no rights question on a public page. Adding a real track later is
+one file under `audio/music/` plus one line in the `MUSIC` map.
+`window.__jukebox()` dumps the whole state — mode, gains, per-dancer phase —
+next to `__agents()` and `__guest()`.
 
 ## Voice
 

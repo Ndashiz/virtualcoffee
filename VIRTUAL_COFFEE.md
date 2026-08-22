@@ -102,6 +102,7 @@ en muet il parle toujours, sous-titres compris, on ne l'entend simplement pas.
 | Pastille ⏭ Skip ou `espace` | Le fait taire — la section reste alors non entendue |
 | « 📄 See the resume » / « ⬇ Download it » | Sous la boîte dès la première option, même pendant qu'il parle : la feuille remonte, ou le CV se télécharge |
 | « 🚶 Leave the table » | Il se lève (même animation qu'à l'assise, jouée à l'envers) et la salle est à vous ; l'anneau se rallume, et en revenant s'asseoir la boîte rouvre telle quelle — sections validées, palier, outro compris |
+| Le jukebox du mur avant | Silent disco : casques sans fil, cinq habitués qui viennent danser sur l'audio réel ; la voix de Simon garde toujours la priorité (ducking), s'asseoir renvoie la foule, le son suit la distance à l'émetteur |
 | Version texte (sans WebGL, café fermé, ou lien d'évitement au clavier) | Le CV complet, accessible et indexable — sa croix ✕, `Échap` ou un clic dans la marge sombre la referment. La pastille qui l'ouvrait a disparu du café : la feuille sur la table et « See the resume » font le travail |
 
 Sur mobile, la boîte devient un panneau en bas d'écran, sur deux colonnes.
@@ -206,6 +207,25 @@ pour la dalle — même correctif sur le cadre du mois.
 plante qui occupait ce coin a été déplacée le long du mur avant par le
 préprocesseur — une porte derrière un ficus n'est pas une porte.
 
+**Et il y a un jukebox — une silent disco.** Sur le mur avant, entre les
+unes du Daily Salfari et la plante : un meuble en bois à arche néon, repéré
+et cliqué comme la plaque ou les télés (même bulle, même tap), mais qui
+ouvre un lecteur au lieu d'une image. On choisit un morceau et il distribue
+des **casques sans fil** : votre personnage enfile le sien, cinq habitués
+(jamais le barista — quelqu'un tient le bar ; jamais la lectrice — dans tout
+vrai café quelqu'un ignore la fête) lâchent ce qu'ils faisaient, traversent
+la salle en décalé, décrochent un casque du rail en arrivant et dansent sur
+**l'amplitude réelle de la piste** — RMS par image, chacun avec sa phase, sa
+vitesse et son amplitude propres, jamais de clones. Le signal faiblit avec
+la distance caméra→émetteur (plancher à 25 %, jamais coupé), la voix de
+Simon écrase toujours la musique (duck à 20 %, relâché 500 ms après la
+réplique), et **s'asseoir renvoie la foule** — chacun regagne exactement la
+position et l'orientation enregistrées à l'init de la scène — pendant que la
+musique continue dans votre casque. Les trois pistes sont composées par
+`preprocess_music.py` (numpy + afconvert, −14 LUFS, AAC 128k) : rien de
+licencié, rien d'externe, comme tout le reste du café. Sonde console :
+`__jukebox()`.
+
 **Et dehors, ça bouge.** Toutes les ~30 s un avion traverse la baie, entre la
 plaque peinte (x = −3,9) et le mur (x = −3,25) : ce sont les jambages de la baie
 qui le font entrer et sortir du champ, aucun fondu. Une fois sur quatre ce n'est
@@ -279,6 +299,9 @@ three.min.js        three.js r134, vendorisé
 fonts/*.woff2       Space Grotesk · Inter · Caveat, auto-hébergées
 audio/en/*.mp3      La voix de Simon, une piste par clip (15 clés, cf. README)
 audio/en/v1/*.mp3   Les enregistrements v1, retirés du circuit — jamais chargés
+audio/music/*.m4a   Les trois pistes du jukebox — composées par preprocess_music.py,
+                    chargées paresseusement (rien avant le premier play)
+preprocess_music.py La partition : un mini-DAW numpy + afconvert (AAC 128k)
 og.jpg              Carte de partage 1200×630
 ```
 
