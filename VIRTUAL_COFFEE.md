@@ -92,15 +92,16 @@ en muet il parle toujours, sous-titres compris, on ne l'entend simplement pas.
 | Glisser à la souris · molette · `Maj` | Tourner la caméra · reculer · sprinter |
 | Pastille 🔊 ou touche `M` | Coupe / rétablit la voix (mémorisé) |
 | Touche `0` (l'outro) | …et le café ferme : le serveur vient vous le dire, la salle se vide |
-| Feuille en plein écran | Il la commente ; elle redescend quand il a fini, et la boîte s'ouvre |
+| Feuille en plein écran | Il la commente ; elle redescend quand il a fini — ou dès un clic à côté d'elle — et la boîte s'ouvre |
 | Survoler le CV sur la table | La feuille se soulève, la mise au point se tire dessus (rack focus) |
 | Une section de la boîte (ou touches `1`–`5`) | Simon la raconte, sous-titres à l'écran, letterbox cinéma ; entendue en entier, elle garde un point vert |
 | Une section déjà entendue | *« Ah, you weren't listening »* (`reclick`), puis il la rejoue en entier |
 | Les cinq entendues | Second palier : off the clock, l'IA, pourquoi la banque, comment j'ai construit ça — plus l'outro |
 | Cliquer Simon | La section « off the clock » (deux bières sur la table), une fois le palier ouvert |
-| L'outro (ou touche `0`) | Téléchargement du CV + LinkedIn, puis le café ferme |
+| L'outro (ou touche `0`) | Le lien LinkedIn apparaît, puis le café ferme |
 | Pastille ⏭ Skip ou `espace` | Le fait taire — la section reste alors non entendue |
-| « Text résumé » (ou sans WebGL) | La version texte complète, accessible et indexable |
+| « 📄 See the résumé » / « ⬇ Download it » | Sous la boîte dès la première option, même pendant qu'il parle : la feuille remonte, ou le CV se télécharge |
+| « Text résumé » (ou sans WebGL) | La version texte complète, accessible et indexable — un clic dans la marge sombre la referme |
 
 Sur mobile, la boîte devient un panneau en bas d'écran, sur deux colonnes.
 
@@ -140,13 +141,19 @@ a sa propre horloge interne (jamais deux animations synchrones).
   que fait quelqu'un qui écoute. Le balayage aléatoire des figurants a été
   affaibli dans la foulée : toute la salle vérifiait les coins.
 
-**Les coupures de presse ont sauté.** Les cinq (trois sur le mur avant, cuites
-dans la carte ; deux repeintes sur le mur du fond) racontaient les titres de
-Simon à sa propre place — un café tapissé de manchettes sur son patron, ça se
-lit comme de la vantardise. À leur place, un seul petit cadre sur le mur avant :
-**« Employee of the Month — Tonio Salfari »**, décerné pour services rendus
-derrière un comptoir où personne ne l'a jamais vu. Peint en canvas comme
-l'ardoise (`drawEotm()`), repeint sur `VC.fontsReady`.
+**Les coupures de presse ont sauté — puis trois sont revenues, vraies.** Les
+cinq cuites dans la carte (trois sur le mur avant, deux repeintes au fond)
+racontaient des titres inventés — un café tapissé de manchettes sur son patron,
+ça se lit comme de la vantardise. La règle n'a jamais été « pas de presse »,
+c'était « pas de presse inventée » : sous les trois appliques du mur avant
+pendent désormais trois unes du **Daily Salfari** (`drawArticle()`, même
+homonymie douteuse que l'employé du mois) — l'immeuble retapé seul en deux ans
+(électricité, plomberie, maçonnerie), le premier triathlon après un an de
+préparation, le studio web + IA en indépendant complémentaire. Chacune avec son
+illustration à l'encre, lisible en zoom comme tout ce qui s'accroche à un mur.
+Reste aussi le petit cadre : **« Employee of the Month — Tonio Salfari »**,
+décerné pour services rendus derrière un comptoir où personne ne l'a jamais vu.
+Peint en canvas comme l'ardoise (`drawEotm()`), repeint sur `VC.fontsReady`.
 
 **Deux télés, un seul flux : HENRY TV.** La petite au-dessus du bout du
 comptoir, entre le néon et l'ardoise — depuis la chaise, elle tombe juste

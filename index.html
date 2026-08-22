@@ -238,10 +238,12 @@
     max-height:calc(100dvh - 190px);overflow-y:auto;overscroll-behavior:contain;
     scrollbar-width:thin;scrollbar-color:rgba(159,180,188,.35) transparent;}
   .talk[hidden]{display:none;}
-  /* The menu steps aside while he talks — but the two links do NOT: the
-     outro names them out loud ("there's a download button…") and they
-     have to be there when he says it. Same reason the box keeps its
-     space: fading it out of the layout would make the links jump. */
+  /* The menu steps aside while he talks — but the links row does NOT:
+     seeing and downloading the CV must stay one tap away at EVERY moment
+     of the dialogue, mid-sentence included, and the outro names the
+     download out loud ("there's a download button…") so it has to be
+     there when he says it. Same reason the box keeps its space: fading
+     it out of the layout would make the links jump. */
   .tlead,.topts{transition:opacity .3s ease,transform .3s ease;}
   body.talking .tlead,body.talking .topts{opacity:0;transform:translateY(8px);
     pointer-events:none;}
@@ -272,7 +274,7 @@
   .tlinks{display:flex;gap:7px;margin-top:5px;flex-wrap:wrap;}
   .tlinks[hidden]{display:none;}
   .tlink{border:1px solid var(--gold);border-radius:999px;background:rgba(244,183,64,.12);
-    color:var(--gold);padding:8px 14px;text-decoration:none;
+    color:var(--gold);padding:8px 14px;text-decoration:none;cursor:pointer;
     font-family:"Space Grotesk",sans-serif;font-size:13px;font-weight:600;transition:.15s;}
   .tlink:hover{background:var(--gold);color:#20303a;}
 
@@ -379,7 +381,8 @@
   <p class="tlead" id="talkLead"></p>
   <div class="topts" id="talkOpts" role="group" aria-label="What Simon can tell you about"></div>
   <div class="tlinks" id="talkLinks" hidden>
-    <a class="tlink" id="cvDl" href="#" download>⬇ Download the résumé</a>
+    <button class="tlink" id="cvPeek" type="button">📄 See the résumé</button>
+    <a class="tlink" id="cvDl" href="#" download>⬇ Download it</a>
     <a class="tlink" id="liLink" href="#" target="_blank" rel="noopener">in — LinkedIn</a>
   </div>
 </div>
@@ -565,6 +568,12 @@ window.VC = (function(){
   cvBtn.addEventListener('click', () => panel.hidden ? openCV() : closeCV());
   addEventListener('keydown', e => {
     if (e.key === 'Escape' && !panel.hidden && !cvBtn.hidden) closeCV();
+  });
+  /* The dark gutter around the sheet closes it too — the classic modal
+     gesture. Same guard as Escape: with the pill hidden the panel IS the
+     page (no WebGL), and closing it would leave nothing at all. */
+  panel.addEventListener('click', e => {
+    if (e.target === panel && !cvBtn.hidden) closeCV();
   });
 
   /* No WebGL: there is no café to come back to, so the résumé is not an
@@ -758,8 +767,8 @@ const DATA={
   sign:["Virtual Coffee","discussion with Simon"],
   /* the beat between sitting down and the first section: the sheet is up,
      near full-screen, and nothing else may compete with it */
-  promptRead:"Read along — the sheet goes back down when I'm done",
-  promptReadTouch:"Read along — the sheet goes back down when I'm done",
+  promptRead:"Read along — click beside the sheet to put it down",
+  promptReadTouch:"Read along — tap beside the sheet to put it down",
   prompt:"Pick a section — I'll fill in the gaps\u00A0☕",
   promptTouch:"Pick a section — I'll fill in the gaps\u00A0☕",
   labels:{intro:"ABOUT ME",experience:"WORK EXPERIENCE",education:"EDUCATION",
@@ -1500,14 +1509,16 @@ function addReadable(mesh,title,w,h,redraw,live){
 /* ---------------- EMPLOYEE OF THE MONTH ----------------
    What used to live here: three framed press clippings on the front wall
    and a repainted pair of them on the back wall. Simon's call — a café
-   papered with invented headlines about its own owner reads as bragging,
+   papered with INVENTED headlines about its own owner reads as bragging,
    not as scenery. The map's three are dropped in the preprocessor
-   (DROP_NAMES), and the back-wall pair went with the painter.
-   What the front wall keeps instead is the one frame every café really
-   has, hung beside the trophy cabinet: the plaque nobody in the room has
-   ever met. Painted to canvas like the chalkboard, and repainted on
-   VC.fontsReady — text baked before the webfont lands falls back to a
-   system face. */
+   (DROP_NAMES), and the back-wall pair went with the painter. Three
+   frames later came BACK, painted fresh (THE PRESS WALL, below) — the
+   rule was never "no press", it was "no invented press", and those three
+   stories are true.
+   What this block keeps is the one frame every café really has, hung
+   beside the trophy cabinet: the plaque nobody in the room has ever met.
+   Painted to canvas like the chalkboard, and repainted on VC.fontsReady
+   — text baked before the webfont lands falls back to a system face. */
 const EOTM_NAME="Tonio Salfari";
 /* Painted in LOGICAL units (400x500) into whatever context it is handed,
    so the same code fills the 2x texture on the wall and the bigger canvas
@@ -1599,6 +1610,258 @@ function drawEotm(x){
   g.rotation.y=Math.PI;
   scene.add(g);
 }
+
+/* ---------------- THE PRESS WALL ----------------
+   The three frames are back — Simon's call, reversing the note above —
+   because the rule was never "no press", it was "no invented press".
+   These three stories all actually happened: the building he rebuilt
+   alone, the first triathlon, the one-man studio. One local paper (The
+   Daily Salfari — any relation to the employee of the month is left to
+   the reader), one story per frame, hung on the picture rail under the
+   three sconces to the right of the trophy cabinet. Painted like the
+   plaque — logical units, system serif for the newsprint so no webfont
+   can strand it, repainted on VC.fontsReady for the grotesk kickers —
+   and registered as readables, because a newspaper two metres up a wall
+   is a texture; the zoom is where it becomes an article. */
+const PRESS_W=420,PRESS_H=560;
+const PRESS_SERIF='Georgia,"Times New Roman",serif';
+function drawArticle(x,art){
+  const w=PRESS_W,h=PRESS_H,ink="#232b33",dim="rgba(35,43,51,.62)",
+        rule="rgba(35,43,51,.8)",M=34;
+  x.fillStyle="#efe7d2";x.fillRect(0,0,w,h);
+  for(let i=0;i<460;i++){                       /* newsprint tooth */
+    x.fillStyle="rgba(110,92,62,"+(Math.random()*.05)+")";
+    x.fillRect(Math.random()*w,Math.random()*h,1.4,1.4);
+  }
+  /* every centred line shrinks to fit its measure — a masthead that
+     kisses the margins is a masthead, one that crosses them is a bug */
+  function fit(txts,weight,s0,s1,maxW){
+    let s=s0;
+    for(;;){
+      x.font=weight+" "+s+"px "+PRESS_SERIF;
+      if(s<=s1||Math.max(...txts.map(t=>x.measureText(t).width))<=maxW)return s;
+      s--;
+    }
+  }
+  /* masthead */
+  x.textAlign="center";x.fillStyle=ink;
+  fit(["The Daily Salfari"],"italic 700",44,30,w-2*M);
+  x.fillText("The Daily Salfari",w/2,64);
+  x.font='500 10px "Space Grotesk",sans-serif';x.fillStyle=dim;
+  x.fillText("B R U S S E L S   ·   N o  4 7   ·   € 1 , 2 0",w/2,84);
+  x.strokeStyle=rule;x.lineWidth=2.6;
+  x.beginPath();x.moveTo(M,96);x.lineTo(w-M,96);x.stroke();
+  x.lineWidth=.9;
+  x.beginPath();x.moveTo(M,101);x.lineTo(w-M,101);x.stroke();
+  /* kicker + headline + deck */
+  x.fillStyle="#8c2f22";x.font='700 12px "Space Grotesk",sans-serif';
+  x.fillText(art.kicker,w/2,122);
+  x.fillStyle=ink;
+  fit(art.head,"800",27,19,w-2*M);
+  art.head.forEach((ln,i)=>x.fillText(ln,w/2,152+i*30));
+  x.fillStyle=dim;
+  fit([art.deck],"italic 400",14,11,w-2*M);
+  x.fillText(art.deck,w/2,152+art.head.length*30+2);
+  /* the figure — every story runs its picture above the fold */
+  const fy=152+art.head.length*30+16,fw=w-2*M,fh=142;
+  x.save();x.translate(M,fy);
+  x.fillStyle="#e7dcc0";x.fillRect(0,0,fw,fh);
+  x.strokeStyle=rule;x.lineWidth=1.2;x.strokeRect(0,0,fw,fh);
+  x.strokeStyle=ink;x.fillStyle=ink;x.lineJoin="round";x.lineCap="round";
+  art.illo(x,fw,fh);
+  x.restore();
+  x.fillStyle=dim;x.font="italic 400 12.5px "+PRESS_SERIF;
+  x.textAlign="center";x.fillText(art.capt,w/2,fy+fh+16);
+  /* body — two ragged columns of real, wrapped copy */
+  const colW=(w-2*M-22)/2,byY=fy+fh+31,lh=15;
+  x.textAlign="left";
+  const words=art.body.split(" ");
+  /* rewrap at a shrinking size until both columns clear the foot rule —
+     the measure depends on whichever serif the platform actually has */
+  let lines,bs=12.5;
+  for(;;){
+    x.font="400 "+bs+"px "+PRESS_SERIF;
+    lines=[];let ln="";
+    for(const wd of words){
+      const t=ln?ln+" "+wd:wd;
+      if(x.measureText(t).width>colW&&ln){lines.push(ln);ln=wd;}
+      else ln=t;
+    }
+    if(ln)lines.push(ln);
+    if(lines.length<=18||bs<=10.5)break;
+    bs-=.5;
+  }
+  const per=Math.ceil(lines.length/2);
+  x.fillStyle=ink;
+  lines.forEach((l,i)=>{
+    const c=i<per?0:1;
+    x.fillText(l,M+c*(colW+22),byY+(i-c*per)*lh);
+  });
+  /* byline, foot rule */
+  x.strokeStyle=rule;x.lineWidth=.9;
+  x.beginPath();x.moveTo(M,h-30);x.lineTo(w-M,h-30);x.stroke();
+  x.fillStyle=dim;x.font='500 10px "Space Grotesk",sans-serif';
+  x.textAlign="center";x.fillText(art.desk,w/2,h-15);
+}
+/* the three stories — the ink figures are the café's usual vocabulary:
+   a few strokes that read from across the room and reward the zoom */
+const PRESS=[
+ {kicker:"P R O P E R T Y",
+  head:["MAN BUYS BUILDING,","REBUILDS IT ALONE"],
+  deck:"Wiring, plumbing, masonry — two years, one pair of hands",
+  capt:"The facade: half scaffolding, half pride.",
+  desk:"FROM OUR PROPERTY DESK",
+  body:"BRUSSELS — When Simon Goffin bought a tired old building, every "+
+   "contractor quoted him a small fortune and a longer wait. He answered "+
+   "with a toolbox. Two years of evenings and weekends later the place is "+
+   "unrecognisable: he stripped and rewired the electricity, replaced the "+
+   "plumbing down to the last joint, and rebuilt the masonry with his own "+
+   "trowel. All of it alone, all of it done properly. Asked for his "+
+   "secret, he shrugged: “One room at a time.”",
+  illo:(x,fw,fh)=>{
+    x.lineWidth=1.6;
+    x.beginPath();x.moveTo(12,fh-18);x.lineTo(fw-12,fh-18);x.stroke();   /* street */
+    x.strokeRect(46,26,120,fh-44);                                       /* facade */
+    x.beginPath();x.moveTo(40,26);x.lineTo(172,26);x.stroke();           /* cornice */
+    for(let r=0;r<3;r++)for(let c=0;c<2;c++){                            /* windows */
+      if(r===2&&c===1)continue;                                          /* the door */
+      x.strokeRect(62+c*56,36+r*28,32,20);
+      x.beginPath();x.moveTo(78+c*56,36+r*28);x.lineTo(78+c*56,56+r*28);x.stroke();
+    }
+    x.strokeRect(122,fh-42,30,24);                                       /* front door */
+    x.beginPath();x.arc(144,fh-30,2,0,7);x.fill();                       /* its knob */
+    for(let i=0;i<4;i++){x.strokeRect(154,96+i*7,10,5);}                 /* raw brick */
+    x.lineWidth=1.4;                                                     /* scaffold */
+    x.beginPath();x.moveTo(176,26);x.lineTo(176,fh-18);
+    x.moveTo(206,26);x.lineTo(206,fh-18);x.stroke();
+    for(let i=0;i<3;i++){x.beginPath();x.moveTo(176,42+i*30);x.lineTo(206,42+i*30);x.stroke();}
+    x.beginPath();x.moveTo(238,fh-18);x.lineTo(288,30);                  /* the ladder */
+    x.moveTo(252,fh-18);x.lineTo(302,30);x.stroke();
+    for(let i=0;i<7;i++){
+      const t=i/6.5,ax=238+(288-238)*t+7*t,ay=(fh-18)+(30-(fh-18))*t;
+      x.beginPath();x.moveTo(ax,ay);x.lineTo(ax+14,ay);x.stroke();
+    }
+    x.beginPath();x.arc(191,60,5,0,7);x.stroke();                        /* the man up top */
+    x.beginPath();x.moveTo(191,65);x.lineTo(191,80);
+    x.moveTo(191,70);x.lineTo(181,76);x.moveTo(191,70);x.lineTo(202,66);
+    x.moveTo(191,80);x.lineTo(184,92);x.moveTo(191,80);x.lineTo(198,92);x.stroke();
+    x.beginPath();x.arc(216,fh-24,5,2.3,7.1);x.stroke();                 /* his bucket */
+  }},
+ {kicker:"S P O R T",
+  head:["FIRST TRIATHLON,","A YEAR IN THE MAKING"],
+  deck:"Swim, bike, run — after 365 mornings of training",
+  capt:"Three disciplines, one finish line.",
+  desk:"FROM OUR SPORTS DESK",
+  body:"It started with an entry form and a year to get serious. Pool "+
+   "lengths before work, long Sunday rides, runs in weather nobody would "+
+   "choose: for twelve months Simon Goffin trained for a race he had "+
+   "never done. Last weekend he swam, rode and ran his first triathlon "+
+   "from start to finish line. “The race is the easy part,” he "+
+   "said, medal still on. “Showing up every morning for a year — "+
+   "that is the sport.” He has, of course, already entered the next "+
+   "one.",
+  illo:(x,fw,fh)=>{
+    const p1=fw/3,p2=2*fw/3;
+    x.lineWidth=.9;
+    x.beginPath();x.moveTo(p1,14);x.lineTo(p1,fh-14);
+    x.moveTo(p2,14);x.lineTo(p2,fh-14);x.stroke();
+    x.lineWidth=1.6;
+    /* swim: three swells and a crawl stroke */
+    for(let r=0;r<3;r++){
+      x.beginPath();
+      for(let i=0;i<4;i++)x.arc(22+i*24,84+r*16,12,Math.PI,0,false);
+      x.stroke();
+    }
+    x.beginPath();x.arc(56,66,6,0,7);x.stroke();                         /* head */
+    x.beginPath();x.moveTo(62,70);x.lineTo(88,76);x.stroke();            /* back */
+    x.beginPath();x.moveTo(70,72);x.quadraticCurveTo(64,48,46,52);x.stroke(); /* the arm */
+    /* bike, mid-panel */
+    const bx=p1+fw/6,by=fh-44;
+    x.beginPath();x.arc(bx-26,by,17,0,7);x.moveTo(bx+43,by);x.arc(bx+26,by,17,0,7);x.stroke();
+    x.beginPath();x.moveTo(bx-26,by);x.lineTo(bx-6,by-30);x.lineTo(bx+20,by-30);
+    x.lineTo(bx+26,by);x.moveTo(bx-6,by-30);x.lineTo(bx+2,by);x.lineTo(bx-26,by);
+    x.moveTo(bx+20,by-30);x.lineTo(bx+24,by-38);x.moveTo(bx-6,by-30);x.lineTo(bx-10,by-38);
+    x.moveTo(bx-16,by-38);x.lineTo(bx-2,by-38);x.stroke();
+    x.beginPath();x.arc(bx+2,by-62,6,0,7);x.stroke();                    /* rider */
+    x.beginPath();x.moveTo(bx+4,by-56);x.lineTo(bx-8,by-40);
+    x.moveTo(bx+2,by-52);x.lineTo(bx-14,by-40);
+    x.moveTo(bx-8,by-40);x.lineTo(bx+2,by-22);x.stroke();
+    /* run: the tape */
+    const rx=p2+fw/6,ry=fh-24;
+    x.beginPath();x.moveTo(rx-40,20);x.lineTo(rx-40,ry);
+    x.moveTo(rx+40,20);x.lineTo(rx+40,ry);x.stroke();
+    x.setLineDash([5,4]);
+    x.beginPath();x.moveTo(rx-40,54);x.lineTo(rx+40,54);x.stroke();
+    x.setLineDash([]);
+    x.beginPath();x.arc(rx-2,44,6,0,7);x.stroke();                       /* runner */
+    x.beginPath();x.moveTo(rx,50);x.lineTo(rx-4,72);
+    x.moveTo(rx-2,56);x.lineTo(rx-18,64);x.moveTo(rx-2,56);x.lineTo(rx+14,60);x.stroke();
+    x.beginPath();x.moveTo(rx-4,72);x.lineTo(rx-20,92);x.moveTo(rx-4,72);x.lineTo(rx+12,88);x.stroke();
+  }},
+ {kicker:"B U S I N E S S",
+  head:["THE ONE-MAN STUDIO","SHIPPING SITES AND AI"],
+  deck:"A registered side business — websites and working AI, delivered",
+  capt:"The studio: one laptop, strong coffee.",
+  desk:"FROM OUR BUSINESS DESK",
+  body:"Product manager by day, builder after hours: Simon Goffin runs a "+
+   "one-man studio as an official side business — “indépendant "+
+   "complémentaire”, as the paperwork puts it — designing "+
+   "websites and hands-on AI solutions for clients who want tools that "+
+   "simply work. No agency, no middlemen: the person you brief is the "+
+   "person who builds. Exhibit A is the café you are standing in, "+
+   "which is technically a job application that serves coffee. Inquiries "+
+   "at the counter.",
+  illo:(x,fw,fh)=>{
+    x.lineWidth=1.6;
+    x.beginPath();x.moveTo(20,fh-30);x.lineTo(fw-20,fh-30);x.stroke();   /* desk */
+    x.strokeRect(70,34,120,76);                                          /* screen */
+    x.beginPath();x.moveTo(58,fh-30);x.lineTo(70,110);x.lineTo(190,110);
+    x.lineTo(202,fh-30);x.closePath();x.stroke();                        /* keyboard deck */
+    x.font="700 30px "+PRESS_SERIF;x.textAlign="left";
+    x.fillText("</>",84,84);                                             /* the site */
+    x.save();x.translate(160,66);                                        /* the AI */
+    x.beginPath();
+    for(let i=0;i<8;i++){
+      const r=i%2?4:15,a=i*Math.PI/4;
+      x[i?"lineTo":"moveTo"](Math.cos(a)*r,Math.sin(a)*r);
+    }
+    x.closePath();x.fill();x.restore();
+    x.beginPath();x.arc(244,fh-44,14,0,Math.PI,false);x.stroke();        /* the coffee */
+    x.beginPath();x.moveTo(230,fh-44);x.lineTo(258,fh-44);x.stroke();
+    x.beginPath();x.arc(262,fh-50,6,-1.2,1.2);x.stroke();
+    for(const s of[238,248]){                                            /* steam */
+      x.beginPath();x.moveTo(s,fh-64);x.quadraticCurveTo(s-5,fh-74,s,fh-84);x.stroke();
+    }
+  }}
+];
+PRESS.forEach((art,i)=>{
+  const SS=2;
+  const c=document.createElement("canvas");
+  c.width=PRESS_W*SS;c.height=PRESS_H*SS;
+  const cx=c.getContext("2d");cx.setTransform(SS,0,0,SS,0,0);
+  drawArticle(cx,art);
+  const tex=new THREE.CanvasTexture(c);
+  tex.encoding=THREE.sRGBEncoding;tex.anisotropy=maxAniso;
+  VC.fontsReady.then(function(){drawArticle(cx,art);tex.needsUpdate=true;});
+  const g=new THREE.Group();
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(.47,.62,.035),
+    new THREE.MeshStandardMaterial({color:0x241a12,roughness:.55,envMapIntensity:.7,
+      polygonOffset:true,polygonOffsetFactor:2,polygonOffsetUnits:2}));
+  frame.castShadow=true;g.add(frame);
+  const sheet=new THREE.Mesh(new THREE.PlaneGeometry(.42,.56),
+    new THREE.MeshStandardMaterial({map:tex,roughness:.86,
+      emissive:0x2a2418,emissiveMap:tex,emissiveIntensity:.22}));
+  sheet.position.z=.023;g.add(sheet);
+  addReadable(sheet,"The Daily Salfari — "+art.kicker.replace(/ /g,"").toLowerCase(),
+    PRESS_W,PRESS_H,x=>drawArticle(x,art),false);
+  /* one under each sconce: the model hangs its three appliques at
+     x = 2.437 / 4.132 / 5.827 on the front wall, and the frames take
+     the lit wall right below them — same rail height as the plaque,
+     clear of the potted plant that fronts the wall at x≈3.9 */
+  g.position.set([2.437,4.132,5.827][i],1.80,3.788);
+  g.rotation.y=Math.PI;
+  scene.add(g);
+});
 
 /* glow sprite + shaft */
 const glowTex=ctex(128,128,(x)=>{
@@ -1874,8 +2137,9 @@ function updateDoor(dt){
     face_trophee_azure:         std({map:labelTex("face_trophee_azure"),roughness:.65,side:THREE.DoubleSide}),
     parch_diplome_solvay:       std({map:labelTex("parch_diplome_solvay"),roughness:.65,side:THREE.DoubleSide}),
     parch_certification_le_wagon:std({map:labelTex("parch_certification_le_wagon"),roughness:.65,side:THREE.DoubleSide}),
-    /* the three framed clippings that hung on this wall are gone — the
-       preprocessor drops them, and drawEotm() paints what replaced them */
+    /* the map's three baked clippings stay dropped by the preprocessor —
+       drawEotm() and drawArticle() paint what hangs there now, so
+       cadre_presse dresses nothing and costs nothing */
 
     /* --- beyond the glass: the street, the van, the treeline --- */
     trottoir:   std({color:0x7a7263,roughness:.9}),
@@ -4761,11 +5025,18 @@ addEventListener("pointermove",e=>{
     document.body.style.cursor="pointer";
 });
 addEventListener("pointerdown",e=>{
-  /* The reading beat swallows every click: the sheet is up across the
-     whole frame, so there is nothing else on screen to mean — and it
-     stays up until he has finished the line he is reading over it. The
-     skip pill is the way out, and it is the only one. */
-  if(reading)return;
+  /* The reading beat: the sheet is up across the whole frame. Clicking
+     the sheet itself does nothing — you are reading it — but a click or
+     tap BESIDE it puts it down, hushes the line and brings the options
+     up, exactly like the skip pill: nobody should have to sit through
+     the whole seated monologue to reach the menu. */
+  if(reading){
+    /* the tools bar and the skip pill keep their own meanings — mute
+       must mute, not put the sheet down; the pills already hush him */
+    if(e.target.closest&&e.target.closest(".tools,.skip"))return;
+    if(pick(e)!=="__paper"){abortChain();stopSpeaking();endReading();}
+    return;
+  }
   const k=pick(e);
   /* Seated, the camera is parked and tap-to-walk is off, so walkOrder
      never sees this click — but the television is right over Simon's
@@ -4931,6 +5202,7 @@ function nextClip(){
 function abortChain(){chain=[];chainEnd=null;}
 
 function playSection(key){
+  if(reading)endReading();           /* a peeked sheet goes down — he's talking now */
   setBeerMode(key==="personal");     /* off the clock: two beers on the table */
   abortChain();
   current=key;drawResume();          /* the sheet lights the matching block */
@@ -4939,7 +5211,7 @@ function playSection(key){
   const clips=sectionClips(key);
   /* "Ah, you weren't listening" — only ever in front of a repeat */
   if(heard.has(key))clips.unshift("reclick");
-  if(key==="outro"){outroSeen=true;talkLinks.hidden=false;}
+  if(key==="outro"){outroSeen=true;if(LINKEDIN_URL)document.getElementById("liLink").hidden=false;}
   playChain(clips,()=>{heard.add(key);current=null;drawResume();renderTalk();});
   renderTalk();
 }
@@ -4987,6 +5259,10 @@ function openTalk(){
   if(talkOpen)return;
   talkOpen=true;
   talkEl.hidden=false;talkEl.setAttribute("aria-hidden","false");
+  /* see + download ride along from the very first option — the CV must
+     never be more than one tap away during the dialogue. LinkedIn stays
+     the outro's reveal (see playSection). */
+  talkLinks.hidden=false;
   renderTalk();
 }
 function closeTalk(){
@@ -5019,9 +5295,26 @@ document.getElementById("cvDl").addEventListener("click",function(e){
   },"image/png");
 });
 {
+  /* LinkedIn stays the outro's reveal — the row itself is visible from
+     the first option (see openTalk), this one link lands when he names
+     it out loud. */
   const li=document.getElementById("liLink");
-  if(LINKEDIN_URL)li.href=LINKEDIN_URL;else li.hidden=true;
+  li.hidden=true;
+  if(LINKEDIN_URL)li.href=LINKEDIN_URL;
 }
+/* "See the résumé": the sheet comes back up in the reading pose — the
+   same beat as sitting down, minus the monologue. A second tap, a click
+   beside it, or space puts it back down. Works mid-sentence on purpose:
+   he keeps talking, you keep the subtitles, and the sheet drops on its
+   own the moment a new section starts (see playSection). */
+document.getElementById("cvPeek").addEventListener("click",()=>{
+  if(cafeClosed)return;
+  if(reading){endReading();return;}
+  reading=true;
+  /* retarget in flight: the sheet may already be half-way up a hover
+     lift, and the frame loop only re-aims it from the tabletop */
+  paperGoal=paperRead;paperLifted=false;
+});
 function bestVoice(code){
   const vs=speechSynthesis.getVoices(),sh=code.slice(0,2);
   const c=vs.filter(v=>v.lang.replace("_","-").toLowerCase().startsWith(sh));
@@ -5067,10 +5360,14 @@ function speak(text,key){
     applyMute();
     if(audioEl.readyState>=1&&audioEl.duration)cues=buildCues(text,audioEl.duration);
     else audioEl.addEventListener("loadedmetadata",()=>{
-      if(audioEl)cues=buildCues(text,audioEl.duration||1);
+      /* gen-guarded like every other callback: a replaced clip's late
+         metadata used to rewrite the LIVE line's cue track with its own
+         text — ghost subtitles over whatever came next */
+      if(gen!==speechGen||!audioEl)return;
+      cues=buildCues(text,audioEl.duration||1);
     });
     audioEl.addEventListener("timeupdate",()=>{
-      if(!audioEl)return;
+      if(gen!==speechGen||!audioEl)return;
       const ct=audioEl.currentTime;
       let i=-1;
       for(let k=0;k<cues.length;k++){
@@ -5080,7 +5377,14 @@ function speak(text,key){
     });
     audioEl.onended=()=>{if(gen!==speechGen)return;endSpeech(true);};   /* played through */
     audioEl.onerror=()=>{if(gen!==speechGen)return;audioEl=null;clearCues();ttsStart(text,gen);};
-    audioEl.play().catch(()=>{if(gen!==speechGen)return;audioEl=null;clearCues();ttsStart(text,gen);});
+    /* the hush can land while play() is still pending (the mp3 is on the
+       wire): pause() before playback has actually started is a no-op,
+       and the clip would rise from the dead seconds later, orphaned and
+       unstoppable, over whatever line replaced it. So the promise checks
+       the generation on arrival and re-kills the element itself. */
+    const el=audioEl;
+    el.play().then(()=>{if(gen!==speechGen)el.pause();})
+      .catch(()=>{if(gen!==speechGen)return;audioEl=null;clearCues();ttsStart(text,gen);});
     return;
   }
   ttsStart(text,gen);
@@ -5181,7 +5485,12 @@ function paintSign(){
   const s=cafeClosed?DATA[lang].closed.sign:DATA[lang].sign;
   document.getElementById("sign").innerHTML=s[0]+"<small>"+s[1]+"</small>";
 }
-VC.onOpenCV=stopSpeaking;   /* opening the flat résumé shuts Simon up */
+/* Opening the flat résumé shuts Simon up — and if the sheet beat was in
+   flight it COMPLETES it, skip-style. stopSpeaking alone used to strand
+   the visitor: the seated line never reached its natural end, so
+   endReading never ran, the dialogue box never opened, and closing the
+   panel dropped you back into a café with nothing left to click. */
+VC.onOpenCV=()=>{abortChain();stopSpeaking();if(reading)endReading();};
 if("speechSynthesis"in window){speechSynthesis.getVoices();speechSynthesis.onvoiceschanged=()=>{};}
 
 /* ---------------- HOW-TO OVERLAY ---------------- */
@@ -5295,9 +5604,10 @@ function startEntrance(){
    over it straight away — the seated line IS the caption to what you are
    reading ("a résumé only tells you what I did, not how, or why"). The
    sheet goes back down on its own when he finishes it, and only then
-   does the dialogue box open. Clicking does NOT cut it short — the sheet
-   is up for exactly as long as he is talking about it. The skip pill is
-   the way out, for someone who has read it in five seconds. */
+   does the dialogue box open. For someone who has read it in five
+   seconds there are three ways to cut it short, all equivalent: a click
+   or tap beside the sheet, the skip pill, or space — each hushes the
+   line, drops the sheet and brings the options straight up. */
 var reading=false;
 function arriveAtTable(){
   if(entered)return;

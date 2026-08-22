@@ -13,17 +13,19 @@ actually in the chair.
 
 Sitting down raises the CV to near full-screen and he starts talking over it
 straight away — the line is the caption to what you are reading. It goes back
-down on its own when he finishes, and the **dialogue box** opens down the left: five
+down when he finishes, or the moment you click beside it — no one is made to
+sit through the monologue — and the **dialogue box** opens down the left: five
 sections — work experience, education, skills, certifications, languages —
 each of which Simon talks you through out loud while he looks you in the eye —
 his words, read by a voice model (see "Voice"). A section you have heard right through keeps a green
 marker; ask for it again and he says so before repeating himself. Work
 experience has two openings and picks the one that fits what you have already
 heard. Once all five are done a **second tier** opens — off the clock, AI long
-term, why banking, how I built this — along with the wrap-up, which ends the
-visit with the résumé download and his LinkedIn. When Simon finishes that
-outro the barista comes over, says they're closing, and the room empties around
-you.
+term, why banking, how I built this — along with the wrap-up. The box carries
+a permanent **See the résumé / Download it** row from its first option (seeing
+the sheet again or keeping it must never be more than one tap away); the outro
+adds the LinkedIn link and ends the visit. When Simon finishes that outro the
+barista comes over, says they're closing, and the room empties around you.
 
 There is a mute pill (or `M`) for the voice, a skip pill (or `space`) to cut
 him off, and the subtitles carry every word without sound. English only (the FR
@@ -123,7 +125,12 @@ The map's three framed press clippings are **dropped** in the preprocessor
 with them: a café papered with invented headlines about its own owner reads as
 bragging. What hangs on that wall now is one small plaque — *Employee of the
 Month*, awarded to a man nobody in the room has ever met — painted by
-`drawEotm()`. The preprocessor also squares up the eight wheels (the export
+`drawEotm()`, and, back by popular demand under the three sconces, three
+frames of **The Daily Salfari** (`drawArticle()`): the building he rebuilt
+alone, the first triathlon, the one-man web-and-AI studio. The rule was never
+"no press" — it was "no invented press", and those three actually happened.
+Like the plaque they are registered readables: walk up and they open full
+size, article legible, ink illustration and all. The preprocessor also squares up the eight wheels (the export
 mounts them sideways), copies the ICE CUBE lettering onto the van's rear doors,
 moves the plant off the one run of wall a toilet door fits on, and clones the
 van one parking bay over for a second firm — BravoReno the electrician, whose
