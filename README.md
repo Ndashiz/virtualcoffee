@@ -13,8 +13,9 @@ actually in the chair.
 
 Sitting down raises the CV to near full-screen and he starts talking over it
 straight away — the line is the caption to what you are reading. It goes back
-down when he finishes, or the moment you click beside it — no one is made to
-sit through the monologue — and the **dialogue box** opens down the left: five
+down when he finishes, or the moment you click beside it or hit the ✕ riding
+its corner — no one is made to sit through the monologue — and the
+**dialogue box** opens down the left: five
 sections — work experience, education, skills, certifications, languages —
 each of which Simon talks you through out loud while he looks you in the eye —
 his words, read by a voice model (see "Voice"). A section you have heard right through keeps a green
@@ -22,8 +23,11 @@ marker; ask for it again and he says so before repeating himself. Work
 experience has two openings and picks the one that fits what you have already
 heard. Once all five are done a **second tier** opens — off the clock, AI long
 term, why banking, how I built this — along with the wrap-up. The box carries
-a permanent **See the resume / Download it** row from its first option (seeing
-the sheet again or keeping it must never be more than one tap away); the outro
+a permanent **See the resume / Download it / Leave the table** row from its
+first option: seeing the sheet again or keeping it must never be more than one
+tap away, and leaving is not quitting — stand up mid-visit (the sit-down blend,
+run backwards), wander the room, and the moment you take the chair again the
+box reopens exactly as you left it, green markers, tier and all. The outro
 adds the LinkedIn link and ends the visit. When Simon finishes that outro the
 barista comes over, says they're closing, and the room empties around you.
 

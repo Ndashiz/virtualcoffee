@@ -287,6 +287,22 @@
   body.talking .skip{opacity:1;pointer-events:auto;}
   .skip:hover{color:var(--gold);border-color:var(--gold);}
 
+  /* The ✕ on the raised sheet. "Click beside it" is taught by the prompt,
+     but a close button is the one gesture nobody has to be taught — so it
+     rides the sheet's top-right corner whenever the sheet is up, and does
+     exactly what a click beside it does. Positioned from the viewport
+     centre so it tracks the sheet's measure at every width. */
+  .sheetx{position:fixed;z-index:26;top:10vh;
+    left:calc(50% + min(45vw,340px) - 42px);
+    width:42px;height:42px;border-radius:50%;border:1px solid var(--gold);
+    background:rgba(19,25,31,.9);color:var(--gold);
+    font:600 18px/1 "Space Grotesk",sans-serif;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;backdrop-filter:blur(3px);
+    box-shadow:0 6px 20px rgba(0,0,0,.45);transition:.15s;}
+  .sheetx:hover{background:var(--gold);color:#20303a;}
+  .sheetx[hidden]{display:none;}
+
   @media(max-width:640px){
     /* a phone has no room for a side panel: the box becomes a sheet
        across the bottom, and the subtitles move above it (see .subs) */
@@ -384,12 +400,18 @@
     <button class="tlink" id="cvPeek" type="button">📄 See the resume</button>
     <a class="tlink" id="cvDl" href="#" download>⬇ Download it</a>
     <a class="tlink" id="liLink" href="#" target="_blank" rel="noopener">in — LinkedIn</a>
+    <button class="tlink" id="standUp" type="button"
+            title="Get up and have a wander — your progress stays">🚶 Leave the table</button>
   </div>
 </div>
 <!-- Hushing him mid-sentence is a keyboard trick (space) on a desktop and
      nothing at all on a phone: this is the phone's version, and it only
      exists while he is actually talking. -->
 <button class="skip" id="skipBtn" hidden type="button">⏭ Skip</button>
+<!-- The close button on the raised CV sheet — shown by the frame loop
+     whenever the sheet is up, for the visitor who never reads prompts. -->
+<button class="sheetx" id="sheetX" hidden type="button"
+        aria-label="Put the resume down" title="Put the resume down">✕</button>
 
 <!-- Anything on a wall you can click comes off the wall and fills this. -->
 <div class="readhint" id="readHint" aria-hidden="true"></div>
@@ -769,6 +791,7 @@ const DATA={
      near full-screen, and nothing else may compete with it */
   promptRead:"Read along — click beside the sheet to put it down",
   promptReadTouch:"Read along — tap beside the sheet to put it down",
+  promptUp:"Have a wander — the chair stays yours, nothing is lost ☕",
   prompt:"Pick a section — I'll fill in the gaps\u00A0☕",
   promptTouch:"Pick a section — I'll fill in the gaps\u00A0☕",
   labels:{intro:"ABOUT ME",experience:"WORK EXPERIENCE",education:"EDUCATION",
@@ -4303,7 +4326,24 @@ function walkLayer(a,buf,ac,dt){
    in animateAgents: this blend owns SEAT_POSE entirely, so the pose grows
    with the descent instead of snapping the moment rootY dips negative. */
 function sitLayer(a,buf,dt){
-  const s=a.sit;
+  /* s.dir=-1 runs the same blend backwards — standing up. Every term is
+     already a function of e(k) (position slide, root drop, pose weight),
+     so the reverse costs one sign: k slides 1→0, he rises and steps back
+     to (fx,fz), and at 0 the walk state takes over. */
+  const s=a.sit,dir=s.dir||1;
+  if(dir<0){
+    s.k=Math.max(0,s.k-dt/1.05);
+    const e=easeInOut(s.k);
+    a.pos.x=s.fx+(GUEST_SEAT.x-s.fx)*e;
+    a.pos.z=s.fz+(GUEST_SEAT.z-s.fz)*e;
+    a.rootY=s.rY*e;
+    if(s.k<=0){
+      a.sit=null;a.state="walk";a.rootY=0;a.gazeLock=null;
+      return;
+    }
+    addPose(buf,SEAT_POSE,e);
+    return;
+  }
   if(s.k<1){
     s.k=Math.min(1,s.k+dt/1.05);
     const e=easeInOut(s.k);
@@ -4526,6 +4566,14 @@ window.__door=()=>DOOR.pivot?{hung:true,k:+DOOR.k.toFixed(3),
    crossing the room, and the reduced-motion path already proves the
    chair can be taken without walking to it. Same fields, same
    arriveAtTable(). */
+/* the visitor's own character, worth watching now that he can get up:
+   where he is, what state owns him, and whether the table considers him
+   arrived (entered) / already greeted (everSat) */
+window.__guest=()=>({state:guest.state,
+  x:+guest.pos.x.toFixed(2),z:+guest.pos.z.toFixed(2),
+  rootY:+guest.rootY.toFixed(2),
+  sit:guest.sit?{k:+guest.sit.k.toFixed(2),dir:guest.sit.dir||1}:null,
+  entered:entered,everSat:everSat,reading:reading,talkOpen:talkOpen});
 window.__sit=()=>{
   if(!entering&&!entered)startEntrance();
   guest.pos.set(GUEST_SEAT.x,0,GUEST_SEAT.z);
@@ -5315,6 +5363,52 @@ document.getElementById("cvPeek").addEventListener("click",()=>{
      lift, and the frame loop only re-aims it from the tabletop */
   paperGoal=paperRead;paperLifted=false;
 });
+/* ---- getting up ----
+   Leaving is not quitting: `heard`, the tier and the outro state all
+   live on, so when he walks back into the ring the box reopens exactly
+   as he left it — every green marker included (arriveAtTable's everSat
+   branch). The seat marker comes back on to say the chair stays his.
+   Blocked once the closing choreography runs: it assumes a seated
+   guest. */
+function leaveTable(){
+  if(!entered||cafeClosed||closing)return;
+  if(guest.state!=="seated"&&guest.state!=="sit")return;
+  abortChain();stopSpeaking();
+  reading=false;paperHover=false;paperLifted=false;
+  current=null;drawResume();
+  setBeerMode(false);
+  closeTalk();
+  entered=false;
+  /* stand up one step back from the chair — pushed through the walk
+     collision, and outside the trigger ring so rising does not sit him
+     straight back down. Mutating the existing sit record (never null
+     while seated) lets a leave land mid-sit-blend too: the same k just
+     turns around where it is. */
+  const back={pos:{x:GUEST_SEAT.x-Math.sin(GUEST_SEAT.yaw)*.95,
+                   z:GUEST_SEAT.z-Math.cos(GUEST_SEAT.yaw)*.95}};
+  collideGuest(back);
+  const s=guest.sit;
+  s.dir=-1;s.fx=back.pos.x;s.fz=back.pos.z;
+  guest.moveTo=null;guest.walkTarget=null;guestKeys.clear();
+  showSeatMarker(true);
+  promptEl.style.display="";
+  promptEl.textContent=DATA[lang].promptUp;
+}
+{
+  const standBtn=document.getElementById("standUp");
+  /* reduced motion never walks (lookActive gates the camera and the
+     taps), so a visitor who stood up could never come back: hide it */
+  if(RM)standBtn.hidden=true;
+  else standBtn.addEventListener("click",leaveTable);
+}
+/* the ✕ on the raised sheet: the same move as a click beside it — hush
+   the line if one is running, put the sheet down, bring the box up.
+   Shown and hidden by the frame loop, off the sheet's own lift. */
+const sheetXEl=document.getElementById("sheetX");
+sheetXEl.addEventListener("click",()=>{
+  if(!reading)return;
+  abortChain();stopSpeaking();endReading();
+});
 function bestVoice(code){
   const vs=speechSynthesis.getVoices(),sh=code.slice(0,2);
   const c=vs.filter(v=>v.lang.replace("_","-").toLowerCase().startsWith(sh));
@@ -5608,11 +5702,20 @@ function startEntrance(){
    seconds there are three ways to cut it short, all equivalent: a click
    or tap beside the sheet, the skip pill, or space — each hushes the
    line, drops the sheet and brings the options straight up. */
-var reading=false;
+var reading=false,everSat=false;
 function arriveAtTable(){
   if(entered)return;
   entered=true;
   abortChain();stopSpeaking();     /* the welcome had the walk; the sheet has this */
+  if(everSat){
+    /* back at the table after a wander: no ceremony and no reread — the
+       box reopens with every green marker, the tier and the outro state
+       exactly where he left them */
+    promptEl.style.display="none";
+    openTalk();
+    return;
+  }
+  everSat=true;
   reading=true;
   promptEl.style.display="";
   promptEl.textContent=TOUCH?DATA[lang].promptReadTouch:DATA[lang].promptRead;
@@ -6302,6 +6405,9 @@ function animate(){
      the sheet from one arc to the other. */
   const liftTarget=reading?1:(TOUCH?(paperLifted?1:0):(paperHover?1:0));
   if(paperT<.02)paperGoal=reading?paperRead:paperUp;
+  /* the ✕ rides the sheet: there whenever it is up in the reading pose,
+     gone the moment it starts back down */
+  sheetXEl.hidden=!(reading&&paperGoal===paperRead&&paperT>.5);
   paperT+=(liftTarget-paperT)*Math.min(1,dt*(paperGoal===paperRead?4.2:7));
   paper.position.lerpVectors(paperRest.pos,paperGoal.pos,paperT);
   paper.rotation.x=paperRest.rot+(paperGoal.rot-paperRest.rot)*paperT;

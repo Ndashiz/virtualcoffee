@@ -92,7 +92,7 @@ en muet il parle toujours, sous-titres compris, on ne l'entend simplement pas.
 | Glisser à la souris · molette · `Maj` | Tourner la caméra · reculer · sprinter |
 | Pastille 🔊 ou touche `M` | Coupe / rétablit la voix (mémorisé) |
 | Touche `0` (l'outro) | …et le café ferme : le serveur vient vous le dire, la salle se vide |
-| Feuille en plein écran | Il la commente ; elle redescend quand il a fini — ou dès un clic à côté d'elle — et la boîte s'ouvre |
+| Feuille en plein écran | Il la commente ; elle redescend quand il a fini — ou dès un clic à côté d'elle, ou sur sa croix ✕ — et la boîte s'ouvre |
 | Survoler le CV sur la table | La feuille se soulève, la mise au point se tire dessus (rack focus) |
 | Une section de la boîte (ou touches `1`–`5`) | Simon la raconte, sous-titres à l'écran, letterbox cinéma ; entendue en entier, elle garde un point vert |
 | Une section déjà entendue | *« Ah, you weren't listening »* (`reclick`), puis il la rejoue en entier |
@@ -101,6 +101,7 @@ en muet il parle toujours, sous-titres compris, on ne l'entend simplement pas.
 | L'outro (ou touche `0`) | Le lien LinkedIn apparaît, puis le café ferme |
 | Pastille ⏭ Skip ou `espace` | Le fait taire — la section reste alors non entendue |
 | « 📄 See the resume » / « ⬇ Download it » | Sous la boîte dès la première option, même pendant qu'il parle : la feuille remonte, ou le CV se télécharge |
+| « 🚶 Leave the table » | Il se lève (même animation qu'à l'assise, jouée à l'envers) et la salle est à vous ; l'anneau se rallume, et en revenant s'asseoir la boîte rouvre telle quelle — sections validées, palier, outro compris |
 | « Text resume » (ou sans WebGL) | La version texte complète, accessible et indexable — un clic dans la marge sombre la referme |
 
 Sur mobile, la boîte devient un panneau en bas d'écran, sur deux colonnes.
