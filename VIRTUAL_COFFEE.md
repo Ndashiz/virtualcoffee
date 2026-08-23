@@ -421,7 +421,28 @@ et **déplace la plante** du coin avant-gauche vers le mur avant, pour libérer 
 seul pan de mur où une porte de toilettes tient. Il **clone** enfin la
 camionnette une place de parking plus loin, pour une deuxième boîte —
 *BravoReno, votre électricien avec qui le courant passe* — avec son propre
-matériau de lettrage, que la scène peint (`drawBravo()`). La sélection se fait
+matériau de lettrage, que la scène peint (`drawBravo()`).
+
+**Le van a un livreur** (2026-08-23). Sur une boucle lente (~50 s, dont
+l'essentiel portes fermées — le flanc reste une affiche lisible), le livreur
+ICE CUBE surgit de derrière la cabine, ouvre les deux battants arrière —
+devenus de vraies portes, coupées sur la couture ICE|CUBE, chacune emportant
+sa moitié du décalque —, prend deux sacs de glaçons siglés au seuil et les
+porte à travers le parking, descend la bordure et longe toute la devanture
+vitrée, latéralement à la salle, avant de sortir du champ passé l'angle du
+mur avant (l'entrée de service est impliquée hors-champ : ici la porte du
+café donne dans le plan, personne ne livre par là). Le retour est ce qui rend
+le personnage crédible : mains vides, bras ballants en opposition, foulée
+ample, +18 % d'allure, menton levé — contre l'aller chargé, buste en
+contre-flexion, bras rigides collés au corps, pas courts et lourds, regard au
+trottoir. Une demi-seconde d'arrêt au van, il repousse les deux battants,
+puis regagne la cabine par le nez. Derrière les portes, la scène construit la
+soute que la carte n'a jamais eue (la face arrière de la caisse fermée est
+retirée au chargement) : parois sombres, plancher alu clair, palette
+entamée, et une réglette 6500 K au linteau — la seule lumière froide d'une
+scène chaude, et c'est elle qui dit « frigo ». Une marque, trois supports :
+le même canvas floque son t-shirt (poitrine et dos, à cheval sur la couture
+UV du cylindre du torse) et les sacs ; le van garde son PNG cuit. La sélection se fait
 par **boîte englobante** et non par groupe : à l'export, tout le dehors est un
 seul groupe, et une primitive ne compte que si elle tient **entièrement** dans
 la boîte — c'est ce qui garde les 8 000 triangles d'asphalte hors du clone.

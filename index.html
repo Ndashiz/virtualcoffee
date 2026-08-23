@@ -2538,6 +2538,281 @@ function updateDoor(dt){
   DOOR.pivot.rotation.y=DOOR.k*DOOR_SWING;
 }
 
+/* ---------------- THE ICE CUBE MARK ----------------
+   One decal, three supports — the delivery brief is explicit about it,
+   and it is right: the firm's name is painted once and reused, never
+   redrawn per surface.
+
+   The van already has its own, a PNG off the export (lettrage_ice_cube),
+   and that one stays. This is the same mark redrawn for the two surfaces
+   the model never had: the courier's shirt and the bags. Deliberately
+   BLUNT — two colours, no strapline, no fine type. At four metres
+   through two panes of glass, which is the only distance it is ever
+   read from, anything finer is a grey smear.
+
+   The canvas is the shirt's full wrap, flat field with the mark in a
+   band; the bags take the SAME texture through the mark's own
+   sub-rectangle. One canvas, one upload, two very different UVs. */
+const ICE_BLUE="#2f6f9e",ICE_PALE="#eaf5fb";
+const ICE_MARK=[.38,.62,.42,.76];    /* u0,u1,v0,v1 of the mark in the field */
+function drawIceMark(x,w,h){
+  x.fillStyle=ICE_BLUE;x.fillRect(0,0,w,h);
+  /* canvas y grows downward and v does not: the band's top edge is v1 */
+  const y0=(1-ICE_MARK[3])*h,y1=(1-ICE_MARK[2])*h;
+  const mh=y1-y0;
+  function mark(cx){
+    /* the cube: a flat iso box, the one glyph that survives being
+       twenty pixels wide */
+    const s=mh*.30,cy=y0+mh*.26;
+    x.fillStyle=ICE_PALE;
+    x.beginPath();
+    x.moveTo(cx,cy-s*.55);x.lineTo(cx+s*.62,cy-s*.20);x.lineTo(cx+s*.62,cy+s*.48);
+    x.lineTo(cx,cy+s*.84);x.lineTo(cx-s*.62,cy+s*.48);x.lineTo(cx-s*.62,cy-s*.20);
+    x.closePath();x.fill();
+    x.strokeStyle=ICE_BLUE;x.lineWidth=Math.max(2,s*.10);
+    x.beginPath();
+    x.moveTo(cx,cy-s*.55);x.lineTo(cx,cy+s*.84);
+    x.moveTo(cx-s*.62,cy-s*.20);x.lineTo(cx+s*.62,cy-s*.20);
+    x.stroke();
+    x.fillStyle=ICE_PALE;x.textAlign="center";x.textBaseline="middle";
+    x.font='700 '+Math.round(mh*.30)+'px "Space Grotesk", sans-serif';
+    x.fillText("ICE",cx,y0+mh*.70);
+    x.fillText("CUBE",cx,y0+mh*.92);
+  }
+  /* twice: once mid-canvas — the bags crop this one, and on the torso
+     cylinder u=.5 is the chest — and once astride the u=0 seam, which
+     the same cylinder puts between the shoulder blades (the brief's
+     "dos optionnel"). The seam copy needs wrap to heal. */
+  mark((ICE_MARK[0]+ICE_MARK[1])/2*w);
+  mark(0);mark(w);
+}
+const iceMarkTex=ctex(1024,512,drawIceMark);
+iceMarkTex.wrapS=THREE.RepeatWrapping;
+const iceMarkCopies=[iceMarkTex];   /* repaint queue for the webfont pass */
+VC.fontsReady.then(function(){
+  drawIceMark(iceMarkTex.userData.canvas.getContext("2d"),1024,512);
+  iceMarkCopies.forEach(function(t){t.needsUpdate=true;});
+});
+/* A SACK, not a box. One BoxGeometry pushed out of square ONCE here and
+   never touched again — the brief asks for a rigid pre-deformed mesh and
+   bans simulation, and at this distance that is also the only honest
+   call: cloth on a bag of ice beyond the glass is frame budget spent
+   where nobody is looking. The profile gathers at the neck (where a
+   hand closes on it), bellies at the middle and flattens at the seat,
+   which is the whole silhouette of ten kilos of cubes. */
+const GEO_ICEBAG=(function(){
+  const g=new THREE.BoxGeometry(.30,.42,.19,2,3,2);
+  const p=g.attributes.position;
+  for(let i=0;i<p.count;i++){
+    const px=p.getX(i),py=p.getY(i),pz=p.getZ(i),k=py/.21;
+    const prof=1.10-.75*Math.pow(Math.max(0,k),2.2)-.18*Math.pow(Math.max(0,-k),2)
+              +.03*Math.sin(px*37+pz*29);
+    p.setX(i,px*prof);p.setZ(i,pz*prof);
+  }
+  g.computeVertexNormals();
+  return g;
+})();
+/* the mark on the two wide faces, cut out of the shared canvas by UV */
+const GEO_ICEBAG_MARK=(function(){
+  const g=new THREE.PlaneGeometry(.18,.128);
+  const uv=g.attributes.uv,M=ICE_MARK;
+  for(let i=0;i<uv.count;i++)
+    uv.setXY(i,M[0]+uv.getX(i)*(M[1]-M[0]),M[2]+uv.getY(i)*(M[3]-M[2]));
+  return g;
+})();
+let iceBagMat=null,iceMarkMat=null;
+/* pale plastic, so the bag reads OFF the shirt rather than into it —
+   the light thing in his hands against the dark thing carrying it is
+   the whole long-distance composition */
+function iceBagMats(){
+  if(!iceBagMat){
+    iceBagMat=new THREE.MeshStandardMaterial({color:0xd7ecf7,roughness:.34,
+      metalness:0,envMapIntensity:.9});
+    /* lit, not unlit: an emissive-bright print on a shaded bag reads as
+       a sticker floating a centimetre off it */
+    iceMarkMat=new THREE.MeshStandardMaterial({map:iceMarkTex,roughness:.55,
+      envMapIntensity:.6,polygonOffset:true,polygonOffsetFactor:-2,
+      polygonOffsetUnits:-2});
+  }
+}
+function makeIceBag(bare){
+  iceBagMats();
+  const g=new THREE.Group();
+  g.add(new THREE.Mesh(GEO_ICEBAG,iceBagMat));
+  /* the pallet stock lies print-down and costs one mesh; only the bags
+     that travel get their two printed faces */
+  if(!bare)for(const s of[-1,1]){
+    const d=new THREE.Mesh(GEO_ICEBAG_MARK,iceMarkMat);
+    d.position.set(0,0,s*.105);
+    if(s<0)d.rotation.y=Math.PI;
+    g.add(d);
+  }
+  return g;
+}
+
+/* ---------------- THE ICE CUBE VAN OPENS ----------------
+   It is backed into its bay tailgate to the shop, which is how anyone
+   parks to unload — and until now those doors were welded shut for the
+   same reason the café's own leaf was (see above): the map has them as
+   ONE box, portes_arriere.0, with the lettering laid across both leaves
+   as a single quad.
+
+   Both are SPECIAL now, hidden the moment the model lands, and rebuilt
+   here as two leaves hinged on their outer stiles. The lettering splits
+   with them: doors and decal are both centred on z=1.0155, so the cut
+   falls at u=.5 — between ICE and CUBE, the one place a seam can cross
+   that name and leave both halves reading.
+
+   Behind them the map has NOTHING: caisse.0 is a closed shell, and an
+   open door would have looked clean through the van and out the far
+   side. The cargo bay below is the fix and the picture at once — a dark
+   box, a deck, a part-worked pallet and one cold strip. The strip is
+   EMISSIVE, not a light: a seventh light in this scene taxes every
+   fragment in the café, and all this one has to do is put a cold edge
+   behind a man's silhouette (the 6500 K the brief asks for — everything
+   else out there is daylight, everything in here tungsten, so one blue
+   line reads as refrigeration before anyone works out what it is). */
+const VAN_XI=11.410,VAN_XO=11.495,        /* the doors' inner and outer face */
+      VAN_Y0=.561,VAN_Y1=2.574,           /* their sill and their head */
+      VAN_Z0=-.065,VAN_Z1=2.096,          /* the two hinge stiles */
+      VAN_ZM=(VAN_Z0+VAN_Z1)/2,
+      VAN_DECK=VAN_Y0+.018,               /* what the load stands on */
+      VAN_SWING=1.75;                     /* 100°, folded back along the
+        flanks — NOT 110: the BravoReno van is parked 2.542 m over, and at
+        110° the +z leaf's tip sweeps 2 cm into its bonnet */
+const VAN_LOGO=[11.406,1.424,1.987,.086,1.945];   /* x, y0, y1, z0, z1 */
+const VAN={a:null,b:null,k:0,kb:0,want:0,bay:null,deckBags:[]};
+/* One leaf, built entirely in its own hinge frame so opening is one
+   rotation and nothing else in the van moves. */
+function vanLeaf(body,ink,hingeZ,edgeZ,uA,uB){
+  const g=new THREE.Group();
+  g.position.set(VAN_XI,0,hingeZ);
+  const dz=edgeZ-hingeZ,T=VAN_XO-VAN_XI,H=VAN_Y1-VAN_Y0;
+  const box=new THREE.Mesh(new THREE.BoxGeometry(T,H,Math.abs(dz)),body);
+  box.position.set(T/2,(VAN_Y0+VAN_Y1)/2,dz/2);
+  g.add(box);
+  /* the decal, vertex for vertex as preprocess_cafe_glb.py laid it down
+     (u grows with z, v=1 at the top, normal -x). A flipped v here and
+     the livery lands on its head — the exact accident flipY=false on
+     the baked map is already busy preventing. */
+  const zl=(dz>0?VAN_LOGO[3]:VAN_ZM)-hingeZ,
+        zr=(dz>0?VAN_ZM:VAN_LOGO[4])-hingeZ,
+        x=VAN_LOGO[0]-VAN_XI,y0=VAN_LOGO[1],y1=VAN_LOGO[2];
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute("position",new THREE.BufferAttribute(new Float32Array([
+    x,y1,zl, x,y0,zl, x,y1,zr, x,y0,zl, x,y0,zr, x,y1,zr]),3));
+  geo.setAttribute("normal",new THREE.BufferAttribute(new Float32Array([
+    -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0]),3));
+  geo.setAttribute("uv",new THREE.BufferAttribute(new Float32Array([
+    uA,1, uA,0, uB,1, uA,0, uB,0, uB,1]),2));
+  g.add(new THREE.Mesh(geo,ink));
+  scene.add(g);
+  return g;
+}
+function buildIceVan(){
+  const src=CAFE.meshes.get("portes_arriere.0"),
+        dec=CAFE.meshes.get("lettrage_ice_cube.2");
+  if(!src||!dec)return;         /* map renamed the van: it simply stays shut */
+  src.visible=false;dec.visible=false;
+  /* the box behind the doors is CLOSED — caisse.0 has its own rear face
+     16 mm behind them, and with the leaves swung it stared back as a
+     blank white wall where the bay should be. Drop that one face (the
+     only -x-facing pair of triangles the box has) and keep the rest. */
+  const cai=CAFE.meshes.get("caisse.0");
+  if(cai){
+    const P=cai.geometry.attributes.position,N=cai.geometry.attributes.normal;
+    const pos=[],nrm=[];
+    for(let i=0;i<P.count;i+=3){
+      /* by POSITION, not by normal — the exporter left this face's
+         normals pointing INTO the box, so only geography identifies it:
+         the one face all of whose corners sit on the rear plane */
+      if(P.getX(i)<11.6&&P.getX(i+1)<11.6&&P.getX(i+2)<11.6)continue;
+      for(let j=i;j<i+3;j++){
+        pos.push(P.getX(j),P.getY(j),P.getZ(j));
+        nrm.push(N.getX(j),N.getY(j),N.getZ(j));
+      }
+    }
+    const g2=new THREE.BufferGeometry();
+    g2.setAttribute("position",new THREE.BufferAttribute(new Float32Array(pos),3));
+    g2.setAttribute("normal",new THREE.BufferAttribute(new Float32Array(nrm),3));
+    cai.geometry.dispose();cai.geometry=g2;
+  }
+  VAN.a=vanLeaf(src.material,dec.material,VAN_Z0,VAN_ZM,0,.5);
+  VAN.b=vanLeaf(src.material,dec.material,VAN_Z1,VAN_ZM,.5,1);
+  /* --- the bay. BackSide shell: from the café the missing rear face IS
+     the opening, and the walls beyond it draw only once the leaves part
+     (the whole group hides while they are shut). --- */
+  const bay=new THREE.Group();
+  /* depth 3.80, NOT the caisse's full 4.0: the cab (cabine.0, rear face
+     at x 15.35) noses 14 cm into the box, and a shell reaching past it
+     shows the cab's bright white back where the dark bulkhead should be */
+  const shell=new THREE.Mesh(new THREE.BoxGeometry(3.80,2.06,2.21),
+    new THREE.MeshStandardMaterial({color:0x0d1319,roughness:.95,
+      side:THREE.BackSide,envMapIntensity:.12}));
+  shell.position.set(13.40,(VAN_Y0+VAN_Y1)/2,VAN_ZM);
+  bay.add(shell);
+  const deck=new THREE.Mesh(new THREE.PlaneGeometry(3.76,2.19),
+    new THREE.MeshStandardMaterial({color:0x1a2128,roughness:.85,envMapIntensity:.25}));
+  deck.rotation.x=-Math.PI/2;
+  deck.position.set(13.40,VAN_DECK,VAN_ZM);
+  bay.add(deck);
+  /* the cold strip, across the head of the opening where it backlights
+     whoever stands at the sill */
+  const strip=new THREE.Mesh(new THREE.BoxGeometry(.05,.045,1.86),
+    new THREE.MeshStandardMaterial({color:0x0d1319,emissive:0xdaeeff,
+      emissiveIntensity:2.8,roughness:1}));
+  strip.position.set(11.78,2.47,VAN_ZM);
+  bay.add(strip);
+  /* the pool it throws — a sprite's worth of additive glow, which is
+     what a real light would have cost in shader time */
+  const pool=new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.3),
+    new THREE.MeshBasicMaterial({map:glowTex,color:0xbcdcf2,
+      blending:THREE.AdditiveBlending,transparent:true,opacity:.16,
+      depthWrite:false}));
+  pool.rotation.x=-Math.PI/2;
+  pool.position.set(12.3,VAN_DECK+.004,VAN_ZM);
+  bay.add(pool);
+  /* part-worked pallet at the bulkhead: a morning van with something
+     left in it. Print-down, one mesh each. */
+  for(let i=0;i<4;i++){
+    const b=makeIceBag(true);
+    b.rotation.set(-Math.PI/2,0,(i*1.7)%1.2-.6);
+    b.position.set(14.65+(i%2)*.42,VAN_DECK+.10+((i/2)|0)*.19,
+                   VAN_ZM+(i%2?-.45:.45));
+    bay.add(b);
+  }
+  /* today's two, upright at the sill — what the courier comes for */
+  for(const z of[.78,1.25]){
+    const b=makeIceBag();
+    b.position.set(11.72,VAN_DECK+.21,z);
+    b.rotation.y=(z>1?-.3:.25);
+    bay.add(b);VAN.deckBags.push(b);
+  }
+  scene.add(bay);
+  VAN.bay=bay;
+  vanApply();
+}
+function vanDoors(open){VAN.want=open?1:0;}
+function vanApply(){
+  /* signs matter: +swing folds the -z leaf toward the -z flank, -swing
+     the +z leaf toward the +z flank — get one wrong and a door opens
+     THROUGH the café-facing air, sweeping the courier */
+  if(VAN.a)VAN.a.rotation.y= VAN.k*VAN_SWING;
+  if(VAN.b)VAN.b.rotation.y=-VAN.kb*VAN_SWING;
+  /* the bay is a hole in the side of a van: while the doors are shut it
+     may not exist, or its far wall shows through the body */
+  if(VAN.bay)VAN.bay.visible=VAN.k>.002||VAN.kb>.002;
+}
+function updateVan(dt){
+  if(!VAN.a)return;
+  /* shoved open leaf by leaf, pulled shut together: B chases A a beat
+     behind, which is the stagger of one man and two doors */
+  VAN.k=damp(VAN.k,VAN.want,VAN.want?.115:.09,dt);
+  VAN.kb=damp(VAN.kb,VAN.k,.16,dt);
+  if(Math.abs(VAN.k-VAN.want)<.002)VAN.k=VAN.want;
+  vanApply();
+}
+
 (function loadCafe(){
   /* material table, keyed by the model's usemtl names */
   function phys(o){return new THREE.MeshPhysicalMaterial(o);}
@@ -2649,6 +2924,10 @@ function updateDoor(dt){
     "ampoule","lettrage_ice_cube",...OUTSIDE]);
   /* objects the scene drives one by one — everything else merges by material */
   const SPECIAL=new Set(["ampoule.0","ampoule.1","ampoule.2","paillasson.0",
+    /* the ICE CUBE tailgate and its lettering: merged by material they
+       are one box with the caisse and can never swing — see the van
+       section above */
+    "portes_arriere.0","lettrage_ice_cube.2","caisse.0",
     ...DOOR_PARTS]);
 
   function parseCafe(text){
@@ -2677,6 +2956,7 @@ function updateDoor(dt){
                 CAFE.meshes.get("ampoule.2")];
     CAFE.ready=true;
     buildDoorPivot();
+    buildIceVan();
     /* late links: pendant records exist since parse time, their bulb
        meshes only now — and the café may already be closed */
     for(let i=0;i<pendants.length;i++){
@@ -4388,6 +4668,278 @@ function reskin(a){
   a.seed=Math.random()*100;
 }
 
+/* ---------------- MISTER ICE, THE COURIER ----------------
+   The tenth cast member, and the first who never comes inside. The ICE
+   CUBE van has been parked nose-out across the lot since the outside
+   existed; now, on a slow loop, its driver gets out, opens the tailgate,
+   and walks two bags of ice down the block. Background life, staged by
+   the delivery brief's own rules: the character is not the subject, the
+   spend goes to silhouette and logo, and the WHOLE cycle exists to leave
+   the closed doors — the lettering — clean and readable most of the time.
+
+   One departure from the brief, forced by the set: he cannot deliver
+   through the café's front door, because in here the inside of that door
+   is the shot — a courier pushing into the room would be an interior
+   event, and "disappearing in the doorway" is impossible in a room the
+   camera lives in. So he serves the service entrance around the front
+   corner, off-frame: across the lot, down the KERB, along the whole
+   glazed shopfront — dead lateral, the one direction of travel that
+   reads instantly from inside — and out of view past the front wall.
+   The door theatre the brief stages happens on the van instead, whose
+   two leaves really swing.
+
+   Where he appears from is the other trick: nowhere. He despawns behind
+   the cab (sightline-checked against every position the fenced camera
+   can reach) and "waits in the cab" between rounds — a driver who stays
+   with his van, and a phase A with nobody in the field and the flank
+   clean, as specified. */
+const COURIER_SHIRT=0x2f6f9e;             /* == the mark's field: seamless */
+const courier=makeAgent("courier","courier",
+  {shirt:COURIER_SHIRT,pants:0x3a4048,skin:0xdcae86,hair:0x2c2018,eye:0x4a2f1c});
+courier.rig.root.visible=false;courier.blob.visible=false;
+courier.rig.root.scale.setScalar(1.03);   /* a grown man among the extras */
+courier.speed=.60;
+courier.active=true;                      /* walkLayer's gate; he steers by path */
+courier.st="cab";courier.stT=jit(9,.35);  /* first round soon after entering */
+courier.pathI=0;courier.path=null;courier.carry=false;courier.faceYaw=null;
+courier.groundY=.064;
+/* The shirt is the third support of the mark. The torso cylinder's u=0
+   seam sits at the FRONT, so the canvas band (u .38-.62) would land on
+   his back — an offset of .5 walks it round to the chest. Wrap must be
+   repeat or the offset clamps into a smear. */
+{
+  courier.rig.torso.material=new THREE.MeshStandardMaterial({map:iceMarkTex,
+    roughness:.9,envMapIntensity:.25});
+  /* gloves, suggested and not detailed, exactly as briefed: every mesh
+     hanging off the wrists — palm, fingers, thumb, wrist bone — goes
+     work-grey in one traverse */
+  const glove=stdMat(0x2a2d33,.85,0,.3);
+  [courier.rig.J.wristL,courier.rig.J.wristR].forEach(function(w){
+    w.traverse(function(m){if(m.isMesh)m.material=glove;});
+  });
+}
+/* his two bags, parented to the wrists from birth and shown only from
+   the frame the grab closes — the brief's "constraint at the moment of
+   préhension", done the cheap way round */
+const courierBags=[];
+for(const s of["wristL","wristR"]){
+  const b=makeIceBag();
+  b.position.set(0,-.27,.02);
+  b.visible=false;
+  courier.rig.J[s].add(b);
+  courierBags.push(b);
+}
+/* Routes, authored clear like every extra's. The squeeze at z 2.7 is
+   the tree pit (tronc.1 at x 8.31-8.62) against the lamppost (x 9.32) —
+   .7 m of pavement between them, which a man with ten kilos a hand
+   threads at a slight angle exactly the way real street furniture is
+   threaded. */
+const ICE_ENTER=[[17.55,-.55],[13.3,-.62],[11.9,-.45],[10.95,.35],[10.78,1.0]];
+const ICE_CARRY=[[10.35,1.0],[9.55,1.02],[8.72,1.3],[8.62,2.15],[9.02,2.72],
+                 [8.72,3.5],[8.60,4.7],[8.60,6.35]];
+const ICE_RETURN=ICE_CARRY.slice(0,-1).reverse().concat([[10.78,1.0]]);
+const ICE_EXIT=[[10.95,.3],[11.9,-.5],[13.3,-.62],[17.55,-.55],[17.85,.95]];
+const ICE_SPAWN=[17.85,.95];              /* behind the cab: no interior
+                                             sightline reaches it */
+/* the ground he crosses: pavement top .170, lot asphalt .064, blended
+   over the kerb rather than stepped — a 10 Hz tick would make a true
+   step land mid-air one frame in three */
+function courierGround(x){
+  if(x<=9.55)return .170;
+  if(x>=10.0)return .064;
+  return .170+(x-9.55)/.45*(.064-.170);
+}
+function courierPath(a){
+  const wp=a.path[a.pathI];
+  if(!wp)return true;
+  if(Math.hypot(wp[0]-a.pos.x,wp[1]-a.pos.z)<.16){a.pathI++;return a.pathI>=a.path.length;}
+  a.walkTarget=wp;
+  return false;
+}
+function courierShow(a,at){
+  a.rig.root.visible=true;a.blob.visible=true;
+  a.pos.set(at[0],0,at[1]);
+  a.groundY=a.rootY=courierGround(at[0]);
+}
+function courierHide(a){
+  a.rig.root.visible=false;a.blob.visible=false;
+  a.walkTarget=null;a.path=null;a.shots.length=0;
+}
+function courierSt(a,st,t){a.st=st;a.stT=t||0;}
+/* the two door gestures — both arms, anticipation, shove, recover; the
+   leaves themselves are on their own damp, cued from inside the shot so
+   hand and door move as one push */
+function shotDoors(a,open){
+  let cued=false;
+  playShot(a,open?1.7:1.8,function(k,buf){
+    const p=pulse(k);
+    addPose(buf,{
+      shoulderL:{x:-1.05*p,z:-.30*p},shoulderR:{x:-1.05*p,z:.30*p},
+      elbowL:{x:-.30*p+.25*pulse(Math.max(0,k*2-1))},
+      elbowR:{x:-.30*p+.25*pulse(Math.max(0,k*2-1))},
+      chest:{x:.10*pulse(Math.min(1,k*1.6))},spine:{x:.05*p}
+    },1);
+    if(!cued&&k>.40){cued=true;vanDoors(open);}
+  });
+}
+function shotGrab(a){
+  let took=false;
+  playShot(a,1.5,function(k,buf){
+    const p=pulse(k);
+    /* hinge at the hips toward the sill, hands to the two necks — and at
+       the deepest point of the reach the bags change hands: deck pair
+       out, wrist pair in, nobody the wiser at four metres */
+    addPose(buf,{
+      chest:{x:.16*p},spine:{x:.09*p},
+      shoulderL:{x:-.62*p,z:-.14*p},shoulderR:{x:-.62*p,z:.14*p},
+      elbowL:{x:-.22*p},elbowR:{x:-.22*p},
+      head:{x:.12*p}
+    },1);
+    if(!took&&k>.52){
+      took=true;
+      VAN.deckBags.forEach(function(b){b.visible=false;});
+      courierBags.forEach(function(b){b.visible=true;});
+      a.carry=true;
+    }
+  });
+}
+function tickCourier(a,dtT){
+  if(RM)return;                 /* reduced motion: the van keeps its doors */
+  if(!VAN.a)return;             /* no tailgate in the model, no round */
+  a.stT-=dtT;
+  switch(a.st){
+    case "cab":                 /* phase A — the flank clean, the logo's window */
+      if(a.stT<=0){
+        VAN.deckBags.forEach(function(b){b.visible=true;});   /* restocked off-camera */
+        courierShow(a,ICE_SPAWN);
+        a.yaw=Math.PI;          /* facing -z, where he is about to walk */
+        a.path=ICE_ENTER;a.pathI=0;a.speed=.60;
+        courierSt(a,"toRear");
+      }
+      break;
+    case "toRear":
+      if(courierPath(a)){a.walkTarget=null;a.faceYaw=Math.PI/2;courierSt(a,"face",0.3);}
+      break;
+    case "face":                /* squared up to the tailgate */
+      if(a.stT<=0){shotDoors(a,true);courierSt(a,"open",1.9);}
+      break;
+    case "open":
+      if(a.stT<=0){shotGrab(a);courierSt(a,"grab",1.6);}
+      break;
+    case "grab":
+      if(a.stT<=0){
+        a.faceYaw=null;a.path=ICE_CARRY;a.pathI=0;a.speed=.52;
+        courierSt(a,"carry");
+      }
+      break;
+    case "carry":
+      /* head down, eyes on the pavement two steps ahead — the loaded
+         gaze the brief writes out, refreshed cheap at tick rate */
+      a.gazeLock={pos:[a.pos.x+Math.sin(a.yaw)*1.6,.15,a.pos.z+Math.cos(a.yaw)*1.6]};
+      if(courierPath(a)){
+        courierHide(a);a.gazeLock=null;
+        courierSt(a,"away",jit(8,.3));   /* the delivery, off-frame */
+      }
+      break;
+    case "away":
+      if(a.stT<=0){
+        courierShow(a,ICE_CARRY[ICE_CARRY.length-1]);
+        a.carry=false;courierBags.forEach(function(b){b.visible=false;});
+        a.yaw=0;
+        a.path=ICE_RETURN;a.pathI=0;
+        a.speed=.70;            /* +18% or so: unloaded legs, the brief's tell */
+        /* the optional business, one round in three: he shakes the cold
+           out of his fingers on the way back, never on the way out */
+        if(Math.random()<.34)a.shakeAt=1.5+Math.random()*2.5;else a.shakeAt=0;
+        courierSt(a,"return");
+      }
+      break;
+    case "return":
+      if(a.shakeAt){
+        a.shakeAt-=dtT;
+        if(a.shakeAt<=0){
+          a.shakeAt=0;
+          playShot(a,1.1,function(k,buf){
+            const p=pulse(k);
+            addPose(buf,{shoulderR:{x:-.35*p,z:.35*p},elbowR:{x:-.55*p},
+              wristR:{y:Math.sin(k*31)*.5*p}},1);
+          });
+        }
+      }
+      /* every so often a glance into the café he is walking past — a
+         courier who never looks at a lit room full of people is its own
+         kind of wrong */
+      if(!a.gazeLock&&Math.random()<.06*dtT*10)a.gazeLock={obj:simonHead};
+      else if(a.gazeLock&&Math.random()<.25*dtT*10)a.gazeLock=null;
+      if(courierPath(a)){
+        a.walkTarget=null;a.gazeLock=null;a.faceYaw=Math.PI/2;
+        courierSt(a,"pause",.55);   /* the half-second the brief insists on:
+          arrive, stand, THEN reach for the doors — closing straight out of
+          the last stride is what machines do */
+      }
+      break;
+    case "pause":
+      if(a.stT<=0){shotDoors(a,false);courierSt(a,"close",2.0);}
+      break;
+    case "close":
+      if(a.stT<=0){
+        a.faceYaw=null;a.path=ICE_EXIT;a.pathI=0;a.speed=.62;
+        courierSt(a,"toCab");
+      }
+      break;
+    case "toCab":
+      if(courierPath(a)){
+        courierHide(a);
+        courierSt(a,"cab",jit(15,.35));  /* and the flank is a poster again */
+      }
+      break;
+  }
+}
+/* Per-frame layer: ground, facing, and the two gaits. Runs between the
+   walk cycle and the breath so it can OVERWRITE the arms wholesale —
+   the loaded walk is not the idle walk with extras on top, it is a
+   different walk, and the contrast between the two carries the whole
+   illusion (the brief's own table: leaned back vs upright, rigid vs
+   swinging, short and heavy vs long with bounce). */
+function courierLayer(a,buf,dt){
+  if(a.kind!=="courier")return;
+  a.groundY=a.rootY=courierGround(a.pos.x);
+  if(a.faceYaw!=null&&!a.walkTarget)a.yaw=angleDamp(a.yaw,a.faceYaw,.12,dt);
+  if(a.carry){
+    /* short heavy strides, no bounce to speak of */
+    a.stepLen=.40;a.bounceAmp=.010;
+    const w=a.walkK,ph=Math.sin(a.walkPhase*2)*.022;
+    /* counter-flexion: ten kilos a side hang in front of the heels, so
+       the trunk pays for them behind */
+    addPose(buf,{spine:{x:-.055},chest:{x:-.075},pelvis:{x:.04,z:Math.sin(a.walkPhase)*.05*w},
+      head:{x:.10}},1);
+    /* arms: straight down, pinned to the body, dead to the stride — this
+       is an overwrite, not a blend, killing the swing walkLayer just
+       wrote */
+    buf.shoulderL.x=.06+ph;buf.shoulderL.y=0;buf.shoulderL.z=.055;
+    buf.shoulderR.x=.06+ph;buf.shoulderR.y=0;buf.shoulderR.z=-.055;
+    buf.elbowL.x=-.03;buf.elbowL.y=0;buf.elbowL.z=0;
+    buf.elbowR.x=-.03;buf.elbowR.y=0;buf.elbowR.z=0;
+    buf.wristL.x=-.12;buf.wristL.z=ph*.8;
+    buf.wristR.x=-.12;buf.wristR.z=-ph*.8;
+  }else{
+    a.stepLen=.55;a.bounceAmp=.028;
+    /* unloaded: the walk cycle's own opposition swing, amplified a
+       touch, chest open, chin up */
+    if(a.st==="return"){
+      const s=Math.sin(a.walkPhase)*a.walkK;
+      addPose(buf,{shoulderL:{x:-s*.16},shoulderR:{x:s*.16},
+        chest:{x:.03},head:{x:-.04}},1);
+    }
+  }
+}
+window.__ice=function(skip){
+  if(skip&&courier.st==="cab")courier.stT=Math.min(courier.stT,.2);
+  return {st:courier.st,t:+courier.stT.toFixed(1),carry:courier.carry,
+    pos:[+courier.pos.x.toFixed(2),+courier.pos.z.toFixed(2)],
+    van:+VAN.k.toFixed(2),visible:courier.rig.root.visible};
+};
+
 /* The GUEST — the person who just clicked "Take a seat". He enters by the
    door (off-frame right, same convention as the stroller: no door to
    animate, the entrance is implied), crosses the room on camera, and sits
@@ -5029,7 +5581,7 @@ function walkLayer(a,buf,ac,dt){
   if(a.collide&&a.state==="walk")a.collide(a);
   a.walkK=damp(a.walkK,Math.min(1,v/.25),.12,dt);
   if(a.walkK<.02){a.rig.root.position.y=a.rootY;return;}
-  const stepLen=.52*a.rig.root.scale.x;
+  const stepLen=(a.stepLen||.52)*a.rig.root.scale.x;
   a.walkPhase+=(v/stepLen)*dt*Math.PI;
   const p=a.walkPhase,s=Math.sin(p),c=Math.cos(p);
   addPose(buf,{
@@ -5040,7 +5592,7 @@ function walkLayer(a,buf,ac,dt){
     elbowL:{x:-.25-Math.max(0,s)*.25},elbowR:{x:-.25+Math.min(0,s)*.25},
     head:{z:s*.025}
   },a.walkK);
-  a.rig.root.position.y=a.rootY+Math.abs(s)*.022*a.walkK;
+  a.rig.root.position.y=a.rootY+Math.abs(s)*(a.bounceAmp||.022)*a.walkK;
 }
 /* the guest's sit-down: lower, slide onto the seat, settle the yaw — then
    hold the seated base for good. His automatic rootY<0 path is gated off
@@ -5116,6 +5668,7 @@ function animateAgents(dt){
     laughLayer(a,a.buf,ac);
     typingLayer(a,a.buf,ac);
     danceLayer(a,a.buf,dt);
+    courierLayer(a,a.buf,dt);
     breathLayer(a,a.buf,ac);
     gazeLayer(a,a.buf,dt,ac);
     applyPose(a.rig,a.buf,dt);
@@ -5125,7 +5678,7 @@ function animateAgents(dt){
     /* jbBob: the dance's knee-bounce — zero for anyone not on the floor */
     if(a.walkK<.02)a.rig.root.position.y=a.rootY+(a.jbBob||0);
     a.rig.root.rotation.y=a.yaw;
-    a.blob.position.set(a.pos.x,.006,a.pos.z);
+    a.blob.position.set(a.pos.x,(a.groundY||0)+.006,a.pos.z);
   }
 }
 const TICK_DT=1/10;
@@ -5153,6 +5706,7 @@ function behaviourTick(dtT){
       case "drinker":tickDrinker(a,dtT);break;
       case "reader":tickReader(a,dtT);break;
       case "visitor":tickVisitor(a,dtT);break;
+      case "courier":tickCourier(a,dtT);break;
       case "guest":tickGuest(a,dtT);break;
     }
   }
@@ -7452,6 +8006,11 @@ function closeCafe(){
   [simon,simonHead,simonBox,sitCup,serveCup,grinder,laptop,
    paper,cup,saucer,pen,plate,beers].forEach(o=>{o.visible=false;});
   agents.forEach(a=>{a.rig.root.visible=false;a.blob.visible=false;});
+  /* the courier clocks off with everyone else: doors shut NOW (no swing
+     to watch in a dark lot), and no round will start again tonight */
+  courier.st="cab";courier.stT=1e9;courier.carry=false;
+  courierBags.forEach(b=>{b.visible=false;});
+  VAN.want=0;VAN.k=0;VAN.kb=0;vanApply();
   steam.forEach(s=>{s.visible=false;});
   croissant.forEach(s=>{s.visible=false;});
 
@@ -7994,6 +8553,7 @@ function animate(){
     updateLife(dt);
     updateSkyTraffic(dt);
     updateDoor(dt);
+    updateVan(dt);
     updateTV(dt);
     updateReadHint(dt);
     jbFrame(dt);
