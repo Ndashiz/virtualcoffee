@@ -2503,9 +2503,10 @@ const texLoader=new THREE.TextureLoader();
    plaque for hours — which is exactly how « MON PALMARES » survived its own
    repaint on Simon's screen. A version in the query is a new URL, so every
    returning visitor gets the new paint on a plain reload. */
-const LABEL_TEX_V="3";   /* v3: plaque_palmares mirrored back to readable —
-   the bake was stored rotated 180° where flipY=false expects a v-flip
-   only, so the banner greeted the room in mirror writing */
+const LABEL_TEX_V="4";   /* v3 un-mirrored the palmares banner (the bake
+   was stored rotated 180° where flipY=false expects a v-flip only);
+   v4 repaints it entirely — bold upright Space Grotesk, bigger and
+   brighter, because the engraved italic was unreadable from the room */
 function labelTex(name){
   const t=texLoader.load("tex/"+name+".png?v="+LABEL_TEX_V);
   t.flipY=false;
