@@ -153,25 +153,33 @@ moves the plant off the one run of wall a toilet door fits on, and clones the
 van one parking bay over for a second firm — BravoReno the electrician, whose
 livery the scene paints (`drawBravo()`).
 
-**The van has a driver now.** On a slow loop (~50 s, most of it spent with
-the tailgate shut so the lettering stays a readable poster), the ICE CUBE
-courier appears from behind the cab, swings the two rear leaves open — they
-are real doors now, split on the ICE|CUBE seam, each carrying its half of the
-decal — takes two printed bags of ice off the sill, and carries them across
-the lot, down the kerb and along the whole glazed shopfront, dead lateral to
-the room, before vanishing past the front-wall corner (the service door is
-implied off-frame: in this set the front door opens into the shot, so nobody
-delivers through it). The return trip is the tell that sells it: hands free,
-arms swinging in opposition, longer stride, +18% pace, chin up — against the
-loaded walk out, leaned back, arms pinned dead straight, short heavy steps,
-eyes on the pavement. He pauses half a second at the van before shoving both
-leaves shut, then walks back around the nose to the cab. Behind the doors the
+**The van has a driver now — and he delivers INSIDE.** On a slow loop
+(~55 s, most of it spent with the tailgate shut so the lettering stays a
+readable poster), the ICE CUBE courier appears from behind the cab, swings
+the two rear leaves open — real doors now, split on the ICE|CUBE seam, each
+carrying its half of the decal — takes two printed bags of ice off the sill,
+crosses the lot, steps the kerb and the threshold (the ground function knows
+all three levels), shoulders through the café's own swinging leaf, hands
+full, and carries the load across the room and round the EAST end of the
+counter — the barista's own authored lane. The bags go down on the floor at
+the mouth of the service aisle, by the drinks fridge: the counter body hides
+the bags themselves from the room, so what reads is the gesture — he bends
+behind the bar, he comes up empty. The barista turns to watch the delivery
+land, patrons glance over (the ice man outranks the window in the gaze
+lottery), the stroller yields the doorway while the courier holds it, and
+the delivered pair stays on the floor until the next round restocks it
+off-camera. The walk back out is the tell that sells the whole act: hands
+free, arms swinging in opposition, longer stride, +18% pace, chin up —
+against the loaded walk in, leaned back, arms pinned dead straight, short
+heavy steps, eyes on the floor. Half a second's pause at the van, both
+leaves shoved shut, back around the nose to the cab. Behind the doors the
 scene builds the cargo bay the model never had (the closed box's own rear
-face is stripped at load): dark walls, a pale alu deck, a part-worked pallet,
-and one 6500 K strip across the head of the opening — the only cold light in
-a warm scene, which is what reads as refrigeration. One mark, three supports:
-the same canvas letters his shirt (chest and back, straddling the torso
-cylinder's UV seam) and the bags, while the van keeps its baked PNG.
+face is stripped at load): dark walls, a pale alu deck, a part-worked
+pallet, and one 6500 K strip across the head of the opening — the only cold
+light in a warm scene, which is what reads as refrigeration. One mark,
+three supports: the same canvas letters his shirt (chest and back,
+straddling the torso cylinder's UV seam) and the bags, while the van keeps
+its baked PNG.
 
 **Two televisions, one feed** — HENRY TV, sound off: six stories on an
 eight-second loop (a 48-second "video", which is what the player's scrub bar

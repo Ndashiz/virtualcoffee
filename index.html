@@ -2354,17 +2354,22 @@ const marbleTex=ctex(512,512,(x,w,h)=>{
   }
   speckle(x,w,h,900,.04);
 });
-/* the model's two sign faces (usemtl enseigne_porte) share one canvas.
-   Both quads read left-to-right in -z screen space, which mirrors the
-   canvas — so the text is painted mirrored once and both come out
-   readable from their natural side. */
-const signTex=ctex(512,96,(x,w,h)=>{
+/* the model's two sign faces (usemtl enseigne_porte) share one canvas,
+   and each quad maps u along ITS OWN viewer's screen-right — the street
+   face runs u with -z, the room face with +z, which is exactly the flip
+   the two normals need. So the canvas is painted STRAIGHT and both
+   read; the old painter mirrored it "to compensate" and both faces
+   spent their life backwards (Simon caught it from his own chair). */
+function drawSign(x,w,h){
   x.fillStyle="#1d1712";x.fillRect(0,0,w,h);
-  x.save();x.translate(w,0);x.scale(-1,1);
   x.fillStyle="#f4b740";x.font="700 44px 'Space Grotesk',sans-serif";
   x.textAlign="center";x.textBaseline="middle";
   x.fillText("VIRTUAL COFFEE",w/2,h/2+2);
-  x.restore();
+}
+const signTex=ctex(512,96,drawSign);
+VC.fontsReady.then(function(){
+  drawSign(signTex.userData.canvas.getContext("2d"),512,96);
+  signTex.needsUpdate=true;
 });
 
 /* ---------------- THE OTHER VAN ----------------
@@ -2433,7 +2438,9 @@ const texLoader=new THREE.TextureLoader();
    plaque for hours — which is exactly how « MON PALMARES » survived its own
    repaint on Simon's screen. A version in the query is a new URL, so every
    returning visitor gets the new paint on a plain reload. */
-const LABEL_TEX_V="2";
+const LABEL_TEX_V="3";   /* v3: plaque_palmares mirrored back to readable —
+   the bake was stored rotated 180° where flipY=false expects a v-flip
+   only, so the banner greeted the room in mirror writing */
 function labelTex(name){
   const t=texLoader.load("tex/"+name+".png?v="+LABEL_TEX_V);
   t.flipY=false;
@@ -4370,6 +4377,9 @@ function pickGazeTarget(a){
   c.push({w:2.5,obj:simonHead});
   /* someone just walked in — patrons glance over */
   if(a!==guest&&guest.state==="walk")c.push({w:4,obj:guest.rig.J.head});
+  /* the ice man crossing the room outranks the window: deliveries are
+     what regulars actually watch */
+  if(a!==courier&&courier.inShop)c.push({w:3,obj:courier.rig.J.head});
   if(a.prop)c.push({w:2,obj:a.prop});
   /* the random sweep is deliberately the weakest pull: at weight 1 the
      whole room read as evasive, everyone forever checking the corners */
@@ -4568,6 +4578,65 @@ const worker=makeAgent("worker","worker",{shirt:0x3f4a63,pants:0x2e2e38,skin:0xc
    at yaw pi-.4 he sat 23 degrees off his own keyboard, and no arm pose
    can reach across that (#39 — reach follows the arm, not wishes) */
 worker.pos.set(1.324,0,-2.735);worker.yaw=Math.PI;worker.rootY=-.01;
+/* What the laptop guy is actually doing: working his backlog in
+   LazyPO. The screen was a bare emissive rectangle — a lamp shaped like
+   a laptop — and Simon asked for the site. Painted like the TV: unlit,
+   because a screen is a light source and must not dim with the room.
+   One static frame is enough at this size; the typing hands sell the
+   rest. */
+function drawLazypo(x,w,h){
+  x.fillStyle="#10141a";x.fillRect(0,0,w,h);
+  /* browser chrome */
+  x.fillStyle="#1c222b";x.fillRect(0,0,w,26);
+  ["#e0645c","#e8b34e","#69c46a"].forEach(function(c,i){
+    x.fillStyle=c;x.beginPath();x.arc(16+i*16,13,4.5,0,7);x.fill();
+  });
+  x.fillStyle="#242b36";
+  x.beginPath();x.moveTo(70,5);x.arcTo(w-14,5,w-14,21,8);
+  x.arcTo(w-14,21,70,21,8);x.arcTo(70,21,70,5,8);x.arcTo(70,5,w-14,5,8);
+  x.closePath();x.fill();
+  x.fillStyle="#8fa0b4";x.font="600 11px 'Space Grotesk',sans-serif";
+  x.textAlign="left";x.textBaseline="middle";
+  x.fillText("ndashiz.be/pro — LazyPO",80,14);
+  /* sidebar */
+  x.fillStyle="#161b23";x.fillRect(0,26,96,h-26);
+  x.fillStyle="#f4b740";x.font="800 20px 'Space Grotesk',sans-serif";
+  x.fillText("LazyPO",12,48);
+  const mods=["Cockpit","Scope","Sprint","Jira","Quiz","FocusFM"];
+  mods.forEach(function(m,i){
+    const y=72+i*24;
+    if(i===2){x.fillStyle="rgba(244,183,64,.16)";x.fillRect(6,y-11,84,20);}
+    x.fillStyle=i===2?"#f4b740":"#8fa0b4";
+    x.font="600 12px 'Space Grotesk',sans-serif";
+    x.fillText(m,16,y);
+  });
+  /* main: sprint board — a title, three stat cards, a burndown */
+  x.fillStyle="#e9eef2";x.font="700 15px 'Space Grotesk',sans-serif";
+  x.fillText("Sprint 12 — day 6/10",110,48);
+  [["23","done"],["9","doing"],["4","blocked"]].forEach(function(c,i){
+    const cx0=110+i*90;
+    x.fillStyle="#1a212b";x.fillRect(cx0,62,80,44);
+    x.fillStyle=i===2?"#e0645c":"#f4b740";
+    x.font="800 20px 'Space Grotesk',sans-serif";x.fillText(c[0],cx0+10,82);
+    x.fillStyle="#8fa0b4";x.font="600 10px 'Space Grotesk',sans-serif";
+    x.fillText(c[1],cx0+10,98);
+  });
+  x.strokeStyle="#2a323e";x.lineWidth=1;
+  for(let i=0;i<4;i++){
+    x.beginPath();x.moveTo(110,124+i*26);x.lineTo(w-16,124+i*26);x.stroke();
+  }
+  x.strokeStyle="#5a6a7e";x.lineWidth=2;
+  x.beginPath();x.moveTo(110,128);x.lineTo(w-16,214);x.stroke();   /* ideal */
+  x.strokeStyle="#f4b740";x.lineWidth=3;
+  x.beginPath();x.moveTo(110,128);x.lineTo(170,142);x.lineTo(230,144);
+  x.lineTo(290,178);x.stroke();                                    /* real */
+  x.fillStyle="#f4b740";x.beginPath();x.arc(290,178,4,0,7);x.fill();
+}
+const lazypoTex=ctex(384,242,drawLazypo);
+VC.fontsReady.then(function(){
+  drawLazypo(lazypoTex.userData.canvas.getContext("2d"),384,242);
+  lazypoTex.needsUpdate=true;
+});
 const laptop=new THREE.Group();
 {
   const base=new THREE.Mesh(new THREE.BoxGeometry(.3,.012,.21),
@@ -4577,8 +4646,7 @@ const laptop=new THREE.Group();
     stdMat(0x2a2c30,.5,.6,1.1));
   lid.position.set(0,.1,-.105);lid.rotation.x=-.32;laptop.add(lid);
   const screen=new THREE.Mesh(new THREE.PlaneGeometry(.27,.17),
-    new THREE.MeshStandardMaterial({color:0x0a0c10,emissive:0xbfd8ff,
-      emissiveIntensity:1.6,roughness:1}));
+    new THREE.MeshBasicMaterial({map:lazypoTex}));
   screen.position.set(0,.1,-.099);screen.rotation.x=-.32;laptop.add(screen);
   const glow=new THREE.PointLight(0xbfd8ff,.3,.9,2);
   glow.position.set(0,.16,.12);laptop.add(glow);
@@ -4735,16 +4803,38 @@ for(const s of["wristL","wristR"]){
    threads at a slight angle exactly the way real street furniture is
    threaded. */
 const ICE_ENTER=[[17.55,-.55],[13.3,-.62],[11.9,-.45],[10.95,.35],[10.78,1.0]];
-const ICE_CARRY=[[10.35,1.0],[9.55,1.02],[8.72,1.3],[8.62,2.15],[9.02,2.72],
-                 [8.72,3.5],[8.60,4.7],[8.60,6.35]];
-const ICE_RETURN=ICE_CARRY.slice(0,-1).reverse().concat([[10.78,1.0]]);
+/* in through the REAL door and up to the bar: the entrance lane the
+   stroller uses, then the barista's own detour round the EAST end of
+   the counter — both lanes are already authored clear */
+const ICE_CARRY=[[10.35,1.0],[9.55,1.02],[8.65,1.0],[7.7,.78],[6.5,.75],
+                 [6.28,-.9],[4.6,-1.7],[3.6,-2.7],[3.5,-4.24],[3.15,-4.38]];
+const ICE_OUT=[[3.5,-4.24],[3.6,-2.7],[4.6,-1.7],[6.28,-.9],[6.5,.75],
+               [7.7,.82],[8.65,1.02],[9.6,1.02],[10.78,1.0]];
 const ICE_EXIT=[[10.95,.3],[11.9,-.5],[13.3,-.62],[17.55,-.55],[17.85,.95]];
 const ICE_SPAWN=[17.85,.95];              /* behind the cab: no interior
                                              sightline reaches it */
-/* the ground he crosses: pavement top .170, lot asphalt .064, blended
-   over the kerb rather than stepped — a 10 Hz tick would make a true
-   step land mid-air one frame in three */
+const ICE_DOOR_X=7.2;                     /* the shopfront door plane */
+/* where the delivery LANDS: on the floor at the east mouth of the
+   service aisle, against the counter's back — from the room the counter
+   body hides the bags themselves, so what reads is the gesture: he
+   bends behind the bar, he comes up empty. They stay there (the round's
+   proof), and go away with the next round's restock, off-camera. */
+const ICE_FLOOR=[];
+for(const z of[-4.37,-4.55]){
+  const b=makeIceBag();
+  b.position.set(2.80,.21,z);
+  b.rotation.y=(z<-4.45?.45:-.2);
+  b.visible=false;
+  scene.add(b);
+  ICE_FLOOR.push(b);
+}
+/* the ground he crosses: café parquet at 0, pavement top .170, lot
+   asphalt .064 — blended at the threshold and the kerb rather than
+   stepped, because a 10 Hz tick would land a true step mid-air one
+   frame in three */
 function courierGround(x){
+  if(x<=6.95)return 0;
+  if(x<7.25)return (x-6.95)/.30*.170;
   if(x<=9.55)return .170;
   if(x>=10.0)return .064;
   return .170+(x-9.55)/.45*(.064-.170);
@@ -4803,14 +4893,45 @@ function shotGrab(a){
     }
   });
 }
+/* setting ten kilos on the FLOOR is not the sill grab in reverse: the
+   hinge goes deeper, the knees give (dropDip lowers the root), and the
+   hands let go at the bottom of the reach — set down, never dropped */
+function shotDrop(a){
+  let put=false;
+  playShot(a,1.7,function(k,buf){
+    const p=pulse(k);
+    addPose(buf,{
+      chest:{x:.30*p},spine:{x:.16*p},head:{x:.10*p},
+      shoulderL:{x:-.50*p,z:-.10*p},shoulderR:{x:-.50*p,z:.10*p},
+      elbowL:{x:-.12*p},elbowR:{x:-.12*p}
+    },1);
+    a.dropDip=p*.14;
+    if(!put&&k>.55){
+      put=true;
+      courierBags.forEach(function(b){b.visible=false;});
+      ICE_FLOOR.forEach(function(b){b.visible=true;});
+      a.carry=false;
+    }
+  });
+}
+/* hands full, so the leaf is taken with the shoulder — the exact beat
+   the brief stages at this door */
+function shotShoulder(a){
+  playShot(a,.9,function(k,buf){
+    const p=pulse(k);
+    addPose(buf,{chest:{y:-.14*p,z:.09*p},shoulderR:{z:.22*p},head:{z:-.07*p}},1);
+  });
+}
 function tickCourier(a,dtT){
   if(RM)return;                 /* reduced motion: the van keeps its doors */
   if(!VAN.a)return;             /* no tailgate in the model, no round */
   a.stT-=dtT;
   switch(a.st){
     case "cab":                 /* phase A — the flank clean, the logo's window */
+      if(closing)break;         /* the room is emptying: no round starts into it */
       if(a.stT<=0){
         VAN.deckBags.forEach(function(b){b.visible=true;});   /* restocked off-camera */
+        ICE_FLOOR.forEach(function(b){b.visible=false;});     /* and yesterday's pair shelved */
         courierShow(a,ICE_SPAWN);
         a.yaw=Math.PI;          /* facing -z, where he is about to walk */
         a.path=ICE_ENTER;a.pathI=0;a.speed=.60;
@@ -4829,46 +4950,73 @@ function tickCourier(a,dtT){
     case "grab":
       if(a.stT<=0){
         a.faceYaw=null;a.path=ICE_CARRY;a.pathI=0;a.speed=.52;
-        courierSt(a,"carry");
+        a.nudged=false;
+        courierSt(a,"carryIn");
       }
       break;
-    case "carry":
-      /* head down, eyes on the pavement two steps ahead — the loaded
-         gaze the brief writes out, refreshed cheap at tick rate */
+    case "carryIn":
+      /* head down, eyes on the ground two steps ahead — the loaded gaze
+         the brief writes out, refreshed cheap at tick rate */
       a.gazeLock={pos:[a.pos.x+Math.sin(a.yaw)*1.6,.15,a.pos.z+Math.cos(a.yaw)*1.6]};
+      /* the leaf swings while he is anywhere near the plane — same
+         spring, same door the stroller uses */
+      if(Math.abs(a.pos.x-ICE_DOOR_X)<.95){
+        openDoor();
+        if(!a.nudged&&a.pos.x<ICE_DOOR_X+.3){a.nudged=true;shotShoulder(a);}
+      }
+      /* one doorway, two extras: if the stroller is working the door
+         lane, the courier stands off on the pavement until it clears —
+         two capsules threading one leaf reads as a glitch, not a queue */
+      if(visitor.active&&a.pos.x>7.45&&a.pos.x<8.6&&visitor.pos.x>5.0){
+        a.walkTarget=null;break;
+      }
       if(courierPath(a)){
-        courierHide(a);a.gazeLock=null;
-        courierSt(a,"away",jit(8,.3));   /* the delivery, off-frame */
+        a.walkTarget=null;a.faceYaw=-Math.PI/2;   /* square to the aisle */
+        a.gazeLock={pos:[2.6,.2,-4.4]};           /* eyes on where they land */
+        shotDrop(a);
+        /* the barista clocks the delivery — a room where nobody notices
+           a man carrying twenty kilos through it is a dead room */
+        if(!closing&&!barista.scripted&&!barista.leaving){
+          barista.gazeLock={obj:a.rig.J.head};barista.blinkQueue=true;
+        }
+        courierSt(a,"drop",1.8);
       }
       break;
-    case "away":
+    case "drop":
       if(a.stT<=0){
-        courierShow(a,ICE_CARRY[ICE_CARRY.length-1]);
-        a.carry=false;courierBags.forEach(function(b){b.visible=false;});
-        a.yaw=0;
-        a.path=ICE_RETURN;a.pathI=0;
-        a.speed=.70;            /* +18% or so: unloaded legs, the brief's tell */
-        /* the optional business, one round in three: he shakes the cold
-           out of his fingers on the way back, never on the way out */
-        if(Math.random()<.34)a.shakeAt=1.5+Math.random()*2.5;else a.shakeAt=0;
-        courierSt(a,"return");
+        a.gazeLock={obj:barista.rig.J.head};   /* the wordless "there you go" */
+        courierSt(a,"beat",.5);
       }
       break;
-    case "return":
+    case "beat":
+      if(a.stT<=0){
+        if(barista.gazeLock&&barista.gazeLock.obj===a.rig.J.head&&!barista.scripted)
+          barista.gazeLock=null;
+        a.gazeLock=null;a.faceYaw=null;
+        a.path=ICE_OUT;a.pathI=0;
+        a.speed=.62;            /* +18% or so: unloaded legs, the brief's tell */
+        /* the optional business, one round in three: he shakes the cold
+           out of his fingers on the way back — timed to land once he is
+           back on the pavement, never over the parquet */
+        if(Math.random()<.34)a.shakeAt=7+Math.random()*2.5;else a.shakeAt=0;
+        courierSt(a,"walkOut");
+      }
+      break;
+    case "walkOut":
+      if(Math.abs(a.pos.x-ICE_DOOR_X)<.95)openDoor();
       if(a.shakeAt){
         a.shakeAt-=dtT;
-        if(a.shakeAt<=0){
+        if(a.shakeAt<=0&&a.pos.x>7.9){
           a.shakeAt=0;
           playShot(a,1.1,function(k,buf){
             const p=pulse(k);
             addPose(buf,{shoulderR:{x:-.35*p,z:.35*p},elbowR:{x:-.55*p},
               wristR:{y:Math.sin(k*31)*.5*p}},1);
           });
-        }
+        }else if(a.shakeAt<=0)a.shakeAt=.6;   /* still indoors: hold the beat */
       }
-      /* every so often a glance into the café he is walking past — a
-         courier who never looks at a lit room full of people is its own
-         kind of wrong */
+      /* free gaze on the way out — an empty-handed man looks around the
+         room he is crossing, and at the man behind the little table */
       if(!a.gazeLock&&Math.random()<.06*dtT*10)a.gazeLock={obj:simonHead};
       else if(a.gazeLock&&Math.random()<.25*dtT*10)a.gazeLock=null;
       if(courierPath(a)){
@@ -4904,8 +5052,15 @@ function tickCourier(a,dtT){
 function courierLayer(a,buf,dt){
   if(a.kind!=="courier")return;
   a.groundY=a.rootY=courierGround(a.pos.x);
+  a.rootY-=(a.dropDip||0);                /* knees give while the load goes down */
+  /* the flag the rest of the cast reads: he is IN the room (or at its
+     door), so patrons may glance and the stroller stays home */
+  a.inShop=a.rig.root.visible&&a.pos.x<8.2;
   if(a.faceYaw!=null&&!a.walkTarget)a.yaw=angleDamp(a.yaw,a.faceYaw,.12,dt);
-  if(a.carry){
+  /* while a gesture owns the arms (the drop, the shoulder through the
+     leaf) the carry overwrite stands aside — he is standing then, so
+     there is no swing to kill anyway */
+  if(a.carry&&!a.shots.length){
     /* short heavy strides, no bounce to speak of */
     a.stepLen=.40;a.bounceAmp=.010;
     const w=a.walkK,ph=Math.sin(a.walkPhase*2)*.022;
@@ -4926,7 +5081,7 @@ function courierLayer(a,buf,dt){
     a.stepLen=.55;a.bounceAmp=.028;
     /* unloaded: the walk cycle's own opposition swing, amplified a
        touch, chest open, chin up */
-    if(a.st==="return"){
+    if(a.st==="walkOut"){
       const s=Math.sin(a.walkPhase)*a.walkK;
       addPose(buf,{shoulderL:{x:-s*.16},shoulderR:{x:s*.16},
         chest:{x:.03},head:{x:-.04}},1);
@@ -5441,6 +5596,7 @@ function tickVisitor(a,dtT){
   if(RM)return;      /* reduced motion: no strolling extras */
   if(closing)return; /* the café is emptying — nobody new wanders in */
   if(!a.active){
+    if(courier.inShop)return;   /* one doorway: the delivery has it */
     a.vTimer-=dtT;
     if(a.vTimer<=0){
       a.active=true;
@@ -8010,6 +8166,7 @@ function closeCafe(){
      to watch in a dark lot), and no round will start again tonight */
   courier.st="cab";courier.stT=1e9;courier.carry=false;
   courierBags.forEach(b=>{b.visible=false;});
+  ICE_FLOOR.forEach(b=>{b.visible=false;});   /* the bar is squared away */
   VAN.want=0;VAN.k=0;VAN.kb=0;vanApply();
   steam.forEach(s=>{s.visible=false;});
   croissant.forEach(s=>{s.visible=false;});
