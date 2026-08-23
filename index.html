@@ -4363,7 +4363,11 @@ function buildPerson(opts){
     /* clear of the hair cap in front (it stops around y=.03 at x=0) and
        sitting ON the skull, .022 above the eye it belongs to */
     const brow=put(head,new THREE.BoxGeometry(.05,.011,.013),mH,EYE_X*e,.044,.135,false,"hair");
-    brow.rotation.z=-.14*e;
+    /* sign matters more than size: -.14 raised the INNER ends, which is
+       the one geometry every face reads as grief — the whole cast spent
+       its life about to cry (Simon caught it). Flipped and eased, the
+       outer ends ride up instead: an open, awake face. */
+    brow.rotation.z=.10*e;
     brow.userData.acc="brow";      /* not the hair cap: do not rescale it */
   }
   const eyes=[];
@@ -4388,12 +4392,18 @@ function buildPerson(opts){
     eg.add(lid);
     eyes.push({eg:eg,lid:lid});
   }
-  /* the mouth runs pupil to pupil, ±10% — it was .048 against an .080
-     pupil span, a third too narrow, which is what made every mouth read
-     as pursed */
-  const mouth=put(head,new THREE.BoxGeometry(EYE_X*2,.010,.012),
-    stdMat(0x8a4a3a,.6),0,-.052,.14,false);
-  mouth.userData.acc="mouth";   /* humanizeRig moves it onto the sculpted lips */
+  /* a SMILE, not a slot: the flat bar read as a man awaiting bad news
+     — with the old brows on top, the café was a room full of quiet
+     grief (Simon: « ils ont tous l'air triste »). A thin arc, corners
+     up, spanning a touch less than the pupils, which is what a resting
+     smile actually does. */
+  const mouth=new THREE.Mesh(new THREE.TorusGeometry(.030,.0050,6,12,Math.PI*.62),
+    stdMat(0x8a4a3a,.6));
+  mouth.position.set(0,-.030,.1405);
+  mouth.rotation.z=Math.PI*1.19;   /* park the arc at the bottom of its circle */
+  mouth.scale.set(1.3,.72,1);      /* wider than tall: gentle, not a grin */
+  mouth.userData.acc="mouth";      /* humanizeRig moves it onto the sculpted lips */
+  head.add(mouth);
   /* ARMS ON THE BODY, not beside it. The joints used to sit at |x|=.225
      with a .045 arm hanging off them: the arm's inner edge landed at .18
      against a torso whose radius up there is .168, so every character
@@ -4489,6 +4499,11 @@ const _gv=new THREE.Vector3(),_gp=new THREE.Vector3();
 const LIM={eyeYaw:.44,eyePitch:.3,headYaw:1.05,headPitch:.44,chestYaw:.7};
 function pickGazeTarget(a){
   const c=[];
+  /* a walker looks WHERE HE IS GOING first — the ahead candidate
+     outweighs the whole room, so a glance at Simon stays a glance
+     (Simon: they must look where they walk, logically) */
+  if(a.walkK>.25)c.push({w:9,pos:[a.pos.x+Math.sin(a.yaw)*2.6,1.5,
+    a.pos.z+Math.cos(a.yaw)*2.6]});
   if(a.group&&a.group.speaker&&a.group.speaker!==a)
     c.push({w:6,obj:a.group.speaker.rig.J.head});
   c.push({w:2.5,obj:simonHead});
@@ -5979,7 +5994,9 @@ function behaviourTick(dtT){
     a.gazeT-=dtT;
     if(a.gazeT<=0){
       a.gaze=pickGazeTarget(a);
-      a.gazeT=jit(4.6,.5);          /* longer holds: darting eyes read as shifty */
+      /* long holds seated (darting eyes read as shifty) — but a WALKER
+         re-aims fast, or a side glance rides a quarter of his trip */
+      a.gazeT=a.walkK>.25?jit(1.7,.45):jit(4.6,.5);
       a.blinkQueue=true;
     }
     /* the barista is on a script during closing: his own tick would put
@@ -6104,6 +6121,10 @@ function tickLeaving(a,dtT){
   }
   if(Math.hypot(wp[0]-a.pos.x,wp[1]-a.pos.z)<.3){a.exitLeg++;return;}
   a.walkTarget=[wp[0],wp[1]];
+  /* leavers skip the gaze lottery (the tick returns before it), so left
+     alone they walked out with their heads still parked on the room —
+     eyes on the way out, like anyone actually going home */
+  a.gazeLock={pos:[a.pos.x+Math.sin(a.yaw)*2.4,1.5,a.pos.z+Math.cos(a.yaw)*2.4]};
 }
 function updateLife(dt){
   tickAcc+=dt;
