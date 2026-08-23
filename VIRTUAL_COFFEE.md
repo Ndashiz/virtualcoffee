@@ -421,7 +421,11 @@ et **déplace la plante** du coin avant-gauche vers le mur avant, pour libérer 
 seul pan de mur où une porte de toilettes tient. Il **clone** enfin la
 camionnette une place de parking plus loin, pour une deuxième boîte —
 *BravoReno, votre électricien avec qui le courant passe* — avec son propre
-matériau de lettrage, que la scène peint (`drawBravo()`).
+matériau de lettrage, que la scène peint (`drawBravo()`). La sélection se
+fait par **boîte englobante** et non par groupe : à l'export, tout le dehors
+est un seul groupe, et une primitive ne compte que si elle tient
+**entièrement** dans la boîte — c'est ce qui garde les 8 000 triangles
+d'asphalte hors du clone.
 
 **Le van a un livreur — et il livre EN SALLE** (2026-08-23). Sur une
 boucle lente (~55 s, dont l'essentiel portes fermées — le flanc reste une
@@ -450,10 +454,24 @@ plancher alu clair, palette entamée, et une réglette 6500 K au linteau — la
 seule lumière froide d'une scène chaude, et c'est elle qui dit « frigo ».
 Une marque, trois supports : le même canvas floque son t-shirt (poitrine et
 dos, à cheval sur la couture UV du cylindre du torse) et les sacs ; le van
-garde son PNG cuit. La sélection se fait
-par **boîte englobante** et non par groupe : à l'export, tout le dehors est un
-seul groupe, et une primitive ne compte que si elle tient **entièrement** dans
-la boîte — c'est ce qui garde les 8 000 triangles d'asphalte hors du clone.
+garde son PNG cuit.
+
+Autour de la tournée, le dehors a grandi (2026-08-23, Simon aux manettes
+depuis la chaise) : les trois véhicules sont **regarés sur la grille des
+lignes** qu'ils chevauchaient (corrigé dans le préprocesseur ET dans l'OBJ
+livré) ; le fond peint derrière la baie est devenu **sa vraie skyline** —
+une maison Big Four et les deux banques dont le café parle déjà, *NdaBank
+Private Wealth* et *HENRY Investment Bank*, noms en plaques taillées pour
+survivre à la vitre ; et **l'homme volant s'arrête** désormais : il entre,
+se pose devant la baie, y flotte un temps à regarder la salle — la loterie
+des regards laisse le bar de fenêtre le surprendre — puis repart dans son
+sens. La carte d'accueil énonce enfin les vraies règles : le cercle jaune
+est où l'entretien commence, et le café cache le reste — approchez-vous des
+objets, une bulle dit ce qu'ils savent faire. À l'intérieur, l'écran du
+client au comptoir fait tourner LazyPO (board de sprint, burndown), et les
+deux faces de l'enseigne VIRTUAL COFFEE comme le bandeau de l'armoire à
+trophées se lisent enfin à l'endroit — le canvas de l'enseigne était peint
+en miroir pour ses deux quads, le PNG du bandeau stocké tourné de 180°.
 
 Les PNG d'étiquettes se chargent avec **`flipY=false`**, et c'est tout le
 piège : l'exportateur écrit du glTF, où `v=0` est le HAUT de l'image, et il

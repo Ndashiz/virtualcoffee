@@ -181,6 +181,23 @@ three supports: the same canvas letters his shirt (chest and back,
 straddling the torso cylinder's UV seam) and the bags, while the van keeps
 its baked PNG.
 
+Around the delivery, the outside grew up (2026-08-23, Simon directing from
+the chair): all three vehicles are **reparked onto the ligne_place grid**
+they used to straddle (fixed in the preprocessor and in the shipped OBJ);
+the painted backdrop behind the window bay is now **his actual skyline** —
+a Big Four house and two banks the café already talks about, *NdaBank
+Private Wealth* and *HENRY Investment Bank*, names on plates sized to
+survive the glass; and the **flying man stops now**: he sweeps in, pulls up
+at the bay, hangs there looking into the room for a beat — the gaze lottery
+lets the window bar catch him at it — then leaves the way he was going.
+The welcome card teaches the real rules at last: the yellow circle is where
+the interview starts, and the café hides the rest — walk up to things and a
+bubble says what they can do. Inside, the laptop guy's screen runs LazyPO
+(sprint board, burndown and all), and both faces of the VIRTUAL COFFEE sign
+plus the trophy-cabinet banner finally read the right way round — the sign
+canvas was painted mirrored for both quads, the plaque PNG was stored
+rotated 180°.
+
 **Two televisions, one feed** — HENRY TV, sound off: six stories on an
 eight-second loop (a 48-second "video", which is what the player's scrub bar
 actually measures), a presenter whose mouth moves, and a ticker carrying only

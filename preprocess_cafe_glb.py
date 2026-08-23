@@ -423,6 +423,26 @@ def main():
     print(f"\nBravoReno van: {len(src)} primitives cloned, dz=+{VAN_DZ}"
           f" ({tris(src)} tris)")
 
+    # ------------------------------------------------- repark (Simon) ---
+    # The export drops all three vehicles about a metre south of their
+    # bays -- every one straddles a ligne_place. Recentre each cluster on
+    # the painted grid (pitch 2.5425); membership by bbox, like the clone.
+    REPARK = (((-4.6, -2.0), 0.212),    # the car
+              ((-0.30, 2.30), 1.059),   # ICE CUBE van
+              ((2.30, 4.90), 1.060))    # BravoReno van
+    moved = 0
+    for o in objs:
+        xs = [p[0] for p in o['pos']]; zs = [p[2] for p in o['pos']]
+        if not (11.2 <= min(xs) and max(xs) <= 17.85):
+            continue
+        for (rz0, rz1), dz in REPARK:
+            if min(zs) >= rz0 and max(zs) <= rz1:
+                for p in o['pos']:
+                    p[2] += dz
+                moved += 1
+                break
+    print(f"reparked {moved} primitives onto the ligne_place grid")
+
     # ------------------------------------------------------- anchor dump ---
     print("\n--- WORLD ANCHORS ---")
     for g in ("sol", "mur_fond", "mur_avant", "mur_gauche_bas", "fenetre_vitre",

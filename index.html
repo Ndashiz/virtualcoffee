@@ -1829,26 +1829,91 @@ const tableTex=ctex(1024,1024,(x,w,h)=>{
   x.strokeRect(7,7,w-14,h-14);
   speckle(x,w,h,2200,.04);
 });
-/* window view */
-const viewTex=ctex(512,512,(x,w,h)=>{
+/* window view — the financial district Simon actually worked, not five
+   anonymous slabs: a Big Four house and the two banks the café keeps
+   talking about (NdaBank runs the plaque and the TV news, HENRY runs
+   the channel). Painted 1024 wide so the names survive the stretch onto
+   the 5.7 m plate; windows are DETERMINISTIC, because the webfont
+   repaint must not reshuffle the lit floors between two frames. */
+function drawCity(x,w,h){
   const g=x.createLinearGradient(0,0,0,h);
   g.addColorStop(0,"#9cc7d6");g.addColorStop(.55,"#e8d9b0");g.addColorStop(1,"#f2b76a");
   x.fillStyle=g;x.fillRect(0,0,w,h);
-  const sun=x.createRadialGradient(140,190,10,140,190,150);
+  const sun=x.createRadialGradient(280,190,10,280,190,290);
   sun.addColorStop(0,"rgba(255,244,200,.95)");sun.addColorStop(1,"rgba(255,244,200,0)");
   x.fillStyle=sun;x.fillRect(0,0,w,h);
+  let seed=7;
+  function rnd(){seed=(seed*16807)%2147483647;return seed/2147483647;}
+  /* back row: haze-blue silhouettes, no detail — depth is contrast */
+  x.fillStyle="rgba(102,118,132,.55)";
+  [[30,250,90],[150,210,70],[330,270,110],[540,235,90],[700,265,120],[900,245,90]]
+    .forEach(function(b){x.fillRect(b[0],b[1],b[2],h-b[1]);});
+  /* one tower: gradient body, edge shading, deterministic lit grid,
+     rooftop clutter */
+  function tower(bx,by,bw,c0,c1,lit,cool){
+    const tg=x.createLinearGradient(bx,0,bx+bw,0);
+    tg.addColorStop(0,c0);tg.addColorStop(.45,c1);tg.addColorStop(1,c0);
+    x.fillStyle=tg;x.fillRect(bx,by,bw,h-by);
+    x.fillStyle="rgba(255,255,255,.16)";x.fillRect(bx,by,bw,3);
+    x.fillStyle="rgba(10,14,18,.35)";
+    x.fillRect(bx,by,3,h-by);x.fillRect(bx+bw-3,by,3,h-by);
+    for(let wy=by+16;wy<h-38;wy+=17)for(let wx=bx+9;wx<bx+bw-11;wx+=15){
+      x.fillStyle=rnd()<lit
+        ?(cool?"rgba(214,232,246,.85)":"rgba(255,214,120,.9)")
+        :"rgba(16,22,30,.45)";
+      x.fillRect(wx,wy,9,10);
+    }
+    x.fillStyle="#31404c";
+    x.fillRect(bx+bw*.28,by-9,3,9);x.fillRect(bx+bw*.66,by-15,2,15);
+  }
+  /* the name plate every serious tower wears at the top floors */
+  function plate(bx,by,bw,bh,bg,l1,f1,c1,l2,f2,c2){
+    x.fillStyle=bg;x.fillRect(bx,by,bw,bh);
+    x.strokeStyle="rgba(255,255,255,.28)";x.lineWidth=1.5;
+    x.strokeRect(bx+1.5,by+1.5,bw-3,bh-3);
+    x.textAlign="center";x.textBaseline="middle";
+    x.fillStyle=c1;x.font=f1;
+    x.fillText(l1,bx+bw/2,by+(l2?bh*.36:bh*.52));
+    if(l2){x.fillStyle=c2;x.font=f2;x.fillText(l2,bx+bw/2,by+bh*.74);}
+  }
+  /* BIG FOUR — cool glass, the audit floor lit at dawn */
+  tower(58,150,192,"#33414e","#4a5c6e",.55,true);
+  plate(72,160,164,46,"#101820",
+    "BIG FOUR",'800 27px "Space Grotesk",sans-serif',"#e9eef2",
+    null,null,null);
+  /* NdaBank — the tallest: private wealth pays for floors */
+  tower(384,74,230,"#3c4250","#545c6e",.34,false);
+  /* the plate rides at mid-façade, not the crown: the bay's top rail
+     crops the canvas around v .75, and a name above it is a name the
+     room never reads */
+  plate(398,168,202,62,"#0d2138",
+    "NdaBank",'800 33px "Space Grotesk",sans-serif',"#f4b740",
+    "PRIVATE WEALTH",'700 15px "Space Grotesk",sans-serif',"#dfe8f2");
+  /* HENRY — the investment bank with its own TV channel */
+  tower(732,128,210,"#38505a","#4a6672",.45,true);
+  plate(746,140,182,58,"#6e1620",
+    "HENRY",'800 31px "Space Grotesk",sans-serif',"#f3efe7",
+    "INVESTMENT BANK",'700 13px "Space Grotesk",sans-serif',"#e8c9c9");
+  /* mid-row fillers so the heroes do not float alone */
   x.fillStyle="#5a6672";
-  [[0,340,90,172],[100,300,70,212],[180,360,110,152],[300,320,80,192],[390,350,130,162]].forEach(b=>{
-    x.fillRect(b[0],b[1],b[2],b[3]);
-    x.fillStyle="rgba(255,220,130,.85)";
-    for(let wy=b[1]+14;wy<h-16;wy+=26)for(let wx=b[0]+10;wx<b[0]+b[2]-10;wx+=22)
-      if(Math.random()<.4)x.fillRect(wx,wy,7,9);
-    x.fillStyle="#5a6672";
+  [[262,330,110],[622,345,100],[952,330,72],[0,360,50]].forEach(function(b){
+    x.fillRect(b[0],b[1],b[2],h-b[1]);
+    for(let wy=b[1]+12;wy<h-20;wy+=24)for(let wx=b[0]+8;wx<b[0]+b[2]-8;wx+=20)
+      if(rnd()<.4){x.fillStyle="rgba(255,220,130,.85)";x.fillRect(wx,wy,7,9);x.fillStyle="#5a6672";}
   });
+  /* ground haze ties the towers to the treeline outside the glass */
+  const hz=x.createLinearGradient(0,h-90,0,h);
+  hz.addColorStop(0,"rgba(242,183,106,0)");hz.addColorStop(1,"rgba(242,183,106,.85)");
+  x.fillStyle=hz;x.fillRect(0,h-90,w,90);
   x.strokeStyle="rgba(40,50,60,.7)";x.lineWidth=2;
-  [[70,120],[95,112],[330,90]].forEach(b=>{
+  [[150,120],[185,112],[660,90]].forEach(function(b){
     x.beginPath();x.moveTo(b[0]-8,b[1]+5);x.quadraticCurveTo(b[0],b[1]-3,b[0]+8,b[1]+5);x.stroke();
   });
+}
+const viewTex=ctex(1024,512,drawCity);
+VC.fontsReady.then(function(){
+  drawCity(viewTex.userData.canvas.getContext("2d"),1024,512);
+  viewTex.needsUpdate=true;
 });
 /* chalkboard menu — the same slate is the CLOSED board when the bar is
    shut, so the closed state costs no new asset and no new material: it is
@@ -2681,13 +2746,15 @@ function makeIceBag(bare){
    line reads as refrigeration before anyone works out what it is). */
 const VAN_XI=11.410,VAN_XO=11.495,        /* the doors' inner and outer face */
       VAN_Y0=.561,VAN_Y1=2.574,           /* their sill and their head */
-      VAN_Z0=-.065,VAN_Z1=2.096,          /* the two hinge stiles */
+      VAN_Z0=.994,VAN_Z1=3.155,           /* the two hinge stiles — one bay
+        north of where the export dropped them: all three vehicles are
+        reparked onto the ligne_place grid, they used to straddle it */
       VAN_ZM=(VAN_Z0+VAN_Z1)/2,
       VAN_DECK=VAN_Y0+.018,               /* what the load stands on */
       VAN_SWING=1.75;                     /* 100°, folded back along the
         flanks — NOT 110: the BravoReno van is parked 2.542 m over, and at
         110° the +z leaf's tip sweeps 2 cm into its bonnet */
-const VAN_LOGO=[11.406,1.424,1.987,.086,1.945];   /* x, y0, y1, z0, z1 */
+const VAN_LOGO=[11.406,1.424,1.987,1.145,3.004];   /* x, y0, y1, z0, z1 */
 const VAN={a:null,b:null,k:0,kb:0,want:0,bay:null,deckBags:[]};
 /* One leaf, built entirely in its own hinge frame so opening is one
    rotation and nothing else in the van moves. */
@@ -2789,7 +2856,7 @@ function buildIceVan(){
     bay.add(b);
   }
   /* today's two, upright at the sill — what the courier comes for */
-  for(const z of[.78,1.25]){
+  for(const z of[1.84,2.31]){
     const b=makeIceBag();
     b.position.set(11.72,VAN_DECK+.21,z);
     b.rotation.y=(z>1?-.3:.25);
@@ -3415,46 +3482,96 @@ const skyPlane=new THREE.Group();
 skyPlane.visible=false;scene.add(skyPlane);
 const skyHero=new THREE.Group();
 {
-  const suit=new THREE.MeshBasicMaterial({color:0x33539f});
+  /* v2 of the flying man: proportions off a comic panel instead of a
+     capsule doodle — chest wider than hips, trunks and boots in red, a
+     belt, legs together with the toes trailing, and a cape that hangs
+     from the shoulders rather than floating near them. Still under a
+     hundred triangles: he is read through glass at four metres. */
+  const suit=new THREE.MeshBasicMaterial({color:0x2f5fc4});
+  const red=new THREE.MeshBasicMaterial({color:0xb22a26});
   const skin=new THREE.MeshBasicMaterial({color:0xe0ab80});
-  const hair=new THREE.MeshBasicMaterial({color:0x1a1520});
-  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.023,.017,.10,8),suit);
+  const hair=new THREE.MeshBasicMaterial({color:0x14100e});
+  const gold=new THREE.MeshBasicMaterial({color:0xd8a72c});
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.021,.015,.11,10),suit);
   torso.rotation.x=Math.PI/2;skyHero.add(torso);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.021,10,8),skin);
-  head.position.z=.072;skyHero.add(head);
-  const cap=new THREE.Mesh(new THREE.SphereGeometry(.022,10,8),hair);
-  cap.scale.set(1,.82,.7);cap.position.set(0,.007,.067);skyHero.add(cap);
-  /* one fist out front, the other tucked in — the pose everybody draws */
-  const arm=new THREE.Mesh(new THREE.CylinderGeometry(.009,.009,.09,6),suit);
-  arm.rotation.x=Math.PI/2;arm.position.set(-.021,.008,.10);skyHero.add(arm);
-  const fist=new THREE.Mesh(new THREE.SphereGeometry(.012,8,8),skin);
-  fist.position.set(-.021,.008,.148);skyHero.add(fist);
-  const armB=new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.07,6),suit);
-  armB.rotation.x=Math.PI/2;armB.position.set(.026,-.006,.05);skyHero.add(armB);
+  const chest=new THREE.Mesh(new THREE.SphereGeometry(.023,10,8),suit);
+  chest.scale.set(1.2,.85,1);chest.position.z=.045;skyHero.add(chest);
+  const trunks=new THREE.Mesh(new THREE.CylinderGeometry(.016,.0155,.032,10),red);
+  trunks.rotation.x=Math.PI/2;trunks.position.z=-.064;skyHero.add(trunks);
+  const belt=new THREE.Mesh(new THREE.CylinderGeometry(.0168,.0168,.008,10),gold);
+  belt.rotation.x=Math.PI/2;belt.position.z=-.047;skyHero.add(belt);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.019,10,8),skin);
+  head.position.z=.086;skyHero.add(head);
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(.0198,10,8),hair);
+  cap.scale.set(1,.85,.8);cap.position.set(0,.005,.082);skyHero.add(cap);
+  /* the lead fist, and the other arm swept back along the body */
+  const armF=new THREE.Mesh(new THREE.CylinderGeometry(.0062,.0075,.095,8),suit);
+  armF.rotation.x=Math.PI/2;armF.position.set(-.019,.007,.135);skyHero.add(armF);
+  const fist=new THREE.Mesh(new THREE.SphereGeometry(.0098,8,8),skin);
+  fist.position.set(-.019,.007,.187);skyHero.add(fist);
+  const armB=new THREE.Mesh(new THREE.CylinderGeometry(.0058,.007,.075,8),suit);
+  armB.rotation.x=Math.PI/2;armB.position.set(.023,-.004,.02);skyHero.add(armB);
+  const fistB=new THREE.Mesh(new THREE.SphereGeometry(.0088,8,8),skin);
+  fistB.position.set(.023,-.004,-.02);skyHero.add(fistB);
   for(const s of[-1,1]){
-    const leg=new THREE.Mesh(new THREE.CylinderGeometry(.011,.008,.11,6),suit);
-    leg.rotation.x=Math.PI/2;leg.position.set(s*.011,-.004,-.104);skyHero.add(leg);
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(.0085,.0058,.115,8),suit);
+    leg.rotation.x=Math.PI/2;leg.position.set(s*.009,-.002,-.126);skyHero.add(leg);
+    const boot=new THREE.Mesh(new THREE.CylinderGeometry(.0074,.0042,.046,8),red);
+    boot.rotation.x=Math.PI/2;boot.position.set(s*.009,-.002,-.198);skyHero.add(boot);
   }
-  /* the cape faces the room, not the sky: a plane in the travel axis would
-     be edge-on from in here, which is one pixel of red and no cape at all */
-  const cloak=new THREE.Mesh(new THREE.PlaneGeometry(.22,.105),
-    new THREE.MeshBasicMaterial({color:0xb02a2a,side:THREE.DoubleSide}));
-  cloak.rotation.y=Math.PI/2;cloak.position.set(0,-.012,-.155);
+  /* the cape faces the room, not the sky: a plane in the travel axis
+     would be edge-on from in here, one pixel of red and no cape at all */
+  const cloak=new THREE.Mesh(new THREE.PlaneGeometry(.26,.125),
+    new THREE.MeshBasicMaterial({color:0x9e211e,side:THREE.DoubleSide}));
+  cloak.rotation.y=Math.PI/2;cloak.position.set(0,-.006,-.085);
   skyHero.add(cloak);skyHero.userData.cape=cloak;
 }
 skyHero.visible=false;scene.add(skyHero);
 /* one crossing at a time, and an empty sky most of the time */
-const SKY={obj:null,t:0,dur:0,z0:0,z1:0,y:0,bob:1,next:8+Math.random()*9};
+const SKY={obj:null,t:0,dur:0,z0:0,z1:0,y:0,bob:1,hz:-.47,look:0,
+  next:8+Math.random()*9};
 function updateSkyTraffic(dt){
   if(RM)return;                            /* reduced motion: nothing flies */
   if(SKY.obj){
     SKY.t+=dt;
+    const o=SKY.obj;
+    if(o===skyHero){
+      /* the hero has an itinerary now (Simon's brief): sweep in, pull up
+         at the bay, hang there long enough to be caught looking in, then
+         leave the way he was going — faster, point made. The look phase
+         raises SKY.look, and the gaze lottery lets the window bar catch
+         him at it. */
+      const IN=2.2,LOOK=2.6,OUT=1.8,t=SKY.t;
+      const travelYaw=SKY.z1>SKY.z0?0:Math.PI;
+      if(t<IN){
+        const u=t/IN,e=1-Math.pow(1-u,3);
+        o.position.z=SKY.z0+(SKY.hz-SKY.z0)*e;
+        o.position.y=SKY.y+(1.85-SKY.y)*e;
+        o.rotation.y=travelYaw;
+        o.userData.cape.rotation.x=Math.sin(t*7.5)*.22;
+      }else if(t<IN+LOOK){
+        SKY.look=1;
+        o.position.z=SKY.hz;
+        o.position.y=1.85+Math.sin(t*2.1)*.028;
+        /* the quarter-turn: nose to the glass, and the room behind it */
+        o.rotation.y=angleDamp(o.rotation.y,Math.PI/2,.10,dt);
+        o.userData.cape.rotation.x=Math.sin(t*3.1)*.10;
+      }else if(t<IN+LOOK+OUT){
+        SKY.look=0;
+        const u=(t-IN-LOOK)/OUT,e=u*u*u;
+        o.position.z=SKY.hz+(SKY.z1-SKY.hz)*e;
+        o.position.y=1.85+(SKY.y-1.85)*e*.5;
+        o.rotation.y=angleDamp(o.rotation.y,travelYaw,.16,dt);
+        o.userData.cape.rotation.x=Math.sin(t*7.5)*.22*Math.min(1,u*3);
+      }else{
+        o.visible=false;SKY.obj=null;SKY.look=0;SKY.next=jit(26,.4);
+      }
+      return;
+    }
     const k=SKY.t/SKY.dur;
     if(k>=1){SKY.obj.visible=false;SKY.obj=null;SKY.next=jit(26,.4);return;}
-    const o=SKY.obj;
     o.position.z=SKY.z0+(SKY.z1-SKY.z0)*k;
     o.position.y=SKY.y+Math.sin(k*Math.PI*SKY.bob)*.055;
-    if(o.userData.cape)o.userData.cape.rotation.x=Math.sin(SKY.t*7.5)*.22;
     return;
   }
   SKY.next-=dt;
@@ -4380,6 +4497,8 @@ function pickGazeTarget(a){
   /* the ice man crossing the room outranks the window: deliveries are
      what regulars actually watch */
   if(a!==courier&&courier.inShop)c.push({w:3,obj:courier.rig.J.head});
+  /* and a man hovering at the glass outranks everything */
+  if(SKY.look)c.push({w:6,obj:skyHero});
   if(a.prop)c.push({w:2,obj:a.prop});
   /* the random sweep is deliberately the weakest pull: at weight 1 the
      whole room read as evasive, everyone forever checking the corners */
@@ -4802,16 +4921,16 @@ for(const s of["wristL","wristR"]){
    .7 m of pavement between them, which a man with ten kilos a hand
    threads at a slight angle exactly the way real street furniture is
    threaded. */
-const ICE_ENTER=[[17.55,-.55],[13.3,-.62],[11.9,-.45],[10.95,.35],[10.78,1.0]];
+const ICE_ENTER=[[17.55,.5],[13.3,.45],[11.9,.6],[10.95,1.45],[10.78,2.07]];
 /* in through the REAL door and up to the bar: the entrance lane the
    stroller uses, then the barista's own detour round the EAST end of
    the counter — both lanes are already authored clear */
-const ICE_CARRY=[[10.35,1.0],[9.55,1.02],[8.65,1.0],[7.7,.78],[6.5,.75],
-                 [6.28,-.9],[4.6,-1.7],[3.6,-2.7],[3.5,-4.24],[3.15,-4.38]];
+const ICE_CARRY=[[10.35,1.95],[9.55,1.45],[8.65,1.0],[7.7,.78],[6.5,.75],
+                 [6.28,-.9],[4.6,-1.7],[3.6,-2.7],[3.5,-4.24],[3.12,-4.44]];
 const ICE_OUT=[[3.5,-4.24],[3.6,-2.7],[4.6,-1.7],[6.28,-.9],[6.5,.75],
-               [7.7,.82],[8.65,1.02],[9.6,1.02],[10.78,1.0]];
-const ICE_EXIT=[[10.95,.3],[11.9,-.5],[13.3,-.62],[17.55,-.55],[17.85,.95]];
-const ICE_SPAWN=[17.85,.95];              /* behind the cab: no interior
+               [7.7,.82],[8.65,1.05],[9.6,1.45],[10.78,2.07]];
+const ICE_EXIT=[[10.95,1.45],[11.9,.6],[13.3,.45],[17.55,.5],[17.85,2.05]];
+const ICE_SPAWN=[17.85,2.05];             /* behind the cab: no interior
                                              sightline reaches it */
 const ICE_DOOR_X=7.2;                     /* the shopfront door plane */
 /* where the delivery LANDS: on the floor at the east mouth of the
@@ -4901,11 +5020,13 @@ function shotDrop(a){
   playShot(a,1.7,function(k,buf){
     const p=pulse(k);
     addPose(buf,{
-      chest:{x:.30*p},spine:{x:.16*p},head:{x:.10*p},
-      shoulderL:{x:-.50*p,z:-.10*p},shoulderR:{x:-.50*p,z:.10*p},
+      chest:{x:.22*p},spine:{x:.10*p},head:{x:.10*p},
+      hipL:{x:-.30*p},hipR:{x:-.30*p},
+      kneeL:{x:.50*p},kneeR:{x:.50*p},
+      shoulderL:{x:-.60*p,z:-.10*p},shoulderR:{x:-.60*p,z:.10*p},
       elbowL:{x:-.12*p},elbowR:{x:-.12*p}
     },1);
-    a.dropDip=p*.14;
+    a.dropDip=p*.16;
     if(!put&&k>.55){
       put=true;
       courierBags.forEach(function(b){b.visible=false;});
@@ -4973,6 +5094,12 @@ function tickCourier(a,dtT){
       if(courierPath(a)){
         a.walkTarget=null;a.faceYaw=-Math.PI/2;   /* square to the aisle */
         a.gazeLock={pos:[2.6,.2,-4.4]};           /* eyes on where they land */
+        courierSt(a,"settle",.35);  /* the stride dies FIRST — bending out
+          of a moving walk is what folded him over the worktop */
+      }
+      break;
+    case "settle":
+      if(a.stT<=0){
         shotDrop(a);
         /* the barista clocks the delivery — a room where nobody notices
            a man carrying twenty kilos through it is a dead room */
@@ -5816,7 +5943,11 @@ function animateAgents(dt){
     a.clock+=dt*a.rateMul;
     const ac=a.clock;
     clearPose(a.buf);
-    if(a.rootY<0&&!a.sit)addPose(a.buf,SEAT_POSE,1);  /* seated base (guest: sitLayer owns it) */
+    /* rootY<0 is the cast's "seated" convention (the worker rides his
+       stool on it) — the courier's set-down dip lowers the same field,
+       and without the exclusion the trigger folded him into a full
+       chair pose mid-delivery */
+    if(a.rootY<0&&!a.sit&&a.kind!=="courier")addPose(a.buf,SEAT_POSE,1);
     walkLayer(a,a.buf,ac,dt);
     if(a.sit)sitLayer(a,a.buf,dt);
     shotsLayer(a,a.buf,dt);
@@ -7918,13 +8049,13 @@ if("speechSynthesis"in window){speechSynthesis.getVoices();speechSynthesis.onvoi
 const HOWTO={
  en:{title:"Welcome to my virtual coffee\u00A0☕",
      steps:["🚶 Arrow keys walk you in — have a wander, the place is mine",
-            "🪑 The chair with the green cushion is yours — sit and the resume comes up",
-            "💬 Read it, put it down, then pick a section — I'll fill in the gaps",
+            "🟡 To talk about my experience, step into the yellow circle and take the chair — the resume comes up and I fill in the gaps",
+            "🔎 The café hides its details: more actions are tucked away — walk up to things and a bubble tells you what they can do",
             "🔊 My words, an AI voice — turn your sound on (space hushes me)",
             "📄 In a hurry? “Download it” hands you the CV to keep"],
      stepsTouch:["🚶 Tap the floor to walk — have a wander, the place is mine",
-            "🪑 The chair with the green cushion is yours — sit and the resume comes up",
-            "💬 Read it, tap to put it down, then pick a section",
+            "🟡 To talk about my experience, step into the yellow circle and take the chair — the resume comes up",
+            "🔎 The café hides its details: more actions are tucked away — walk up to things and a bubble tells you",
             "🔊 My words, an AI voice — turn your sound on",
             "📄 In a hurry? “Download it” hands you the CV to keep"],
      btn:"Take a seat",
