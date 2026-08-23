@@ -5333,16 +5333,17 @@ window.__sit=()=>{
    Simon's voice keeps its own graph (attachAnalyser/lipGain): muting
    him never touches the music, muting the music never touches him.
    ════════════════════════════════════════════════════════════════════ */
-/* Three tracks, composed and rendered by preprocess_music.py in this
-   repo — the same answer the café gives everywhere else (textures,
-   articles, news): nothing licensed, nothing external, no rights
-   question on a public page. Durations are the rendered files';
-   bpm feeds the dancers' groove clock. Lazy: nothing on this list is
+/* One track — Simon's own song, supplied as a finished master. It replaced
+   the three preprocess_music.py renders (alive in git history, 4e6b102);
+   the script stays in the repo as their source. Duration is the file's.
+   bpm feeds the dancers' groove clock and was MEASURED from the audio, not
+   assumed: onsets land every 0.39 s with alternating accents — eighths at
+   152, felt beat 76 — and the crowd sways on the felt beat, one bob per
+   backbeat, not one per hi-hat. The playlist wraps modulo, so a list of
+   one simply replays; "next" is "again". Lazy: nothing on this list is
    fetched before somebody actually presses play. */
 const MUSIC=[
-  {key:"neon_crema",     title:"Neon Crema",      file:"audio/music/neon_crema.m4a",     dur:96, bpm:116},
-  {key:"percolator_funk",title:"Percolator Funk", file:"audio/music/percolator_funk.m4a",dur:99, bpm:102},
-  {key:"after_hours_foam",title:"After Hours Foam",file:"audio/music/after_hours_foam.m4a",dur:115,bpm:84}
+  {key:"balance_sheet_heart",title:"Balance Sheet Heart",file:"audio/music/balance_sheet_heart.m4a",dur:265,bpm:76}
 ];
 /* On the front wall between the first press article (x 2.44) and the
    plant (x 3.9), under the frame line (they hang at y 1.57+): the one

@@ -221,10 +221,13 @@ la distance caméra→émetteur (plancher à 25 %, jamais coupé), la voix de
 Simon écrase toujours la musique (duck à 20 %, relâché 500 ms après la
 réplique), et **s'asseoir renvoie la foule** — chacun regagne exactement la
 position et l'orientation enregistrées à l'init de la scène — pendant que la
-musique continue dans votre casque. Les trois pistes sont composées par
-`preprocess_music.py` (numpy + afconvert, −14 LUFS, AAC 128k) : rien de
-licencié, rien d'externe, comme tout le reste du café. Sonde console :
-`__jukebox()`.
+musique continue dans votre casque. Une seule piste désormais : « Balance
+Sheet Heart », la chanson de Simon, fournie en master fini — elle remplace
+les trois rendus de `preprocess_music.py` (toujours dans l'historique git,
+le script reste comme partition). Son bpm est mesuré sur l'audio (attaques
+toutes les 0,39 s, accents alternés : temps ressenti 76) parce que
+l'horloge des danseurs le lit. La playlist boucle par modulo : à une piste,
+« suivant » veut dire « encore ». Sonde console : `__jukebox()`.
 
 **Et dehors, ça bouge.** Toutes les ~30 s un avion traverse la baie, entre la
 plaque peinte (x = −3,9) et le mur (x = −3,25) : ce sont les jambages de la baie
@@ -299,9 +302,10 @@ three.min.js        three.js r134, vendorisé
 fonts/*.woff2       Space Grotesk · Inter · Caveat, auto-hébergées
 audio/en/*.mp3      La voix de Simon, une piste par clip (15 clés, cf. README)
 audio/en/v1/*.mp3   Les enregistrements v1, retirés du circuit — jamais chargés
-audio/music/*.m4a   Les trois pistes du jukebox — composées par preprocess_music.py,
-                    chargées paresseusement (rien avant le premier play)
-preprocess_music.py La partition : un mini-DAW numpy + afconvert (AAC 128k)
+audio/music/*.m4a   La piste du jukebox — « Balance Sheet Heart », la chanson de
+                    Simon, chargée paresseusement (rien avant le premier play)
+preprocess_music.py Un mini-DAW numpy + afconvert (AAC 128k) — la partition des
+                    trois pistes d'origine qu'elle remplace (vivantes dans git)
 og.jpg              Carte de partage 1200×630
 ```
 

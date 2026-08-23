@@ -103,9 +103,10 @@ fonts/*.woff2       Space Grotesk · Inter · Caveat (latin + latin-ext)
 three.min.js        three.js r134, vendored
 audio/en/*.mp3      The narration, one file per clip (see "Voice")
 audio/en/v1/*.mp3   The retired v1 recordings — kept, never loaded
-audio/music/*.m4a   The jukebox's three tracks — composed by preprocess_music.py,
-                    lazy-loaded, never fetched before someone presses play
-preprocess_music.py The tracks' source: a small numpy DAW + afconvert (AAC 128k)
+audio/music/*.m4a   The jukebox's one track — Balance Sheet Heart, Simon's own
+                    song; lazy-loaded, never fetched before someone presses play
+preprocess_music.py A small numpy DAW + afconvert (AAC 128k) — source of the three
+                    original tracks it replaced (removed from the repo, alive in git)
 og.jpg              1200×630 share card, rendered from the scene itself
 favicon.svg
 .nojekyll           skip the Jekyll build on Pages
@@ -632,12 +633,17 @@ headset off, sends everyone home the way they came (mid-arrival dancers turn
 around from wherever they are), fades the music out and returns every gain
 to nominal. The user volume survives in `localStorage` (`vc:musicVol`).
 
-The three tracks are **composed and rendered by `preprocess_music.py`** —
-a few hundred lines of numpy synthesizing disco, funk and lo-fi at matched
-loudness (≈ −14 LUFS), encoded to AAC 128k by macOS's own `afconvert`. The
-same answer the café gives everywhere else: nothing licensed, nothing
-external, no rights question on a public page. Adding a real track later is
-one file under `audio/music/` plus one line in the `MUSIC` map.
+The jukebox now plays **one track, "Balance Sheet Heart" — Simon's own
+song**, supplied as a finished master and his to publish. It took the slot
+the README predicted: "adding a real track later is one file under
+`audio/music/` plus one line in the `MUSIC` map" — that is exactly what
+happened, in the other direction too: the three `preprocess_music.py`
+renders (disco, funk, lo-fi in a few hundred lines of numpy at −14 LUFS)
+left with it. The script stays as their source, and git keeps the files.
+Its `bpm` was measured from the audio (onsets every 0.39 s, accents
+alternating: felt beat 76), because the dancers' groove clock reads it —
+a wrong guess there is visible on five bodies at once. With one entry the
+wrapping playlist simply replays, and "next" means "again".
 `window.__jukebox()` dumps the whole state — mode, gains, per-dancer phase —
 next to `__agents()` and `__guest()`.
 
