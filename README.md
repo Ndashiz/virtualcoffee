@@ -103,10 +103,10 @@ fonts/*.woff2       Space Grotesk · Inter · Caveat (latin + latin-ext)
 three.min.js        three.js r134, vendored
 audio/en/*.mp3      The narration, one file per clip (see "Voice")
 audio/en/v1/*.mp3   The retired v1 recordings — kept, never loaded
-audio/music/*.m4a   The jukebox's one track — Balance Sheet Heart, Simon's own
-                    song; lazy-loaded, never fetched before someone presses play
+audio/music/*      The jukebox's four tracks — Simon's own songs; lazy-loaded,
+                    never fetched before someone presses play
 preprocess_music.py A small numpy DAW + afconvert (AAC 128k) — source of the three
-                    original tracks it replaced (removed from the repo, alive in git)
+                    original tracks they replaced (removed from the repo, alive in git)
 og.jpg              1200×630 share card, rendered from the scene itself
 favicon.svg
 .nojekyll           skip the Jekyll build on Pages
@@ -620,30 +620,51 @@ or ducking never stops the dance. Distance is camera → transmitter: full
 inside 3 m, floored at 25 % past 12 m — the signal weakens, it never cuts,
 and the dancers stay at the box rather than following you. Any voice clip —
 mp3 or browser-voice fallback — ducks the music to 20 % in ~300 ms and
-releases half a second after the line ends: Simon always wins. The music
-mute is its own pill in the HUD (the note), separate from Simon's; each
-silences only its own graph.
+releases half a second after the line ends: when Simon starts talking over
+running music, Simon wins. The other direction is not a duck but a cut:
+**pressing play while he is mid-sentence stops him**, exactly like the skip
+pill, because the click is the visitor's answer and two voices sharing one
+pair of ears is not deference. Only real gestures do it — the auto-advance
+at the end of a track never silences a narration it happens to overlap. The
+music mute is its own pill in the HUD (the note), separate from Simon's;
+each silences only its own graph.
 
-**Sitting down at the table ends the party, crowd only**: the five walk back
-to positions and orientations recorded once at scene init (`JB_HOME`, never
-recomputed — recomputing is how positions drift across cycles), while the
-music keeps playing in your headset at the seated distance level. The exit —
-in the panel, or the eject pill in the HUD from anywhere — takes every
-headset off, sends everyone home the way they came (mid-arrival dancers turn
-around from wherever they are), fades the music out and returns every gain
-to nominal. The user volume survives in `localStorage` (`vc:musicVol`).
+**Sitting down at the table ends the party — all of it.** The table is where
+Simon talks, and the voice does not share the room, so arriving at the seat
+with the headset on runs the very exit the eject pill runs: every headset
+off, the five walk home to positions and orientations recorded once at
+scene init (`JB_HOME`, never recomputed — recomputing is how positions
+drift across cycles; mid-arrival dancers turn around from wherever they
+are), the music fades out — never cuts — and every gain returns to nominal.
+The panel exit and the HUD eject pill still work from anywhere. The user
+volume survives in `localStorage` (`vc:musicVol`). This overrides US-10,
+which kept the music running in the headset at the seated level.
 
-The jukebox now plays **one track, "Balance Sheet Heart" — Simon's own
-song**, supplied as a finished master and his to publish. It took the slot
-the README predicted: "adding a real track later is one file under
-`audio/music/` plus one line in the `MUSIC` map" — that is exactly what
-happened, in the other direction too: the three `preprocess_music.py`
+The jukebox plays **four tracks, all Simon's own songs**, supplied as
+finished masters and his to publish: *Balance Sheet Heart*, *The Verdict
+Is The Prod*, *Arbitrage* and *It's the PO*. They took the slot the README
+predicted — "adding a real track later is one file under `audio/music/`
+plus one line in the `MUSIC` map" — and the three `preprocess_music.py`
 renders (disco, funk, lo-fi in a few hundred lines of numpy at −14 LUFS)
-left with it. The script stays as their source, and git keeps the files.
-Its `bpm` was measured from the audio (onsets every 0.39 s, accents
-alternating: felt beat 76), because the dancers' groove clock reads it —
-a wrong guess there is visible on five bodies at once. With one entry the
-wrapping playlist simply replays, and "next" means "again".
+left to make room. The script stays as their source, and git keeps the
+files. Every `bpm` in the map was measured from the audio, never assumed,
+because the dancers' groove clock reads it and a wrong guess is visible on
+five bodies at once; when the onset grid and the accent structure disagree
+by an octave, the crowd dances the felt beat (Balance Sheet Heart: eighths
+at 152, felt 76; It's the PO: a flat 172 grid, danced at its half).
+
+**And you can see that it plays**: a CD sits in the jukebox's glass dome
+and spins while a track is on air — asymmetric glints on purpose, a
+perfectly radial disc would rotate invisibly — winding down on pause
+instead of freezing. The panel's now-playing row carries the same disc in
+CSS, animated by the same `playing` state. While a track is on air the
+three counter pendants trade their warm white for **nightclub gels** —
+three hue wheels a third of a turn apart, intensity riding the track's
+real level, the warm café points ducking to a third so the colour owns
+the room — and the crowd dances on spots spread so **no two dancers can
+ever touch**, looking at **you** three glances out of four. The HUD's way
+out is a labelled button — "⏏ Stop the music" — because a bare headset
+glyph made people guess.
 `window.__jukebox()` dumps the whole state — mode, gains, per-dancer phase —
 next to `__agents()` and `__guest()`.
 

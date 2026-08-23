@@ -218,16 +218,33 @@ la salle en décalé, décrochent un casque du rail en arrivant et dansent sur
 **l'amplitude réelle de la piste** — RMS par image, chacun avec sa phase, sa
 vitesse et son amplitude propres, jamais de clones. Le signal faiblit avec
 la distance caméra→émetteur (plancher à 25 %, jamais coupé), la voix de
-Simon écrase toujours la musique (duck à 20 %, relâché 500 ms après la
-réplique), et **s'asseoir renvoie la foule** — chacun regagne exactement la
-position et l'orientation enregistrées à l'init de la scène — pendant que la
-musique continue dans votre casque. Une seule piste désormais : « Balance
-Sheet Heart », la chanson de Simon, fournie en master fini — elle remplace
-les trois rendus de `preprocess_music.py` (toujours dans l'historique git,
-le script reste comme partition). Son bpm est mesuré sur l'audio (attaques
-toutes les 0,39 s, accents alternés : temps ressenti 76) parce que
-l'horloge des danseurs le lit. La playlist boucle par modulo : à une piste,
-« suivant » veut dire « encore ». Sonde console : `__jukebox()`.
+Simon écrase la musique quand elle joue déjà (duck à 20 %, relâché 500 ms
+après la réplique) ; dans l'autre sens c'est une coupure, pas un duck :
+**lancer la musique pendant qu'il parle l'arrête net**, comme la pilule
+skip — le clic est la réponse du visiteur, et seul un vrai geste le fait
+(l'enchaînement automatique en fin de piste ne le fait jamais taire). Et
+**s'asseoir termine le silent disco en entier** — la table est le
+territoire de la voix : casques retirés, chacun regagne exactement la
+position et l'orientation enregistrées à l'init de la scène, la musique
+s'éteint en fondu. Quatre pistes, toutes des chansons de Simon fournies en
+master fini — « Balance Sheet Heart », « The Verdict Is The Prod »,
+« Arbitrage », « It's the PO » — qui remplacent les trois rendus de
+`preprocess_music.py` (toujours dans l'historique git, le script reste
+comme partition). Chaque bpm est mesuré sur l'audio parce que l'horloge des
+danseurs le lit ; quand la maille des attaques et la structure d'accents
+divergent d'une octave, la foule danse le temps ressenti. Et ça se voit
+qu'une piste joue : **un CD tourne dans le dôme vitré du meuble** tant que
+la musique est à l'antenne — reflets asymétriques exprès, un disque
+parfaitement radial tournerait invisiblement — et ralentit en fondu à la
+pause au lieu de geler ; le panneau porte le même disque en CSS, animé par
+le même état. Pendant qu'une piste joue, les trois suspensions du comptoir
+passent en **gélatines de boîte de nuit** — trois roues de teinte décalées
+d'un tiers de tour, l'intensité sur le niveau réel de la piste, la lumière
+chaude s'effaçant aux deux tiers — la foule danse sur des places écartées
+pour que **deux danseurs ne puissent jamais se toucher**, et regarde **le
+visiteur** trois regards sur quatre. La sortie du HUD est un bouton en
+toutes lettres (« ⏏ Stop the music ») plutôt qu'un pictogramme à deviner.
+Sonde console : `__jukebox()`.
 
 **Et dehors, ça bouge.** Toutes les ~30 s un avion traverse la baie, entre la
 plaque peinte (x = −3,9) et le mur (x = −3,25) : ce sont les jambages de la baie
@@ -302,10 +319,10 @@ three.min.js        three.js r134, vendorisé
 fonts/*.woff2       Space Grotesk · Inter · Caveat, auto-hébergées
 audio/en/*.mp3      La voix de Simon, une piste par clip (15 clés, cf. README)
 audio/en/v1/*.mp3   Les enregistrements v1, retirés du circuit — jamais chargés
-audio/music/*.m4a   La piste du jukebox — « Balance Sheet Heart », la chanson de
-                    Simon, chargée paresseusement (rien avant le premier play)
+audio/music/*       Les quatre pistes du jukebox — les chansons de Simon,
+                    chargées paresseusement (rien avant le premier play)
 preprocess_music.py Un mini-DAW numpy + afconvert (AAC 128k) — la partition des
-                    trois pistes d'origine qu'elle remplace (vivantes dans git)
+                    trois pistes d'origine qu'elles remplacent (vivantes dans git)
 og.jpg              Carte de partage 1200×630
 ```
 

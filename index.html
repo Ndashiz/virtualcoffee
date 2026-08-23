@@ -415,7 +415,15 @@
   .jnow[hidden]{display:none;}
   .jtrack{margin:0 0 10px;font-size:14.5px;font-weight:600;color:#f5e0b0;
     display:flex;align-items:center;gap:8px;min-height:20px;}
-  .jtrack .jnote{color:var(--gold);}
+  .jtrack .jcd{width:16px;height:16px;border-radius:50%;flex:none;
+    position:relative;display:inline-block;
+    background:conic-gradient(#e8eef0,#9aa7ad 70deg,#f0b64a 95deg,#e8eef0 140deg,
+      #8fa0a8 200deg,#2f8f86 235deg,#e8eef0 290deg,#9aa7ad 330deg,#e8eef0);
+    animation:jspin 1.6s linear infinite;animation-play-state:paused;}
+  .jtrack .jcd::after{content:"";position:absolute;inset:5px;border-radius:50%;
+    background:#141a1f;border:1.5px solid #c9973c;}
+  .jbx.playing .jcd{animation-play-state:running;}
+  @keyframes jspin{to{transform:rotate(360deg);}}
   .jtrack .jdur{margin-left:auto;color:#7f93a1;font-size:12px;font-weight:500;
     font-variant-numeric:tabular-nums;}
   .jrow{display:flex;gap:7px;align-items:center;}
@@ -473,17 +481,11 @@
       <path d="M3.4 3.4l13.2 13.2"/>
     </svg>
   </button>
-  <button class="pill icon" id="jbHudExit" hidden
-          aria-label="Take the headset off — end the silent disco"
-          title="Take the headset off — end the silent disco">
-    <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none"
-         stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M4 12v-1.4a6 6 0 0 1 12 0V12"/>
-      <rect x="3" y="11.4" width="3" height="4.6" rx="1.2"/>
-      <rect x="14" y="11.4" width="3" height="4.6" rx="1.2"/>
-      <path d="M8 18h4"/>
-    </svg>
-  </button>
+  <!-- Labelled in full — a bare headset glyph made people guess (Simon's
+       call): the button says what it does, stop the music and leave. -->
+  <button class="pill" id="jbHudExit" hidden
+          aria-label="Stop the music and exit the jukebox"
+          title="Stop the music and exit the jukebox">⏏ Stop the music</button>
   <button class="pill icon" id="muteBtn" hidden aria-pressed="false"
           aria-label="Mute Simon's voice" title="Mute the voice (M)">
     <svg class="on" viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none"
@@ -553,7 +555,7 @@
   </div>
   <div class="jlist" id="jbList"></div>
   <div class="jnow" id="jbNow" hidden>
-    <p class="jtrack"><span class="jnote" aria-hidden="true">♪</span>
+    <p class="jtrack"><span class="jcd" aria-hidden="true"></span>
       <span id="jbTrackName"></span><span class="jdur" id="jbTime"></span></p>
     <div class="jrow">
       <button class="jbtn" id="jbPrev" type="button" aria-label="Previous track"
@@ -1857,14 +1859,16 @@ function drawCarte(x){
   x.fillText("Virtual Coffee — La Carte",512,68);
   x.strokeStyle="rgba(244,183,64,.8)";x.lineWidth=3;
   x.beginPath();x.moveTo(300,88);x.quadraticCurveTo(512,102,724,88);x.stroke();
-  const L=[["Le cappuccino salfari","3,8 €"],
-           ["Le café serré du lendemain","2,5 €"],
-           ["Le déca de 18 h","2,0 €"],
-           ["L'allongé du syndic","2,8 €"]];
-  const R=[["L'espresso d'avant-daily","2,2 €"],
-           ["Le latte « c'était un mail »","4,5 €"],
-           ["Le flat white sprint review","4,0 €"],
-           ["Le moka onboarding express","4,2 €"]];
+  /* English like the rest of the UI (v1.45.0); the prices keep their
+     Belgian comma — the café is still in Brussels. */
+  const L=[["The Salfari cappuccino","3,8 €"],
+           ["The morning-after ristretto","2,5 €"],
+           ["The 6 pm decaf","2,0 €"],
+           ["The syndic's lungo","2,8 €"]];
+  const R=[["The pre-daily espresso","2,2 €"],
+           ["The “could've been an email” latte","4,5 €"],
+           ["The sprint-review flat white","4,0 €"],
+           ["The express-onboarding mocha","4,2 €"]];
   x.font="600 33px 'Caveat',cursive";
   L.forEach((it,k)=>{
     x.fillStyle="#e9eef2";x.textAlign="left";x.fillText(it[0],56,152+k*58);
@@ -3860,10 +3864,16 @@ function buildPerson(opts){
   /* long enough to reach INTO the skull at the top and under the pad at
      the bottom: a neck that merely spans the gap shows a seam at both
      ends the moment he turns his head */
-  put(neck,new THREE.CylinderGeometry(.052,.058,.16,12),mSk,0,.065,0,false,"skin");
-  /* .28, not .26: the sheet wants 8-15 cm of neck, and at .26 only six
-     showed between the collar line and the jaw */
-  const head=joint(neck,"head",0,.28,0);
+  /* 15 % SHORTER (Simon's call — length, not thickness: the first cut
+     thinned the radii and he corrected it). The cylinder keeps its feet
+     in the torso — bottom stays at -.015 — and loses the height at the
+     top; the head joint comes down the same .024 so the chin never
+     hovers over a gap. The cylinder top (.121) still tucks into the
+     skull (bottom .106): no seam when a head turns. */
+  put(neck,new THREE.CylinderGeometry(.052,.058,.136,12),mSk,0,.053,0,false,"skin");
+  /* was .28 (the sheet's 8 cm of visible neck); .256 is that minus the
+     15 % Simon asked off the neck's height */
+  const head=joint(neck,"head",0,.256,0);
   put(head,new THREE.SphereGeometry(.15,18,16),mSk,0,0,0,true,"skin");
   const hair=put(head,new THREE.SphereGeometry(.155,18,14),mH,0,.06,-.015,false,"hair");
   hair.scale.set(1,.72,1);
@@ -3903,20 +3913,23 @@ function buildPerson(opts){
        shows between the cap and the strands — and a patch of skin that
        shape, at that height, reads as an ear sticking out of the hair,
        which is exactly what it was mistaken for.
-       THROAT: and it must hang BEHIND the neck. At .86 deep and centred
-       on -.03 it wrapped forward past the windpipe and swallowed it;
-       pulled back to -.045 and slimmed to .80, its front edge at neck
-       height lands behind the throat, so the neck reads in front of the
-       hair the way it does on a person. */
+       THROAT: and it must hang BEHIND the neck — with margin, not by a
+       hair. The first fix (-.045, depth .80) cleared the throat only on a
+       level head: its front edge at neck height sat ~8 mm behind the
+       skin, and the dance nod alone rotates the mass ~30 mm forward, so
+       on anyone dancing (or now that necks are 15 % slimmer) the hair
+       swallowed the throat again. Pulled to -.062 and slimmed to .74,
+       the front edge clears the neck even at full nod. */
     const back=new THREE.Mesh(new THREE.SphereGeometry(.152,18,16),mH);
-    back.position.set(0,-.02,-.045);
-    back.scale.set(1.08,1.30,.80);
+    back.position.set(0,-.02,-.062);
+    back.scale.set(1.08,1.30,.74);
     back.userData.slot="hair";longHair.add(back);
     /* the two that frame the face, kept off the throat: they stop at the
        jaw, and they sit out at the temple rather than in front of it */
     for(const e of[-1,1]){
       const strand=new THREE.Mesh(new THREE.BoxGeometry(.062,.22,.075),mH);
-      strand.position.set(.126*e,-.045,.012);
+      /* nudged out and back so a nod can't swing them across the throat */
+      strand.position.set(.130*e,-.045,-.002);
       strand.rotation.z=.05*e;
       strand.userData.slot="hair";longHair.add(strand);
     }
@@ -4660,7 +4673,7 @@ function collideGuest(a){
 }
 function startSit(a){
   a.state="sit";a.walkTarget=null;
-  jbOnSit();                      /* sitting down ends the party — crowd only */
+  jbOnSit();                      /* sitting down ends the party — music included */
   showSeatMarker(false);          /* you are in it: the marker has done its job */
   a.sit={k:0,fx:a.pos.x,fz:a.pos.z,rY:.56-.855*a.rig.root.scale.x};
   playShot(a,1.05,(k,buf)=>{           /* brace on the way down */
@@ -5333,17 +5346,22 @@ window.__sit=()=>{
    Simon's voice keeps its own graph (attachAnalyser/lipGain): muting
    him never touches the music, muting the music never touches him.
    ════════════════════════════════════════════════════════════════════ */
-/* One track — Simon's own song, supplied as a finished master. It replaced
-   the three preprocess_music.py renders (alive in git history, 4e6b102);
-   the script stays in the repo as their source. Duration is the file's.
-   bpm feeds the dancers' groove clock and was MEASURED from the audio, not
-   assumed: onsets land every 0.39 s with alternating accents — eighths at
-   152, felt beat 76 — and the crowd sways on the felt beat, one bob per
-   backbeat, not one per hi-hat. The playlist wraps modulo, so a list of
-   one simply replays; "next" is "again". Lazy: nothing on this list is
-   fetched before somebody actually presses play. */
+/* Simon's own songs, supplied as finished masters. They replaced the three
+   preprocess_music.py renders (alive in git history, 4e6b102); the script
+   stays in the repo as their source. Durations are the files'. Every bpm
+   feeds the dancers' groove clock and was MEASURED from the audio, never
+   assumed — a wrong guess there is visible on five bodies at once. The
+   method: onset-envelope autocorrelation for the accent structure, an
+   inter-onset histogram for the grid, and when the two disagree by an
+   octave the crowd takes the felt beat (Balance Sheet Heart: eighths at
+   152, accents alternating, felt 76; It's the PO: a flat 172 grid with no
+   alternation, danced at its half). Lazy: nothing on this list is fetched
+   before somebody actually presses play. */
 const MUSIC=[
-  {key:"balance_sheet_heart",title:"Balance Sheet Heart",file:"audio/music/balance_sheet_heart.m4a",dur:265,bpm:76}
+  {key:"balance_sheet_heart",title:"Balance Sheet Heart",file:"audio/music/balance_sheet_heart.m4a",dur:265,bpm:76},
+  {key:"the_verdict_is_the_prod",title:"The Verdict Is The Prod",file:"audio/music/the_verdict_is_the_prod.mp3",dur:190,bpm:92},
+  {key:"arbitrage",title:"Arbitrage",file:"audio/music/arbitrage.mp3",dur:182,bpm:86},
+  {key:"its_the_po",title:"It's the PO",file:"audio/music/its_the_po.mp3",dur:188,bpm:86}
 ];
 /* On the front wall between the first press article (x 2.44) and the
    plant (x 3.9), under the frame line (they hang at y 1.57+): the one
@@ -5372,13 +5390,17 @@ try{const v=parseFloat(localStorage.getItem("vc:musicVol"));
    the furniture like every other route in this file (extras do not
    collide, so the route IS the collision). */
 const JB_DANCERS=[standA,standB,standC,worker,drinker];
-const JB_SPOTS=[[2.65,3.15],[2.1,2.9],[1.7,2.35],[3.55,2.75],[4.35,2.95]];
+/* Spread so no two dancers can touch: every pair is ≥ .94 m apart, and the
+   only sub-metre pair sits outside each other's forward arm arc (they face
+   the box, arms swing forward, and a torso is ~.45 wide with ~.48 of arm
+   reach — Simon's rule: the crowd never makes contact). */
+const JB_SPOTS=[[2.7,3.2],[1.8,2.75],[1.4,1.9],[3.75,2.85],[4.7,3.2]];
 const JB_PATHS=[
-  [[-1.25,-2.85],[1.6,-1.95],[1.7,-.1],[1.75,1.5],[2.65,3.15]],
-  [[-1.1,-2.6],[1.5,-1.8],[1.65,0],[1.7,1.6],[2.1,2.9]],
-  [[-1.3,-3.1],[1.4,-2.05],[1.7,-.3],[1.75,1.4],[1.7,2.35]],
-  [[1.7,-2.3],[2.3,-1.2],[3.6,-.4],[3.7,1.3],[3.55,2.75]],
-  [[-1.1,-1.85],[1.55,-1.7],[2.5,-.9],[3.9,-.2],[4.3,1.4],[4.35,2.95]]
+  [[-1.25,-2.85],[1.6,-1.95],[1.7,-.1],[1.75,1.5],[2.7,3.2]],
+  [[-1.1,-2.6],[1.5,-1.8],[1.65,0],[1.7,1.6],[1.8,2.75]],
+  [[-1.3,-3.1],[1.4,-2.05],[1.7,-.3],[1.75,1.4],[1.4,1.9]],
+  [[1.7,-2.3],[2.3,-1.2],[3.6,-.4],[3.7,1.3],[3.75,2.85]],
+  [[-1.1,-1.85],[1.55,-1.7],[2.5,-.9],[3.9,-.2],[4.3,1.4],[4.7,3.2]]
 ];
 /* Recorded ONCE, here, at scene init — the spec's homeTransform rule.
    Never recomputed from the current state, or the positions drift a
@@ -5441,7 +5463,7 @@ function jbEnsureHeadsets(){
    the crowd's sets visibly "come from the same jukebox". */
 const jbGroup=new THREE.Group();
 const jbRack=[];
-let jbNeonA,jbNeonB,jbTipMat,jbLight,jbFaceTex;
+let jbNeonA,jbNeonB,jbTipMat,jbLight,jbFaceTex,jbCd;
 {
   const wood=stdMat(0x5e3420,.55,0,.8),dark=stdMat(0x1c1e24,.5,.3,.8);
   const gold=stdMat(0xc9973c,.35,.7,1.1);
@@ -5463,6 +5485,29 @@ let jbNeonA,jbNeonB,jbTipMat,jbLight,jbFaceTex;
   const glass=new THREE.Mesh(new THREE.CircleGeometry(.30,24,0,Math.PI),
     new THREE.MeshBasicMaterial({color:0x10151c}));
   glass.position.set(0,1.01,.185);jbGroup.add(glass);
+  /* the CD in the dome — the moving part that says "playing" from across
+     the room. The glints are deliberately asymmetric: a perfectly radial
+     texture would rotate invisibly. It spins in the frame tick below,
+     with a damped wind-down instead of a freeze-frame stop. */
+  jbCd=new THREE.Mesh(new THREE.CircleGeometry(.205,32),
+    new THREE.MeshBasicMaterial({map:ctex(128,128,function(x,w,h){
+      x.clearRect(0,0,w,h);
+      const c=w/2,R=w*.48;
+      const g=x.createRadialGradient(c,c,w*.09,c,c,R);
+      g.addColorStop(0,"#cfd6d9");g.addColorStop(.5,"#aeb9bf");g.addColorStop(1,"#e9eef0");
+      x.fillStyle=g;x.beginPath();x.arc(c,c,R,0,7);x.fill();
+      const cols=["#f0b64a55","#2f8f8655","#d94f4533","#ffffff66"];
+      for(let i=0;i<7;i++){
+        x.fillStyle=cols[i%cols.length];
+        const a=i*1.13;
+        x.beginPath();x.moveTo(c,c);x.arc(c,c,R,a,a+.35);x.closePath();x.fill();
+      }
+      x.strokeStyle="#ffffff2e";x.lineWidth=1;
+      for(let r=w*.16;r<R;r+=3){x.beginPath();x.arc(c,c,r,0,7);x.stroke();}
+      x.fillStyle="#c9973c";x.beginPath();x.arc(c,c,w*.14,0,7);x.fill();
+      x.fillStyle="#10151c";x.beginPath();x.arc(c,c,w*.05,0,7);x.fill();
+    }),transparent:true}));
+  jbCd.position.set(0,1.01,.190);jbGroup.add(jbCd);
   /* the marquee — painted, like every sign in this café */
   function drawJbFace(x,w,h){
     x.fillStyle="#141a1f";x.fillRect(0,0,w,h);
@@ -5548,7 +5593,7 @@ function jbAudio(){
     el.addEventListener("ended",()=>{  /* sequential playlist, wrapping */
       /* !JB.on: a track that runs out DURING the exit fade must not
          resurrect the party the exit is tearing down */
-      if(JB.on&&el===JB.els[JB.cur])jbPlayTrack((JB.idx+1)%MUSIC.length);
+      if(JB.on&&el===JB.els[JB.cur])jbPlayTrack((JB.idx+1)%MUSIC.length,true);
     });
     el.addEventListener("play",jbSyncUI);
     el.addEventListener("pause",jbSyncUI);
@@ -5680,9 +5725,12 @@ function tickJukebox(dtT){
         a.jbGazeT-=dtT;
         if(a.jbGazeT<=0){
           a.jbGazeT=jit(4,.5);
+          /* Simon's rule: the party looks at the VISITOR. Three quarters of
+             every glance lands on the guest; the box and the neighbours get
+             the remainder, so five locked stares never read as a wax museum. */
           const r=Math.random();
-          a.gazeLock=r<.45?{obj:guest.rig.J.head}
-                    :r<.75?{pos:[JUKEBOX.x,1.3,JUKEBOX.z]}
+          a.gazeLock=r<.75?{obj:guest.rig.J.head}
+                    :r<.9?{pos:[JUKEBOX.x,1.3,JUKEBOX.z]}
                     :{obj:JB_DANCERS[(i+1+((Math.random()*4)|0))%JB_DANCERS.length].rig.J.head};
         }
         /* hands-up flourish when the track is actually loud */
@@ -5781,7 +5829,18 @@ function jbEnterMode(){
   if(musicBtn)musicBtn.hidden=false;
   if(jbHudExit)jbHudExit.hidden=false;
 }
-function jbPlayTrack(i){
+/* Starting music BY HAND while Simon is mid-sentence cuts him off — the
+   same abort the skip pill runs, because it answers the same gesture: one
+   pair of ears, and the click IS the visitor's answer. Ducking him to 20 %
+   under a track the visitor just chose is not deference, it is two people
+   talking at once. The guard sits ONLY on real gestures: the auto-advance
+   at the end of a track, or anything else the machine does on its own,
+   must never silence a narration it merely happens to overlap. */
+function jbYieldFloor(){
+  if(speaking){abortChain();stopSpeaking();}
+}
+function jbPlayTrack(i,auto){
+  if(!auto)jbYieldFloor();
   i=(i%MUSIC.length+MUSIC.length)%MUSIC.length;
   const N=jbAudio();
   if(JB.exitFade!==null){JB.exitFade=null;JB.els.forEach(el=>{el.volume=1;});}
@@ -5803,6 +5862,7 @@ function jbToggle(){
   if(!JB.els||JB.idx<0)return;
   const el=JB.els[JB.cur];
   if(el.paused){
+    jbYieldFloor();      /* resuming by hand is the same gesture as pressing play */
     const pr=el.play();if(pr&&pr.catch)pr.catch(()=>{});
     JB.playing=true;
     jbSummon();          /* a resume can restart a party that went home */
@@ -5835,11 +5895,17 @@ function jbExitMode(){
   if(jbHudExit)jbHudExit.hidden=true;
   jbSyncUI();
 }
-/* sitting down ends the party — the CROWD only. The music plays on at
-   the seated distance level, the HUD keeps mute and exit (US-10). */
+/* Sitting down ends the party — ALL of it. The table is where Simon talks,
+   and the voice does not share the room: arriving there with the headset on
+   fades the music out and takes the headset off (Simon's rule, 2026-08-23 —
+   it overrides US-10, which kept the music running in the headset at the
+   seated level). jbExitMode owns the exit, so the fade, the doffing, the
+   crowd's walk home and the panel behave exactly as the eject pill; when
+   the disco is not on there is nothing to end and only the panel needs
+   closing. */
 function jbOnSit(){
-  if(JB.crowd==="out")jbSendCrowdHome();
-  closeJukeboxPanel();
+  if(JB.on)jbExitMode();
+  else closeJukeboxPanel();
 }
 /* closing time (the outro): no ceremony. Music off, headsets away, every
    dancer handed back so the last-orders choreography owns them — they
@@ -5914,6 +5980,35 @@ function jbFrame(dt){
   jbTipMat.color.setHex(on?(Math.sin(t*6)>0?0x59d98a:0x2a7a4d)
                           :(Math.sin(t*2.2)>0?0xd94f45:0x6a2a26));
   jbLight.intensity=on?.22+.5*JB.levelSlow:0;
+  /* the CD: full speed on air, winds down on pause rather than freezing */
+  JB.cdSpin=damp(JB.cdSpin||0,on?1:0,.09,dt);
+  if(jbCd)jbCd.rotation.z-=dt*4.2*JB.cdSpin;
+  /* NIGHTCLUB GELS (Simon's call): while the disco plays, the three counter
+     pendants stop being café lamps and throw colour — one hue wheel per
+     lamp, phase-shifted a third of a turn apart so the room is never lit
+     in one flat tint, intensity riding the track's real level like every
+     other reactive thing here. Faded in and out through one damp, so
+     pressing play never flicks the room like a light switch. The lamps'
+     glow sprites take the same colour, so the fixtures themselves read as
+     gelled, not just the walls under them. */
+  if(!JB.gels){
+    JB.gels=[[-0.900,2.0,-3.477],[0.371,2.0,-3.477],[1.642,2.0,-3.477]].map(function(p){
+      const l=new THREE.PointLight(0xffffff,0,5.5,2);
+      l.position.set(p[0],p[1],p[2]);scene.add(l);return l;
+    });
+    JB.gelW=0;
+  }
+  JB.gelW=damp(JB.gelW,on?1:0,.10,dt);
+  for(let gi=0;gi<3;gi++){
+    const l=JB.gels[gi];
+    l.color.setHSL(((RM?0:t*.16)+gi/3)%1,1,.55);
+    l.intensity=JB.gelW*(.85+1.5*JB.levelSlow);
+    const pd=pendants[gi];
+    if(pd&&pd.glow){
+      if(JB.gelW>.02)pd.glow.material.color.copy(l.color).multiplyScalar(.75+.6*JB.levelSlow);
+      else pd.glow.material.color.setHex(0xffca5f);
+    }
+  }
   const f=.75+.6*JB.levelSlow;
   JB_HS_LED.color.setRGB(.941*f,.714*f,.29*f);
   for(let i=0;i<jbRack.length;i++){
@@ -5984,6 +6079,8 @@ function jbSyncUI(){
     jbStateEl.textContent=JB.playing?"on air":(JB.idx>=0?"paused":"");
     jbStateEl.classList.toggle("air",JB.playing);
   }
+  /* the panel's CD spins exactly when the dome's does */
+  if(jbxEl)jbxEl.classList.toggle("playing",JB.playing);
 }
 function openJukebox(){
   if(cafeClosed)return;
@@ -6049,8 +6146,11 @@ const SK=0xe8b58c;
   collar.position.y=1.40;simon.add(collar);
   /* the throat itself: from under the collar up into the skull, so no
      seam shows at either end while he talks and turns */
-  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.07,.078,.2,14),mSkin);
-  neck.position.y=1.40;simon.add(neck);
+  /* 15 % shorter, like every neck in the room (length, not thickness —
+     Simon's correction). Bottom stays under the collar at 1.30; the top
+     lands at 1.47, still 15 mm inside the lowered skull. */
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.07,.078,.17,14),mSkin);
+  neck.position.y=1.385;simon.add(neck);
   const placket=new THREE.Mesh(new THREE.BoxGeometry(.035,.42,.012),
     new THREE.MeshStandardMaterial({color:0x1c3654}));
   placket.position.set(0,1.1,.235);simon.add(placket);
@@ -6077,7 +6177,9 @@ const SK=0xe8b58c;
    collar whose top was 1.465, so the man had no neck at all — a head
    set straight into a shirt. The two constants are named because the
    animate loop breathes his head around this exact height. */
-const SIMON_HEAD_Y=1.67;
+/* 1.64, was 1.67: the head sits .03 lower now that the neck lost 15 %
+   of its height — same 15 mm of cylinder tucked into the skull as before. */
+const SIMON_HEAD_Y=1.64;
 const simonHead=new THREE.Group();simonHead.position.set(0,SIMON_HEAD_Y,-1.08);scene.add(simonHead);
 {
   const mSkin=new THREE.MeshStandardMaterial({color:SK,roughness:.6});
@@ -7968,7 +8070,9 @@ function animate(){
   }else{
     /* incommensurable frequencies: a pure sine reads as a mechanical pulse */
     keySpot.intensity=1.75+(RM?0:fbm1(t,8.7,0)*.035);
-    lampPts.forEach((p,i)=>p.intensity=.7+(RM?0:fbm1(t,7.3,i*2.3+1.1)*.045));
+    /* the warm counter points duck while the disco gels own the room —
+       two-thirds down, not off: a nightclub still has a bar you can see */
+    lampPts.forEach((p,i)=>p.intensity=(.7+(RM?0:fbm1(t,7.3,i*2.3+1.1)*.045))*(1-.65*(JB.gelW||0)));
   }
 
   updateCamera(dt,t);
