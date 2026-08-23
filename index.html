@@ -8078,14 +8078,22 @@ if("speechSynthesis"in window){speechSynthesis.getVoices();speechSynthesis.onvoi
 /* ---------------- HOW-TO OVERLAY ---------------- */
 const HOWTO={
  en:{title:"Welcome to my virtual coffee\u00A0☕",
-     steps:["🚶 Arrow keys walk you in — have a wander, the place is mine",
+     /* Two cards for two machines (matchMedia pointer:coarse decides):
+        a keyboard gets keys spelled out — arrows or WASD, and because
+        the browser reports PHYSICAL key positions, ZQSD just works on
+        an AZERTY — while a thumb gets taps and swipes. Each card only
+        promises what its device can actually do: no Shift, no scroll
+        wheel on a phone. */
+     steps:["⌨️ Walk with the arrow keys or WASD (ZQSD works too) — have a wander, the place is mine",
+            "🖱️ Drag to look around · scroll to zoom · hold Shift to run",
             "🟡 To talk about my experience, step into the yellow circle and take the chair — the resume comes up and I fill in the gaps",
             "🔎 The café hides its details: more actions are tucked away — walk up to things and a bubble tells you what they can do",
             "🔊 My words, an AI voice — turn your sound on (space hushes me)",
             "📄 In a hurry? “Download it” hands you the CV to keep"],
-     stepsTouch:["🚶 Tap the floor to walk — have a wander, the place is mine",
-            "🟡 To talk about my experience, step into the yellow circle and take the chair — the resume comes up",
-            "🔎 The café hides its details: more actions are tucked away — walk up to things and a bubble tells you",
+     stepsTouch:["👆 Tap the floor and he walks there — have a wander, the place is mine",
+            "🤳 Drag a finger to look around the room",
+            "🟡 To talk about my experience, step into the yellow circle — the resume comes up",
+            "🔎 The café hides its details: walk up to things and a bubble tells you",
             "🔊 My words, an AI voice — turn your sound on",
             "📄 In a hurry? “Download it” hands you the CV to keep"],
      btn:"Take a seat",
