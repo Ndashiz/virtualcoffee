@@ -2428,8 +2428,14 @@ VC.fontsReady.then(function(){
    default and it lands on its head. Turning flipY off cancels the
    exporter's flip instead of repeating it. */
 const texLoader=new THREE.TextureLoader();
+/* Bump LABEL_TEX_V whenever a file under tex/ is repainted: the café loads
+   these without it a browser would happily serve its cached copy of the OLD
+   plaque for hours — which is exactly how « MON PALMARES » survived its own
+   repaint on Simon's screen. A version in the query is a new URL, so every
+   returning visitor gets the new paint on a plain reload. */
+const LABEL_TEX_V="2";
 function labelTex(name){
-  const t=texLoader.load("tex/"+name+".png");
+  const t=texLoader.load("tex/"+name+".png?v="+LABEL_TEX_V);
   t.flipY=false;
   t.encoding=THREE.sRGBEncoding;t.anisotropy=maxAniso;
   return t;
@@ -6008,6 +6014,34 @@ function jbFrame(dt){
       if(JB.gelW>.02)pd.glow.material.color.copy(l.color).multiplyScalar(.75+.6*JB.levelSlow);
       else pd.glow.material.color.setHex(0xffca5f);
     }
+  }
+  /* The three wall sconces over the diploma wall join the party (Simon's
+     call). Their bulbs merge into ONE mesh sharing MATS.ampoule — the
+     pendant bulbs are split off in SPECIAL with their own clones, so
+     tinting the shared material touches the sconces and nothing else.
+     They run the same wheel a half-turn out of phase with the pendants,
+     and three small wall lights wash the frames and the cabinet under
+     them; everything restores through the same gelW damp. */
+  if(!JB.sconceGels){
+    JB.sconceGels=[2.437,4.132,5.827].map(function(x){
+      const l=new THREE.PointLight(0xffffff,0,3.6,2);
+      l.position.set(x,2.55,3.3);scene.add(l);return l;
+    });
+  }
+  for(let gi=0;gi<3;gi++){
+    const l=JB.sconceGels[gi];
+    l.color.setHSL(((RM?0:t*.16)+gi/3+.5)%1,1,.55);
+    l.intensity=JB.gelW*(.55+1.0*JB.levelSlow);
+  }
+  /* CAFE is the model's public face (top-level; MATS is not) — the merged
+     sconce-bulb mesh sits in its map under the shared ampoule material,
+     while the pendant bulbs live apart as SPECIAL clones: tinting this
+     one material gels the three sconces and nothing else. */
+  const scb=CAFE.ready&&CAFE.meshes.get("m:ampoule");
+  if(scb&&scb.material&&scb.material.emissive){
+    if(JB.gelW>.02){
+      scb.material.emissive.copy(JB.sconceGels[1].color).multiplyScalar(1+1.2*JB.levelSlow);
+    }else scb.material.emissive.setHex(0xffd9a0);
   }
   const f=.75+.6*JB.levelSlow;
   JB_HS_LED.color.setRGB(.941*f,.714*f,.29*f);

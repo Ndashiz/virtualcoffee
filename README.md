@@ -661,7 +661,10 @@ CSS, animated by the same `playing` state. While a track is on air the
 three counter pendants trade their warm white for **nightclub gels** —
 three hue wheels a third of a turn apart, intensity riding the track's
 real level, the warm café points ducking to a third so the colour owns
-the room — and the crowd dances on spots spread so **no two dancers can
+the room, and the three wall sconces over the diploma wall running the
+same wheel half a turn out of phase (their bulbs share one material,
+kept apart from the pendants' SPECIAL clones — tint one, touch nothing
+else) — and the crowd dances on spots spread so **no two dancers can
 ever touch**, looking at **you** three glances out of four. The HUD's way
 out is a labelled button — "⏏ Stop the music" — because a bare headset
 glyph made people guess.

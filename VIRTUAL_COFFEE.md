@@ -240,7 +240,8 @@ pause au lieu de geler ; le panneau porte le même disque en CSS, animé par
 le même état. Pendant qu'une piste joue, les trois suspensions du comptoir
 passent en **gélatines de boîte de nuit** — trois roues de teinte décalées
 d'un tiers de tour, l'intensité sur le niveau réel de la piste, la lumière
-chaude s'effaçant aux deux tiers — la foule danse sur des places écartées
+chaude s'effaçant aux deux tiers, et les trois appliques du mur des
+diplômes sur la même roue un demi-tour plus loin — la foule danse sur des places écartées
 pour que **deux danseurs ne puissent jamais se toucher**, et regarde **le
 visiteur** trois regards sur quatre. La sortie du HUD est un bouton en
 toutes lettres (« ⏏ Stop the music ») plutôt qu'un pictogramme à deviner.
