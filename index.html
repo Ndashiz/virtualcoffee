@@ -4840,9 +4840,20 @@ function gazeAngles(a){
   else _gv.set(g.pos[0],g.pos[1],g.pos[2]);
   a.rig.J.head.getWorldPosition(_gp);
   _gv.sub(_gp);
+  /* WORLD -> the agent's own frame, which means rotating the vector by
+     MINUS his yaw. The old pair passed -ry into a formula that already
+     negates, so it turned the vector the wrong way and handed gazeLayer
+     an angle of yawWorld + yaw instead of yawWorld - yaw. Dead ahead the
+     two agree, which is why nobody caught it: the error is zero at yaw 0
+     and grows with it. Measured with a target planted 2 m to each
+     character's own left — standB, at yaw -1.83, was looking 177.8 deg
+     away from it, i.e. over his other shoulder; the drinker and the
+     reader 155; the guest 106. Only the barista, at yaw .35, was close.
+     Half the room has been staring at the wrong thing since the gaze
+     layer was written. */
   const ry=a.yaw;
-  const cx=Math.cos(-ry)*_gv.x-Math.sin(-ry)*_gv.z;
-  const cz=Math.sin(-ry)*_gv.x+Math.cos(-ry)*_gv.z;
+  const cx=Math.cos(ry)*_gv.x-Math.sin(ry)*_gv.z;
+  const cz=Math.sin(ry)*_gv.x+Math.cos(ry)*_gv.z;
   _ga.yaw=Math.atan2(cx,cz);
   _ga.pitch=Math.atan2(_gv.y,Math.hypot(cx,cz));
 }
@@ -5893,6 +5904,18 @@ function tickStand(a,dtT){
 }
 function tickBarista(a,dtT){
   if(a.onModeEnter&&a.mode===BAR.GRIND&&a.modeDur===0)setMode(a,BAR.GRIND,jit(4.5,.2));
+  /* Captured and cleared HERE, at the top, and that is the whole bug.
+     setMode() raises onModeEnter, but every setMode in this function is
+     called from INSIDE the switch below — and the old code cleared the
+     flag on the last line of the same tick. So the flag was raised and
+     buried between two statements, and no `if(a.onModeEnter)` branch in
+     the switch could ever see it: the tamp, the serve, the think, the sip
+     and the stretch were unreachable code. Measured before the fix: the
+     state machine visited every mode, and the cup the serve exists to
+     slide never moved a millimetre in 2600 frames. Reading the flag once
+     per tick and clearing it immediately lets a mode entered on tick N be
+     answered on tick N+1, which is what a one-shot flag is for. */
+  const enter=a.onModeEnter;a.onModeEnter=false;
   a.modeT+=dtT;
   const done=a.modeT>=a.modeDur;
   switch(a.mode){
@@ -5901,7 +5924,7 @@ function tickBarista(a,dtT){
       if(done)setMode(a,BAR.TAMP,jit(2.6,.2));
       break;
     case BAR.TAMP:
-      if(a.onModeEnter){
+      if(enter){
         a.gazeLock={pos:[.6,1.32,-3.55]};
         playShot(a,2.2,(k,buf)=>{     /* two firm presses, with wind-up */
           const kk=k<.45?k/.45:k<.55?0:(k-.55)/.45;
@@ -5931,7 +5954,7 @@ function tickBarista(a,dtT){
       if(done)setMode(a,BAR.SERVE,jit(3.2,.2));
       break;
     case BAR.SERVE:
-      if(a.onModeEnter){
+      if(enter){
         a.gazeLock={pos:[1.5,1.3,-2.85]};      /* toward the client side */
         playShot(a,2.6,(k,buf)=>{
           if(k<.4){const p=easeInOut(k/.4);
@@ -5948,7 +5971,7 @@ function tickBarista(a,dtT){
       if(done)setMode(a,BAR.IDLE,jit(6,.6));
       break;
     case BAR.IDLE:
-      if(a.onModeEnter){
+      if(enter){
         a.gazeLock=null;
         serveCup.position.set(1.62,1.253,-3.3);
         if(Math.random()<.5&&a.shots.length===0)
@@ -5960,10 +5983,21 @@ function tickBarista(a,dtT){
       if(done)setMode(a,BAR.GRIND,jit(4.5,.2));
       break;
   }
-  a.onModeEnter=false;
 }
 function tickWorker(a,dtT){
   if(a.onModeEnter&&a.mode===WK.TYPE&&a.modeDur===0)setMode(a,WK.TYPE,jit(9,.4));
+  /* Captured and cleared HERE, at the top, and that is the whole bug.
+     setMode() raises onModeEnter, but every setMode in this function is
+     called from INSIDE the switch below — and the old code cleared the
+     flag on the last line of the same tick. So the flag was raised and
+     buried between two statements, and no `if(a.onModeEnter)` branch in
+     the switch could ever see it: the tamp, the serve, the think, the sip
+     and the stretch were unreachable code. Measured before the fix: the
+     state machine visited every mode, and the cup the serve exists to
+     slide never moved a millimetre in 2600 frames. Reading the flag once
+     per tick and clearing it immediately lets a mode entered on tick N be
+     answered on tick N+1, which is what a one-shot flag is for. */
+  const enter=a.onModeEnter;a.onModeEnter=false;
   a.modeT+=dtT;
   const done=a.modeT>=a.modeDur;
   switch(a.mode){
@@ -5977,7 +6011,7 @@ function tickWorker(a,dtT){
       }
       break;
     case WK.THINK:
-      if(a.onModeEnter){
+      if(enter){
         playShot(a,1.2,(k,buf)=>{             /* hand to chin */
           const p=easeInOut(Math.min(1,k*2));
           addPose(buf,{shoulderR:{x:-1.7*p},elbowR:{x:-1.9*p},head:{z:-.06*p}},1);
@@ -5987,12 +6021,12 @@ function tickWorker(a,dtT){
       if(done)setMode(a,WK.TYPE,jit(9,.4));
       break;
     case WK.SIP:
-      if(a.onModeEnter&&a.shots.length===0)sipShot(a,null);
+      if(enter&&a.shots.length===0)sipShot(a,null);
       a.gazeLock=null;
       if(done)setMode(a,WK.TYPE,jit(9,.4));
       break;
     case WK.STRETCH:
-      if(a.onModeEnter){
+      if(enter){
         a.gazeLock=null;
         playShot(a,2.8,(k,buf)=>{             /* arms up, spine back */
           const p=pulse(k);
@@ -6004,7 +6038,6 @@ function tickWorker(a,dtT){
       if(done)setMode(a,WK.TYPE,jit(9,.4));
       break;
   }
-  a.onModeEnter=false;
 }
 /* the 4-phase sip: grab -> raise -> drink -> put down. Never a sine. */
 function sipShot(a,cup){
