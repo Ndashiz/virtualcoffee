@@ -65,7 +65,23 @@
     color:#fff;text-shadow:1px 1px 0 #000,2px 2px 0 rgba(0,0,0,.6);
     pointer-events:none;opacity:0;transition:opacity .16s;padding:0 12px;}
   .subs.on{opacity:1;}
-  @media(max-width:640px){ .subs{font-size:16px;bottom:calc(9vh + 14px);} }
+  /* Two things go wrong the moment the dialogue box becomes a sheet.
+     The track is centred with left:50% and nothing on the right, so it
+     shrink-to-fits inside the RIGHT HALF of the window — 50vw, never the
+     70ch it asks for — and the longest sentence in the script piles up
+     fifteen lines deep (measured 324 px at 393x660). Two edges and an
+     auto margin hand it back its measure: the same line becomes seven
+     lines, 151 px. Lifting it clear of the CV row is the sheet's job and
+     lives in the sheet's own block, where the reserve is defined.
+     The 1024 bound on the height arm is what keeps a half-height DESKTOP
+     window out of this: it must read the same as the sheet's own
+     condition, or the track could be raised without the row it dodges. */
+  @media(max-width:640px),(max-height:560px) and (max-width:1024px){
+    .subs{left:0;right:0;transform:none;margin-inline:auto;
+      font-size:16px;bottom:calc(9vh + 14px);
+      padding-left:max(12px,env(safe-area-inset-left));
+      padding-right:max(12px,env(safe-area-inset-right));}
+  }
 
   .sign{position:fixed;top:calc(14px + env(safe-area-inset-top));left:50%;transform:translateX(-50%) rotate(-1.6deg);z-index:20;
     font-family:"Caveat",cursive;font-weight:700;font-size:30px;color:var(--gold);
@@ -75,13 +91,27 @@
     color:#9fb4bc;letter-spacing:2.4px;text-transform:uppercase;margin-top:2px;}
 
   /* Stacking, bottom to top: overlays 12 · sign 20 · prompt 20 ·
-     how-to 50 · text resume 60 · tools 70 · skip link 80.
-     The tools stay on top so the mute pill is reachable from over the
-     welcome card; the skip link outranks even them, because a control
-     you can only reach by Tab is worth nothing if something covers it. */
+     how-to 50 · text resume 60 · zoom 70 · tools 75 · skip link 80.
+     The tools stay on top so the mute pill and the resume pill are both
+     reachable from over the welcome card; the skip link outranks even
+     them, because a control you can only reach by Tab is worth nothing
+     if something covers it.
+     75 and not 70, because at 70 the bar merely TIED with the zoom, and a
+     tie is broken by document order — the zoom is declared later, so it
+     painted over the pills. That cost two things at once, the zoom
+     closing on a backdrop pointerdown: the mute was unreachable, and
+     every attempt to reach it shut the newspaper. The music pills weigh
+     more than the mute here — the jukebox panel sits at 26, buried under
+     any full-screen layer, so this bar is the only way to stop the music
+     while you read. */
   .tools{position:fixed;top:calc(16px + env(safe-area-inset-top));
-    right:calc(16px + env(safe-area-inset-right));z-index:70;
-    display:flex;gap:8px;align-items:center;}
+    right:calc(16px + env(safe-area-inset-right));z-index:75;
+    /* wrap so the bar never walks off the left edge: with the jukebox in
+       play it carries four controls, and a 320 px phone runs out of room
+       before it runs out of buttons. Inert whenever the content fits, so
+       every desktop width is byte-identical to before. */
+    display:flex;flex-wrap:wrap;justify-content:flex-end;
+    gap:8px;align-items:center;}
   .pill:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
 
   .pill{border:1px solid #3a4d56;border-radius:999px;background:rgba(22,28,33,.88);
@@ -89,9 +119,35 @@
     font-family:"Space Grotesk",sans-serif;font-size:13px;transition:.18s;}
   .pill:hover{color:var(--gold);border-color:var(--gold);}
 
+  /* ── The one pill that is never hidden ─────────────────────────
+     Every other control in this bar is scene chrome and starts `hidden`.
+     This one cannot. A phone has no Tab key, so the skip link at the top
+     of the page does not exist for a thumb, and "See the resume" only
+     appears once the visitor is seated and the dialogue box is up — a
+     walk and a monologue away. Without a permanent door there is no way
+     at all into the flat resume by touch, and the flat resume is the
+     document people came for. .tools outranks every full-screen layer
+     (75), so it is live and clickable from the first frame.
+     Gold on the outside, filled on hover: the .pill:hover rule only
+     swaps the colours this one already has, so without its own hover it
+     would be the single control in the bar with no mouse feedback.
+     No touch floor here — that goes in the mobile block. A text pill is
+     45 px tall on its own once the emoji drags the line box up, and
+     forcing 44 on the shared desktop bar pushed the mute pill down. */
+  #cvBtn{font-weight:600;line-height:16px;
+    color:var(--gold);border-color:var(--gold);}
+  #cvBtn:hover{background:var(--gold);color:#20303a;}
+  /* Panel open, button dead: the sheet is the whole screen by then and
+     the pill would sit above it arguing with the panel's own ✕. Hidden
+     rather than toggled, because openCV() resets scrollTop — a second tap
+     meant to close would throw the reader back to the top of a document
+     they were halfway down. :has() is a progressive nicety: where it is
+     missing the pill simply stays put, which is merely pointless, never
+     broken. */
+  body:has(#cv-text:not([hidden])) #cvBtn{display:none;}
+
   /* Mute: icon only — the speaker glyph is the one control nobody needs
-     told, and it is the only pill left in the bar now that the text
-     resume has no button of its own.
+     told.
      Hidden until the scene wires it: no audio exists without the scene,
      and a dead toggle is worse than no toggle. */
   /* the [hidden] rule must come with the display, or the attribute is
@@ -109,7 +165,15 @@
      café (keyboard, screen readers, sound off), what a visitor without
      WebGL gets, and what a crawler that never runs the 3D can index. */
   .cv{position:fixed;inset:0;z-index:60;overflow-y:auto;overscroll-behavior:contain;
-    background:#141c24;padding:74px 20px 72px;}   /* top clears the .tools bar */
+    background:#141c24;
+    /* The top pad clears the .tools bar, and the bar hangs off
+       env(safe-area-inset-top) — so this must too, or the clearance
+       evaporates on a notched phone at the very place the notch was
+       supposed to make room. It is not only about the text: .cvclose is
+       sticky against the PADDING edge of this scrollport rather than the
+       viewport, so this single value is also what keeps the ✕ out from
+       under the pills, at every scroll position. */
+    padding:calc(74px + env(safe-area-inset-top)) 20px 72px;}   /* top clears the .tools bar */
   .cv[hidden]{display:none;}
   /* Its own close button, since the pill that used to double as one is
      gone. Sticky rather than fixed: it belongs to the panel, so it rides
@@ -212,6 +276,47 @@
     .readhint{font-size:12px;padding:6px 12px;}
   }
 
+  /* ── Wall documents on a phone: opened at reading size, not at screen size ──
+     Fitting the whole page onto a 390 px screen is what made opening it
+     pointless. 94vw leaves 350 px of canvas for a 420 px drawing, so the body
+     copy — which drawArticle sets between 12.5 and 10.5 px depending on how
+     much of it there is — lands at 8.7 to 10.4 px, in a serif, in two columns.
+     That is the small print nobody could read from the floor, still unreadable
+     with the thing in your hands, which is the one reason it opens at all.
+     So the phone stops fitting and starts panning. 4/3 of the painter's own
+     units puts its smallest possible body size on 14 px — what the text resume
+     gives its own prose — and is also what a full-screen 1080p desktop already
+     gets: the phone is handed the same page, not a thumbnail of it. The price
+     is one sideways swipe per column, against a page that could not be read.
+     Deliberately its own @media instead of a line inside the max-width:640px
+     block above: nothing here reads a value from that block — not its padding,
+     not its border — and the .zoom.paper qualifier outranks it, so that block's
+     condition can move, or move below this one, without taking the wall
+     documents with it. Note 852x393 — a phone on its side — never matched it
+     in the first place. */
+  @media (max-width:640px),(max-height:560px){
+    /* the stage is what pans; the caption below it must stay put */
+    .zoomstage{overflow:auto;overscroll-behavior:contain;max-width:100%;}
+    /* `canvas{touch-action:none}` at the top of this file is there for the 3D
+       viewport, where a swipe is a look and never a scroll. Inherited here it
+       leaves the page unpannable — the one gesture this whole block is for.
+       The 16px below is the two borders of the line above it: border-box. */
+    .zoom.paper .zoomfig canvas{border-width:8px;touch-action:pan-x pan-y;
+      width:calc(var(--zw,420)*4px/3 + 16px);height:auto;
+      max-width:none;max-height:none;}
+  }
+  /* A phone on its side is 393 px tall and 116 of them are padding. The title
+     of the thing you are already looking at is the cheapest 26 px in the
+     layout — two lines of it on a narrow screen — so it goes to the screen
+     reader only, which is the whole accessible text of this overlay since the
+     canvas has none. The scrub bar is left alone on purpose: it only ever
+     shows over a `live` feed, never over a newspaper, so hiding it would cost
+     the television its player and buy the press nothing. */
+  @media (max-height:560px){
+    .zoom.paper .zoomfig figcaption{position:absolute;width:1px;height:1px;
+      overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+  }
+
   /* Reachable by screen readers and crawlers, invisible on screen. */
   .visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
     overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;}
@@ -289,7 +394,14 @@
     letter-spacing:2.2px;text-transform:uppercase;color:#8fa2b0;
     text-shadow:0 2px 8px rgba(0,0,0,.8);}
   @keyframes tpop{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
-  .tlinks{display:flex;gap:7px;margin-top:5px;flex-wrap:wrap;}
+  /* Sticky in the BASE rule, not in a breakpoint. The row promises the CV
+     is one tap away at every moment of the dialogue, and it is the last
+     child of a box capped by max-height — so it slides out of the fold
+     the instant the menu outgrows the cap, which happens on a half-height
+     desktop window and in tier 2 on a large one, not only on a phone.
+     Sticky is inert while the box does not scroll: measured identical to
+     the pixel at 1280x800, before and after. */
+  .tlinks{display:flex;gap:7px;margin-top:5px;flex-wrap:wrap;position:sticky;bottom:0;}
   .tlinks[hidden]{display:none;}
   /* The two that matter — see the CV, keep the CV — are SOLID gold on
      dark ink. The old 12%-tint pills sat on a bright café and had to be
@@ -331,27 +443,85 @@
   .sheetx:hover{background:var(--gold);color:#20303a;}
   .sheetx[hidden]{display:none;}
 
-  @media(max-width:640px){
+  /* The sheet layout is not a phone thing, it is a SHORT-WINDOW thing.
+     A phone held sideways at 852x393 has width to burn and no height at
+     all, and the 300 px side panel is precisely what does not fit there:
+     capped at 100dvh-190px it showed 203 px of a 618 px menu, and the CV
+     row — last child of a box that had run out of room — sat at y 651 in
+     a 393 px window. The other 640 px blocks in this file are about
+     horizontal room and stay width-only; this one is about both.
+     The 1024 bound keeps a half-height desktop window out of it: .tnum is
+     not decoration, keyItem() maps 1-9 and 0 onto the options, and this
+     block hides it. Every phone on its side is under 1024 (852, 932, 956);
+     no realistic desktop window is. */
+  @media(max-width:640px),(max-height:560px) and (max-width:1024px){
+    /* The strip the CV row keeps at the floor of the sheet, so the
+       caption track can be parked on top of it instead of through it.
+       88 px is two rows of pills — 79.5 measured, plus the 8 px the fade
+       needs — which is what four pills wrap to below ~570 px of usable
+       width. Add a fifth link and this number moves with it. */
+    :root{--cvrow:88px;}
     /* a phone has no room for a side panel: the box becomes a sheet
        across the bottom, and the subtitles move above it (see .subs) */
-    .talk{left:0;right:0;width:auto;bottom:calc(11vh + 10px);padding:0 12px;
+    .talk{left:0;right:0;width:auto;bottom:calc(11vh + 10px);
+      padding:0 max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left));
       max-height:52dvh;}
     .tlead{font-size:19px;}
     .topts{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
     .topt{padding:8px 10px;font-size:12.5px;}
     .topt .tnum{display:none;}
     .thead{grid-column:1/-1;margin:5px 0 0;}
-    .skip{bottom:auto;top:calc(60px + env(safe-area-inset-top));}
+    /* the fade is what stops the options reading through the gaps between
+       the pills once the menu starts scrolling underneath them */
+    .tlinks{margin-top:0;padding-top:8px;
+      min-height:var(--cvrow,88px);align-content:flex-end;
+      background:linear-gradient(rgba(15,21,27,0),rgba(15,21,27,.92) 34%);}
+    /* Keyed to the sheet being up, not to body.talking: he talks on the
+       way in as well, and until you sit down there is no CV row to dodge
+       — the caption belongs on the letterbox then. */
+    body:has(.talk:not([hidden])) .subs{bottom:calc(11vh + 10px + var(--cvrow,88px) + 10px);}
+    /* clears the tools bar, which is now 44 px tall because of #cvBtn */
+    .skip{bottom:auto;top:calc(70px + env(safe-area-inset-top));}
+  }
+  /* Short but wide: the phone on its side. Width to spend and no height,
+     so the menu goes three across, the CV row is one line of pills instead
+     of two, and the sheet may use everything the letterbox leaves it —
+     277 px of menu against a 293 px cap at 852x393, so nothing is clipped.
+     These two blocks are NOT mutually exclusive — a 640-wide 393-tall
+     screen matches both — and it is source order that lets this one win
+     on --cvrow. Do not reorder them. */
+  @media(max-height:560px) and (min-width:641px) and (max-width:1024px){
+    :root{--cvrow:48px;}
+    .topts{grid-template-columns:repeat(3,1fr);}
+    .talk{max-height:calc(100dvh - 100px);}
   }
   @media(prefers-reduced-motion:reduce){
     .topt.late{animation:none;}
     .talk,.topt{transition:none;}
   }
 
-  .howto{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+  /* A short window and a tall card. The welcome is the one screen you
+     cannot get past without pressing its button, so it has to be able to
+     scroll — and centring it with align-items pushes the overflow out of
+     BOTH ends: at 852x393 the card measured 509 px tall with its title
+     58 px above the top edge and "Take a seat" 33 px below the bottom
+     one, and html,body{overflow:hidden} means there is nowhere to go and
+     fetch them. Auto margins centre it identically while there is room
+     and collapse to the top edge when there is not, which is the only
+     kind of centring that stays scrollable.
+     The padding is env() and NOTHING else on purpose. A flat floor here
+     would be charged to every window: 14 px was enough to push a card
+     that fitted a 1280x600 desktop into a scrollbar, and to narrow the
+     phone card by 26 px, since .hcard{width:92%} measures against this
+     box. The breathing room belongs in the short-window block, which is
+     the only place it is needed. */
+  .howto{position:fixed;inset:0;z-index:50;display:flex;
+    overflow-y:auto;overscroll-behavior:contain;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right)
+            env(safe-area-inset-bottom) env(safe-area-inset-left);
     background:rgba(10,8,8,.72);backdrop-filter:blur(6px);transition:opacity .4s;}
   .howto.hide{opacity:0;pointer-events:none;}
-  .hcard{background:#1b2530;border:1px solid #3a4d56;border-radius:18px;padding:26px 30px 24px;
+  .hcard{margin:auto;background:#1b2530;border:1px solid #3a4d56;border-radius:18px;padding:26px 30px 24px;
     max-width:430px;width:92%;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.6);}
   .hcard h2{font-family:"Caveat",cursive;font-size:36px;color:var(--gold);margin:0 0 12px;line-height:1.05;}
   .hsteps{list-style:none;margin:0 0 20px;padding:0;text-align:left;color:#dfe8f2;font-size:14.5px;line-height:1.5;}
@@ -366,13 +536,46 @@
     .sign small{font-size:8.5px;letter-spacing:1.8px;}
     .tools{gap:6px;}
     .pill{padding:7px 12px;font-size:12px;}
+    /* the 44 px touch floor the icon pills never got — mobile only, so the
+       desktop bar keeps the compact height a mouse is happy with */
+    #cvBtn{min-height:44px;padding:11px 15px;}
     .prompt{font-size:16px;white-space:normal;width:min(92vw,340px);text-align:center;line-height:1.3;}
     .hcard{padding:20px 18px 18px;}
     .hcard h2{font-size:30px;}
     .hsteps{font-size:13.5px;}
-    .cv{padding:64px 16px 60px;}
+    /* keep the env() from the desktop rule: this is the phone, where the
+       inset is not zero and the ✕ is the thing it protects */
+    .cv{padding:calc(64px + env(safe-area-inset-top)) 16px 60px;}
     .cvsheet{font-size:15px;}
     .cvsheet h1{font-size:27px;}
+  }
+  /* The same card on a window with no height. Nothing here is about
+     width — it is the same six steps, just not 597 px of them. Compacted
+     they come to 269 px at 852x393 and the whole card fits, insets and
+     button included; on a 568x320 it still runs 28 px long, and THAT is
+     what the scroll on .howto is for. Deliberately placed after the
+     640 px block rather than folded into it: a small phone held sideways
+     matches both, the short one has to win, and the block above also
+     carries rules (.sign left-aligned, .prompt wrapped to 340 px) that
+     are plainly wrong on a screen 852 px wide. */
+  @media(max-height:560px){
+    /* the breathing room the base .howto rule deliberately does not take,
+       so that a 1280x600 desktop window keeps the card it already fitted */
+    .howto{padding-block:14px;}
+    .hcard{padding:14px 16px 14px;}
+    .hcard h2{font-size:23px;margin:0 0 8px;}
+    .hsteps{font-size:12.5px;line-height:1.38;margin:0 0 12px;}
+    .hsteps li{padding:4px 4px;}
+    #enterBtn{padding:10px 26px;font-size:14px;}
+  }
+  /* Width the card can use once it no longer has to fit a phone: at
+     852 px the six touch steps go from three-of-six wrapped to one line
+     each, and the card from 320 px to 269 px. That 52 px is what keeps a
+     320 px-tall phone on its side from having to scroll at all. Kept out
+     of the block above because a 320 px-tall PHONE has no such width to
+     give. */
+  @media(max-height:560px) and (min-width:641px){
+    .hcard{max-width:560px;}
   }
   @media(prefers-reduced-motion:reduce){
     .prompt{animation:none;}
@@ -463,6 +666,20 @@
 </div>
 <div class="sign" id="sign">Virtual Coffee<small>discussion with Simon</small></div>
 <div class="tools">
+  <!-- The resume, one tap away, from the first frame and from anywhere —
+       the bar sits above every full-screen layer (z-index 75), so this
+       holds over the welcome card and over an open newspaper alike.
+       Deliberately NOT `hidden` like the rest of the bar (see the #cvBtn
+       rule): the skip link above it is a keyboard affordance and a phone
+       has no keyboard, so this is the only permanent door to the flat CV.
+       Labelled apart from the dialogue box's "See the resume" on purpose
+       — that one lifts the sheet on the table, this one opens the flat
+       text you can actually read on a phone.
+       Wired in the VC shell rather than here or in the scene, because it
+       has to survive the no-WebGL path where no scene ever runs. -->
+  <button class="pill" id="cvBtn" type="button"
+          aria-label="Resume — read the text version"
+          title="Read the resume as text">📄 Resume (text)</button>
   <!-- The jukebox pair, hidden until a headset is actually on. The note
        is the one-click music mute the spec demands from anywhere; the
        eject is the way OUT of the silent disco from anywhere — the
@@ -604,7 +821,7 @@
     <span>Back to the café</span>
   </button>
   <figure class="zoomfig">
-    <div class="zoomstage">
+    <div class="zoomstage" id="zoomStage">
       <canvas id="zoomC"></canvas>
       <div class="zoomload" id="zoomLoad" hidden>
         <div class="zspin" aria-hidden="true"></div>
@@ -748,9 +965,14 @@ window.VC = (function(){
      the getter and onLang survive so nothing downstream throws. */
 
   /* ── Text resume panel ──────────────────────────────────────────
-     The pill that used to open this is GONE from the café — the sheet
-     on the table and "See the resume" cover that job now, and the tools
-     bar was two pills competing to show the same document. The panel
+     The pill that opens this is back in the tools bar, and this time it
+     is not a duplicate of "See the resume": that one lives inside the
+     dialogue box, which only exists once the visitor has walked in, sat
+     down and heard himself introduced — and what it lifts is the sheet
+     on the table, which renders its body copy at about five pixels on a
+     phone. A thumb arriving on the welcome card had nothing at all
+     before the pill: the skip link is keyboard-only by construction, and
+     there is no Tab key on a phone. The panel
      itself stays exactly where it was, because it is not decoration:
      it is what a crawler indexes, what a no-WebGL visitor gets (see
      textOnly), what the closed café offers, and what a screen reader
@@ -788,7 +1010,7 @@ window.VC = (function(){
      and with it every way of closing the panel (see panelOnly). */
   function textOnly(reason){
     console.warn('[virtual-coffee] 3D unavailable —', reason);
-    ['howto', 'sign', 'prompt', 'app', 'cvSkip'].forEach(id => {
+    ['howto', 'sign', 'prompt', 'app', 'cvSkip', 'cvBtn'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });
@@ -804,6 +1026,18 @@ window.VC = (function(){
   {
     const skip = document.getElementById('cvSkip');
     if (skip) skip.addEventListener('click', e => { e.preventDefault(); openCV(); });
+  }
+  /* The pill in the tools bar: the touch counterpart of the skip link.
+     Resolved through window.VC at CLICK time and never captured here —
+     VCPing replaces VC.openCV in the next <script> to count the opens,
+     so a reference taken now would be the unwrapped original and every
+     tap on the pill would go quietly uncounted. The fallback to the
+     local openCV is for the impossible case only, and costs nothing. */
+  {
+    const btn = document.getElementById('cvBtn');
+    if (btn) btn.addEventListener('click', () => {
+      ((window.VC && window.VC.openCV) || openCV)();
+    });
   }
   if (!hasWebGL) textOnly('no WebGL context');
 
@@ -1314,12 +1548,15 @@ const TALK={
         ["banking","Why banking"],["howibuilt","How I built this"]],
  outro:["outro","And to wrap up… ☕"]
 };
-/* Where the outro sends you. The download is built from the resume
-   canvas — the sheet on the table IS the CV, at 1240×1754 — so there is
-   no PDF to keep in step with it. Point CV_FILE at a real file and the
-   button links to that instead. */
+/* Where the outro sends you. There IS a PDF now, at the repo root: one
+   page, real selectable text, the same document the sheet on the table
+   renders at 1240×1754. So the two have to be kept in step by hand —
+   change the sheet, re-export the PDF. CV_FILE is the only place the
+   filename lives; empty it and the button falls back to the canvas PNG
+   (see the cvDl handler, and read why that is a fallback and not the
+   shipping path). */
 const LINKEDIN_URL="https://www.linkedin.com/in/ndashiz/";
-const CV_FILE="";
+const CV_FILE="CV_Simon_Goffin_2026.pdf";
 
 /* The ping lives in a separate <script> on purpose (see its header). If that
    block never ran, the café simply goes uncounted and always open — it must
@@ -1352,12 +1589,21 @@ camera.position.copy(camBase);
 /* A WebGL probe passing does not guarantee a context: blocklisted drivers,
    too many live contexts, or a GPU process that just died all throw here. */
 let renderer;
-try{ renderer=new THREE.WebGLRenderer({antialias:true}); }
+/* No antialias, no stencil. The scene is never drawn to the default
+   framebuffer: it goes into RT_HDR, and the only thing this file ever
+   puts on screen is the composite/FXAA full-screen quad. A multisampled
+   backbuffer therefore resolves one textured quad with no interior edges
+   — it antialiases nothing and holds a second full-resolution colour
+   buffer, ~40 MB at 2x DPR. Geometry AA is the FXAA pass's job. Stencil
+   goes for the same reason: no pass here writes or tests one.
+   setPixelRatio and shadowMap.type move down into the profile block: both
+   have to read QUALITY, which cannot be declared until the context probes
+   below have run. The binding deadline is allocTargets() at its own call
+   site further down — that is what reads the drawing buffer size. */
+try{ renderer=new THREE.WebGLRenderer({antialias:false,stencil:false}); }
 catch(err){ VC.textOnly((err&&err.message)||"WebGL context refused"); return; }
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputEncoding=THREE.sRGBEncoding;
 /* ACES moved into the composite shader: the renderer must output raw HDR,
    or the bloom bright-pass has no >1 values left to catch. */
@@ -1373,12 +1619,59 @@ const CAN_HALF=IS_GL2?!!_gl.getExtension("EXT_color_buffer_float")
 const CAN_DEPTH_TEX=IS_GL2||!!_gl.getExtension("WEBGL_depth_texture");
 const HDR_TYPE=CAN_HALF?THREE.HalfFloatType:THREE.UnsignedByteType;
 
+/* A PROFILE, not a bloom switch. "low" used to move the two cheapest
+   knobs in the frame while the three expensive ones — pixel count, two
+   2048 shadow maps, 16x anisotropy on every canvas texture — stayed at
+   desktop settings on a phone. Everything a handset cannot afford is
+   decided once here and read everywhere else.
+     pixelRatio   a DPR-3 handset was rendering ~1.3 Mpx through a chain
+                  that allocates HDR + depth + LDR + bright + 4 mips.
+                  1.5 is 44% fewer pixels in every one of them.
+     shadowSize   1024 halves both maps: 4x less rasterisation of the
+                  cafe model per frame, 4x less VRAM.
+     shadowType   PCF, NOT Basic. Basic is a single tap — hard, stair-
+                  stepped edges under a warm spot on a parquet floor, and
+                  that soft pool of light IS the room's look. PCF costs 17
+                  taps against PCFSoft's 16, so it is not cheaper per
+                  fragment; we take it because it is the only 2D shadow
+                  path in r134 that reads shadow.radius, and the radius is
+                  what buys back the softness the halved map just lost.
+     shadowRadius under PCF the 17 taps sit at 0, +/-r/2 and +/-r texels:
+                  r=2 keeps them on adjacent texels, r=3 leaves 1.5-texel
+                  holes and rings the penumbra. Inert on "high" — PCFSoft
+                  hardcodes its kernel and never reads the field.
+     aniso        16x on a six-inch screen is bandwidth spent on detail
+                  nobody can resolve. The floor and the rug are the only
+                  surfaces grazing enough to care, and 2x carries them. */
 const QUALITY=(function(){
   const small=Math.min(innerWidth,innerHeight)<700;
-  if(TOUCH||small||!CAN_DEPTH_TEX)
-    return {name:"low",bloom:2,dof:false,fxaa:true};
-  return {name:"high",bloom:4,dof:true,fxaa:true};
+  /* TWO AXES, deliberately. The frame-cost knobs (bloom, DOF) keep the
+     original condition: a small viewport really does want a cheaper
+     frame, and that has been the behaviour since the post chain landed.
+     The HARDWARE knobs key off TOUCH alone. A windowed desktop browser
+     trips `small` constantly — a 1280x800 laptop with a bookmarks bar is
+     already under 700 — and QUALITY is computed once at boot, so keying
+     the pixel ratio to it would pin such a session to DPR 1.5 and 1024
+     shadow maps for its whole life on a machine that never needed it. */
+  const lite=TOUCH||small||!CAN_DEPTH_TEX;
+  const hw=TOUCH
+    ?{pixelRatio:1.5,shadowSize:1024,shadowType:THREE.PCFShadowMap,
+      shadowRadius:2,aniso:2}
+    :{pixelRatio:2,shadowSize:2048,shadowType:THREE.PCFSoftShadowMap,
+      shadowRadius:3,aniso:maxAniso};
+  return Object.assign({name:lite?"low":"high",bloom:lite?2:4,dof:!lite,
+                        fxaa:true,mobile:TOUCH},hw);
 })();
+/* Applied here and not at construction because the profile needs the
+   context probes above to have run. setPixelRatio re-runs setSize()
+   internally, so the cost of the detour is one redundant resize at boot;
+   both land long before allocTargets() asks for the buffer size. */
+renderer.setPixelRatio(Math.min(devicePixelRatio,QUALITY.pixelRatio));
+renderer.shadowMap.type=QUALITY.shadowType;
+/* The hardware cap is a ceiling, not a target: every texture in the file
+   reads ANISO. Clamped to 1 because getMaxAnisotropy() returns 0 where
+   the extension is missing. */
+const ANISO=Math.max(1,Math.min(maxAniso,QUALITY.aniso));
 
 function makeRT(w,h,opts){
   return new THREE.WebGLRenderTarget(Math.max(1,w|0),Math.max(1,h|0),Object.assign({
@@ -1646,7 +1939,11 @@ function allocTargets(){
     RT_HDR.depthTexture=dtx;
   }
   RT_BRIGHT=makeRT(w/2,h/2);
-  RT_DOF=makeRT(w,h);
+  /* Full-screen half-float, and on "low" nothing ever writes to it: the
+     bokeh pass sits behind QUALITY.dof and so does the #coc debug view.
+     That was ~10 MB of VRAM pinned for a target the frame never touches.
+     disposeTargets() already skips nulls. */
+  RT_DOF=QUALITY.dof?makeRT(w,h):null;
   RT_LDR=makeRT(w,h,{type:THREE.UnsignedByteType});
   for(let i=0;i<BLOOM_MIPS;i++)MIPS.push(makeRT(w/(4<<i),h/(4<<i)));
   compMat.uniforms.uRes.value.set(w,h);
@@ -1683,10 +1980,32 @@ function fbm1(t,s,seed){
        +Math.sin(t*s*4.31+seed*2.9+2.7)*.1;
 }
 function jit(base,spread){return base*(1+(Math.random()*2-1)*spread);}
-function onResize(){
-  camera.aspect=innerWidth/innerHeight;
+/* Touch only, and 0 means "stay synchronous" on purpose. allocTargets()
+   disposes and rebuilds every buffer in the chain, and a phone fires
+   resize on each URL-bar slide — one scroll used to buy a dozen of those
+   mid-walk. What the brake costs is a frame composited from a buffer
+   still at the old aspect until it lifts, so DESKTOP KEEPS THE
+   SYNCHRONOUS PATH: a window drag is deliberate and short, and rubber
+   banding under the mouse would be the regression. */
+const RT_DEBOUNCE=TOUCH?160:0;
+let rtTimer=0,lastAspect=0;
+function onResize(immediate){
+  const a=innerWidth/innerHeight;
+  /* A rotation flips the aspect outright (0.46 -> 2.16, a 4.7x jump);
+     debouncing that stretches a portrait buffer across a landscape screen
+     for the whole 160 ms — far worse than the hitch we are removing. Only
+     the URL-bar nudge, a few percent, is small enough to be worth it. */
+  const flipped=lastAspect&&Math.abs(a-lastAspect)/lastAspect>.2;
+  lastAspect=a;
+  camera.aspect=a;
   renderer.setSize(innerWidth,innerHeight);
-  if(postReady)allocTargets();
+  if(postReady){
+    clearTimeout(rtTimer);
+    /* strict ===true: the listener below is handed a resize Event as its
+       first argument, and an Event must never take the immediate path */
+    if(immediate===true||flipped||!RT_DEBOUNCE)allocTargets();
+    else rtTimer=setTimeout(allocTargets,RT_DEBOUNCE);
+  }
   if(stagingReady)applyStaging();
   else camera.fov=camera.aspect<0.75?64:50;
   /* unconditional: applyStaging only rebuilds the projection when the
@@ -1694,14 +2013,16 @@ function onResize(){
      to leave the whole frame stretched at the old aspect */
   camera.updateProjectionMatrix();
 }
-addEventListener("resize",onResize); onResize();
+/* the boot call stays synchronous — everything below this line renders
+   from targets that must already be sized to the window */
+addEventListener("resize",onResize); onResize(true);
 
 /* ---------------- PROCEDURAL TEXTURES ---------------- */
 function ctex(w,h,draw){
   const c=document.createElement("canvas");c.width=w;c.height=h;
   draw(c.getContext("2d"),w,h);
   const t=new THREE.CanvasTexture(c);
-  t.encoding=THREE.sRGBEncoding;t.anisotropy=maxAniso;
+  t.encoding=THREE.sRGBEncoding;t.anisotropy=ANISO;
   t.userData.canvas=c;               /* kept so normal maps can be derived */
   return t;
 }
@@ -1740,7 +2061,7 @@ function normalFromCanvas(srcCanvas,strength,downscale){
   const t=new THREE.CanvasTexture(out);
   t.encoding=THREE.LinearEncoding;
   t.wrapS=t.wrapT=THREE.RepeatWrapping;
-  t.anisotropy=maxAniso;
+  t.anisotropy=ANISO;
   return t;
 }
 function speckle(x,w,h,n,a){
@@ -1975,7 +2296,7 @@ function drawMenu(){
   x.beginPath();x.arc(960,50,10,-1.3,1.3);x.stroke();
   x.beginPath();x.moveTo(930,30);x.quadraticCurveTo(934,20,930,10);x.stroke();
   x.beginPath();x.moveTo(946,30);x.quadraticCurveTo(950,20,946,10);x.stroke();
-  if(!menuTex){menuTex=new THREE.CanvasTexture(c);menuTex.encoding=THREE.sRGBEncoding;menuTex.anisotropy=maxAniso;}
+  if(!menuTex){menuTex=new THREE.CanvasTexture(c);menuTex.encoding=THREE.sRGBEncoding;menuTex.anisotropy=ANISO;}
   else menuTex.needsUpdate=true;
 }
 drawMenu();
@@ -2107,7 +2428,7 @@ function drawEotm(x){
   const cx=c.getContext("2d");cx.setTransform(SS,0,0,SS,0,0);
   drawEotm(cx);
   const tex=new THREE.CanvasTexture(c);
-  tex.encoding=THREE.sRGBEncoding;tex.anisotropy=maxAniso;
+  tex.encoding=THREE.sRGBEncoding;tex.anisotropy=ANISO;
   VC.fontsReady.then(function(){drawEotm(cx);tex.needsUpdate=true;});
   const g=new THREE.Group();
   /* a plain material, NOT stdMat(): its cache is a const declared far
@@ -2360,7 +2681,7 @@ PRESS.forEach((art,i)=>{
   const cx=c.getContext("2d");cx.setTransform(SS,0,0,SS,0,0);
   drawArticle(cx,art);
   const tex=new THREE.CanvasTexture(c);
-  tex.encoding=THREE.sRGBEncoding;tex.anisotropy=maxAniso;
+  tex.encoding=THREE.sRGBEncoding;tex.anisotropy=ANISO;
   VC.fontsReady.then(function(){drawArticle(cx,art);tex.needsUpdate=true;});
   const g=new THREE.Group();
   const frame=new THREE.Mesh(new THREE.BoxGeometry(.47,.62,.035),
@@ -2510,7 +2831,7 @@ const LABEL_TEX_V="4";   /* v3 un-mirrored the palmares banner (the bake
 function labelTex(name){
   const t=texLoader.load("tex/"+name+".png?v="+LABEL_TEX_V);
   t.flipY=false;
-  t.encoding=THREE.sRGBEncoding;t.anisotropy=maxAniso;
+  t.encoding=THREE.sRGBEncoding;t.anisotropy=ANISO;
   return t;
 }
 
@@ -3222,18 +3543,23 @@ const keySpot=new THREE.SpotLight(0xffb867,1.75,9,.68,.6,1.6);
 keySpot.position.set(0,2.62,-.3);
 keySpot.target.position.set(0,.8,-.3);
 keySpot.castShadow=true;
-keySpot.shadow.mapSize.set(2048,2048);
+keySpot.shadow.mapSize.set(QUALITY.shadowSize,QUALITY.shadowSize);
 keySpot.shadow.camera.near=.5;
 keySpot.shadow.camera.far=6;
 keySpot.shadow.normalBias=.02;
 keySpot.shadow.bias=-.0002;
-keySpot.shadow.radius=3;
+/* Dead on "high", and always has been: r134's PCFSoft branch hardcodes a
+   one-texel kernel and never reads shadowRadius — only the PCF branch and
+   the point-light path (we have no shadow-casting point) do. Kept and
+   driven by the profile because on "low" the type IS PCF, and this is the
+   knob that hides the 1024 map. */
+keySpot.shadow.radius=QUALITY.shadowRadius;
 scene.add(keySpot,keySpot.target);
 const winDir=new THREE.DirectionalLight(0xa8ccf0,.85);
 winDir.position.set(-5,3.2,-.8);
 winDir.target.position.set(0,.6,-1.2);
 winDir.castShadow=true;
-winDir.shadow.mapSize.set(2048,2048);
+winDir.shadow.mapSize.set(QUALITY.shadowSize,QUALITY.shadowSize);
 /* The playable area fits in ~3x3 m: a tight shadow camera buys ~3x
    sharper shadows for the same GPU cost. */
 winDir.shadow.camera.left=-3.5;winDir.shadow.camera.right=3.5;
@@ -3435,7 +3761,7 @@ if(!RM){
     x.fillRect(156,158,12,38);x.fillRect(176,158,12,38);
     x.fillStyle="#c9a25a";x.fillRect(52,214,152,4);
   });
-  wcTex.anisotropy=maxAniso;
+  wcTex.anisotropy=ANISO;
   const plate=new THREE.Mesh(new THREE.PlaneGeometry(.17,.17),
     new THREE.MeshBasicMaterial({map:wcTex,transparent:true}));
   plate.position.set(0,1.63,.0435);g.add(plate);
@@ -3870,7 +4196,7 @@ function drawTV(t){
   const c=document.createElement("canvas");c.width=512;c.height=288;
   TV.ctx=c.getContext("2d");
   const tex=new THREE.CanvasTexture(c);
-  tex.encoding=THREE.sRGBEncoding;tex.anisotropy=maxAniso;
+  tex.encoding=THREE.sRGBEncoding;tex.anisotropy=ANISO;
   TV.tex=tex;
   drawTV(0);
   VC.fontsReady.then(function(){drawTV(0);tex.needsUpdate=true;});
@@ -5374,7 +5700,7 @@ let markerA=0;               /* eased 0..1 opacity, driven in animate() */
   labelCnv.width=560;labelCnv.height=110;
   paintLabel(labelCnv);
   const labelTex=new THREE.CanvasTexture(labelCnv);
-  labelTex.encoding=THREE.sRGBEncoding;labelTex.anisotropy=maxAniso;
+  labelTex.encoding=THREE.sRGBEncoding;labelTex.anisotropy=ANISO;
   VC.fontsReady.then(()=>{paintLabel(labelCnv);labelTex.needsUpdate=true;});
   const labelMat=new THREE.SpriteMaterial({map:labelTex,transparent:true,
     depthWrite:false,opacity:.95});
@@ -7221,7 +7547,7 @@ for(let i=0;i<3;i++){
 const CW=1240,CH=1754;                      /* A4, 1:1.414 */
 const cnv=document.createElement("canvas");cnv.width=CW;cnv.height=CH;
 const ctx=cnv.getContext("2d");
-const tex=new THREE.CanvasTexture(cnv);tex.anisotropy=maxAniso;tex.encoding=THREE.sRGBEncoding;
+const tex=new THREE.CanvasTexture(cnv);tex.anisotropy=ANISO;tex.encoding=THREE.sRGBEncoding;
 /* his actual portrait, lifted straight out of the PDF (420x420, 33 kB).
    Same-origin, so no CSP question; if it fails to arrive the drawn head
    below stands in and nobody is any the wiser. */
@@ -7554,15 +7880,21 @@ function cvPanelOpen(){
 }
 addEventListener("pointerdown",e=>{
   if(cvPanelOpen())return;             /* the panel owns every click on it */
+  /* Hoisted out of the reading beat, where this used to live. It is the
+     same rule the drag listener spells out further down: a click already
+     answered by a piece of chrome must not ALSO be read as a click on the
+     room behind it — mute must mute, the eject must eject, and neither may
+     hush the line, drop the sheet, or hand pick() a raycast that happens to
+     land on Simon and starts a section. It only became load-bearing when
+     the bar rose above the zoom: the pills now sit over a full-screen
+     layer, so every tap on them bubbles out here with the café listening. */
+  if(e.target&&e.target.closest&&e.target.closest(".tools,.skip,.zoom,.jbx,.howto"))return;
   /* The reading beat: the sheet is up across the whole frame. Clicking
      the sheet itself does nothing — you are reading it — but a click or
      tap BESIDE it puts it down, hushes the line and brings the options
      up, exactly like the skip pill: nobody should have to sit through
      the whole seated monologue to reach the menu. */
   if(reading){
-    /* the tools bar and the skip pill keep their own meanings — mute
-       must mute, not put the sheet down; the pills already hush him */
-    if(e.target.closest&&e.target.closest(".tools,.skip"))return;
     if(pick(e)!=="__paper"){abortChain();stopSpeaking();endReading();}
     return;
   }
@@ -7742,7 +8074,9 @@ function playSection(key){
   const clips=sectionClips(key);
   /* "Ah, you weren't listening" — only ever in front of a repeat */
   if(heard.has(key))clips.unshift("reclick");
-  if(key==="outro"){outroSeen=true;if(LINKEDIN_URL)document.getElementById("liLink").hidden=false;}
+  /* the outro reveals nothing any more: LinkedIn opens with the rest of
+     the row (see the liLink block), so this only records that he wrapped */
+  if(key==="outro")outroSeen=true;
   playChain(clips,()=>{heard.add(key);current=null;drawResume();renderTalk();saveVisit();});
   renderTalk();
 }
@@ -7790,9 +8124,10 @@ function openTalk(){
   if(talkOpen)return;
   talkOpen=true;
   talkEl.hidden=false;talkEl.setAttribute("aria-hidden","false");
-  /* see + download ride along from the very first option — the CV must
-     never be more than one tap away during the dialogue. LinkedIn stays
-     the outro's reveal (see playSection). */
+  /* see + download + LinkedIn all ride along from the very first option.
+     The three things a visitor can leave with must never be more than one
+     tap away during the dialogue, and none of them is a prize for having
+     sat through the audio first. */
   talkLinks.hidden=false;
   renderTalk();
 }
@@ -7812,10 +8147,25 @@ if(skipBtn){
     if(reading)endReading();       /* or the sheet hangs there for ever */
   });
 }
-/* The resume you can keep. The sheet on the table is a real 1240×1754
-   render of the CV, so the download is that canvas — nothing to keep in
-   step, nothing extra to ship. CV_FILE overrides it when a PDF exists. */
-document.getElementById("cvDl").addEventListener("click",function(e){
+/* The resume you can keep — the PDF in CV_FILE, because a recruiter
+   forwards a PDF and files a PNG in the bin.
+   The href is written at WIRE time and not only on click: a long-press
+   "Download linked file", a middle-click, a context menu or a screen
+   reader all read the attribute without our listener ever running, and
+   "#" is not a resume. The click branch keeps it in case CV_FILE is ever
+   changed under us. The markup's bare `download` is deliberate — the
+   file is same-origin, so the browser takes the name from the URL, and
+   the name of the URL is the name we want. One string, one place.
+   The canvas branch below is the NO-FILE fallback and nothing more. It
+   renders the same document, but toBlob answers after the tap that asked
+   for it has already expired, and WebKit drops a download with no gesture
+   left behind it — which is exactly how an iPhone came away with nothing.
+   Kept because an empty CV_FILE otherwise leaves a link that does
+   nothing at all on every platform; not kept as a path anyone should
+   ship. */
+const cvDlEl=document.getElementById("cvDl");
+if(CV_FILE)cvDlEl.href=CV_FILE;
+cvDlEl.addEventListener("click",function(e){
   PING.tap("cvdl");                               /* someone left with the CV — worth knowing */
   if(CV_FILE){this.href=CV_FILE;return;}          /* a real file: let the browser have it */
   e.preventDefault();
@@ -7827,11 +8177,16 @@ document.getElementById("cvDl").addEventListener("click",function(e){
   },"image/png");
 });
 {
-  /* LinkedIn stays the outro's reveal — the row itself is visible from
-     the first option (see openTalk), this one link lands when he names
-     it out loud. */
+  /* LinkedIn used to be the outro's reveal, which parked the one link a
+     recruiter actually wants behind all five tier-1 sections heard end to
+     end — eight minutes of audio, at the end of a queue nobody promised
+     to finish. It now opens with the row (see openTalk). Still keyed on
+     the URL: a link with nowhere to go is worse than no link at all.
+     This also repairs a restore bug in passing — loadVisit() brought back
+     outroSeen but never re-revealed the link, so a tab that came back
+     after the outro lost it for good. */
   const li=document.getElementById("liLink");
-  li.hidden=true;
+  li.hidden=!LINKEDIN_URL;
   if(LINKEDIN_URL)li.href=LINKEDIN_URL;
   /* The one exit we can see. The ping is fire-and-forget and the navigation is not held up
      for it — a link that waits on a counter is a broken link. */
@@ -8072,7 +8427,14 @@ function paintSign(){
    the visitor: the seated line never reached its natural end, so
    endReading never ran, the dialogue box never opened, and closing the
    panel dropped you back into a café with nothing left to click. */
-VC.onOpenCV=()=>{abortChain();stopSpeaking();if(reading)endReading();};
+/* closeZoom() comes first, and not for tidiness: the panel is 60 and the
+   zoom is 70, so a resume opened from over an open newspaper renders
+   BEHIND it — an invisible panel, then an Escape that looks like it closed
+   the newspaper and instead uncovers a resume nobody asked for. Only
+   reachable since the tools bar rose above the zoom. The other direction
+   needs no guard: every openZoom() path is already gated on the panel
+   being shut, through cvPanelOpen() or lookActive(). */
+VC.onOpenCV=()=>{closeZoom();abortChain();stopSpeaking();if(reading)endReading();};
 if("speechSynthesis"in window){speechSynthesis.getVoices();speechSynthesis.onvoiceschanged=()=>{};}
 
 /* ---------------- HOW-TO OVERLAY ---------------- */
@@ -8552,6 +8914,66 @@ function updateFollowShot(dt){
    and duration, not by which element was hit. */
 const _tapRay=new THREE.Raycaster(),_tapPt=new THREE.Vector2();
 const _floor=new THREE.Plane(new THREE.Vector3(0,1,0),0),_tapHit=new THREE.Vector3();
+/* ---------------- THE TAP PING ----------------
+   Where he is ACTUALLY going, drawn on the floor for half a second. Same
+   vocabulary as the seat marker — unlit basic materials so it does not dim
+   with the room, depthWrite off, its own renderOrder, flat on the ground —
+   but deliberately NOT gold: gold is the objective you are walking to,
+   this is only the room saying it heard you. It is posted AFTER
+   collideGuest, which is the whole point: half the taps in here aim
+   through the counter or past the wall, and a marker that promised the
+   point under the finger would lie about the one thing it exists to say. */
+const walkMarker=new THREE.Group();
+walkMarker.name="tapPing";     /* named so it can be found in a scene dump */
+walkMarker.visible=false;
+const WALK_PING=.5;            /* seconds: the whole bloom, tap to gone */
+let walkPingA=0;               /* seconds left on it, counted down in animate() */
+{
+  const tone=0xcfe6f5;         /* cool and pale, so it cannot be read as the gold beacon */
+  const ringMat=new THREE.MeshBasicMaterial({color:tone,transparent:true,
+    opacity:0,depthWrite:false,side:THREE.DoubleSide});
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.2,.255,40),ringMat);
+  ring.rotation.x=-Math.PI/2;ring.renderOrder=3;
+  walkMarker.add(ring);
+  const discMat=new THREE.MeshBasicMaterial({color:tone,transparent:true,
+    opacity:0,depthWrite:false,side:THREE.DoubleSide});
+  const disc=new THREE.Mesh(new THREE.CircleGeometry(.2,36),discMat);
+  disc.rotation.x=-Math.PI/2;disc.position.y=-.003;disc.renderOrder=2;
+  walkMarker.add(disc);
+  /* both start at zero: this group is added once and never removed, and a
+     material left at its design opacity flashes a ring on the first frame,
+     before anybody has tapped anything */
+  walkMarker.userData.mats=[ringMat,discMat];
+  walkMarker.userData.base=[.9,.2];
+  scene.add(walkMarker);
+}
+function showWalkMarker(x,z){
+  /* .03 clears the rug (top .013) AND the seat ring (.024): a tap that
+     lands on the chair must not z-fight with the marker already there */
+  walkMarker.position.set(x,.03,z);
+  walkPingA=WALK_PING;
+  walkMarker.visible=true;
+  /* seeded here rather than left to animate(): the tap falls between two
+     renders, and a frame drawn at the previous ping's dying opacity is a
+     marker that starts out invisible */
+  updateWalkMarker(0);
+}
+function updateWalkMarker(dt){
+  if(!walkMarker.visible)return;
+  walkPingA-=dt;
+  if(walkPingA<=0){walkMarker.visible=false;walkPingA=0;return;}
+  const k=1-walkPingA/WALK_PING;                 /* 0 at the tap, 1 at the end */
+  const mats=walkMarker.userData.mats,base=walkMarker.userData.base;
+  /* full brightness the instant the finger lifts, then most of the half
+     second spent dying. A linear fade reads as lag; this reads as an answer. */
+  const a=1-k*k;
+  for(let i=0;i<mats.length;i++)mats[i].opacity=base[i]*a;
+  /* the bloom is the motion half of the ping and the only half reduced
+     motion drops — the fade alone still carries the message. Belt and
+     braces, that: lookActive() refuses the whole gesture layer under RM,
+     where he is seated from frame one and never walks at all. */
+  walkMarker.scale.setScalar(RM?1.2:.7+k*.8);
+}
 /* ---------------- ZOOM ----------------
    Click the television or the plaque and it comes off the wall. The
    painter is re-run at 2x into the overlay canvas rather than the wall
@@ -8560,6 +8982,7 @@ const _floor=new THREE.Plane(new THREE.Vector3(0,1,0),0),_tapHit=new THREE.Vecto
 const _rdRay=new THREE.Raycaster(),_rdPt=new THREE.Vector2(),_rdV=new THREE.Vector3();
 const zoomEl=document.getElementById("zoom");
 const zoomC=document.getElementById("zoomC");
+const zoomStage=document.getElementById("zoomStage");
 const zoomCap=document.getElementById("zoomTitle");
 const zoomLoad=document.getElementById("zoomLoad");
 const zoomLoadBar=document.getElementById("zoomLoadBar");
@@ -8660,6 +9083,14 @@ function openZoom(it){
   /* From here on the dwell clock belongs to this item rather than to the café at large. */
   PING.focus(it.key);
   zoomItem=it;
+  /* What the overlay has to know about what it is showing. On a phone the CSS
+     stops fitting the page to the screen and opens it at a size the body copy
+     survives — a multiple of the units the painter works in, which the screen
+     knows nothing about. `paper` is the distinction this function already
+     makes below: a printed thing is read and panned, a live feed is watched,
+     and panning a moving picture is not reading. */
+  zoomEl.style.setProperty("--zw",it.w);
+  zoomEl.classList.toggle("paper",!it.live);
   zoomCap.textContent=it.title;
   paintZoom();
   /* a live feed does not appear instantly, and the wait is where the
@@ -8673,6 +9104,11 @@ function openZoom(it){
     zoomLoad.hidden=true;zoomPlayer.hidden=true;
   }
   zoomEl.hidden=false;
+  /* One stage serves every frame on the wall, and a hidden one has no scroll
+     box to rewind — so this belongs after the reveal, not before it. Without
+     it the second thing you open starts halfway down the column where the
+     first one was left. */
+  zoomStage.scrollTop=zoomStage.scrollLeft=0;
   readHint.classList.remove("on");
   document.body.style.cursor="default";
   document.getElementById("zoomBack").focus();
@@ -8699,14 +9135,78 @@ function walkOrder(cx,cy){
   _tapPt.x=((cx-r.left)/r.width)*2-1;
   _tapPt.y=-((cy-r.top)/r.height)*2+1;
   _tapRay.setFromCamera(_tapPt,camera);
-  if(!_tapRay.ray.intersectPlane(_floor,_tapHit))return;
+  if(!_tapRay.ray.intersectPlane(_floor,_tapHit)){
+    /* THE TOP OF THE SCREEN IS NOT DEAD. Above the horizon the floor lies
+       behind the ray, intersectPlane says nothing, and the order used to
+       end right here: on a phone held portrait the whole upper third is
+       ceiling, shopfront and sky, so every tap up there moved him not one
+       centimetre and gave no sign why. A tap into the distance still means
+       something — it means "that way" — so flatten the ray's heading onto
+       the floor and post a target three metres out in front of him. Three
+       and not thirty: this is a step in the direction you looked, and a
+       leap to a spot whose floor nobody could see would be a guess.
+       Touch only. The horizon sits between 28% and 48% down the frame
+       depending on pitch, on any screen — so doing this everywhere would
+       hand a third of the desktop window a new meaning, and a stray click
+       at the ceiling that walks the character is worse with a mouse, which
+       has the arrow keys anyway. */
+    if(!TOUCH)return;
+    _tapHit.copy(_tapRay.ray.direction);
+    _tapHit.y=0;
+    if(_tapHit.lengthSq()<1e-8)return;      /* dead vertical: no heading to read off it */
+    _tapHit.normalize().multiplyScalar(3);
+    _tapHit.x+=guest.pos.x;_tapHit.z+=guest.pos.z;
+  }
   /* run it through the same collision the walk uses, so a tap into the
      counter parks him against it instead of inside it */
   const probe={pos:{x:_tapHit.x,z:_tapHit.z}};
   collideGuest(probe);
   guest.moveTo=[probe.pos.x,probe.pos.z];
+  /* the ping goes on the CLAMPED point, which is why it is posted down
+     here and not up beside the raycast: what the visitor has to see is
+     where the counter or the wall actually put the order he gave */
+  showWalkMarker(probe.pos.x,probe.pos.z);
 }
 let dragId=null,dragX=0,dragY=0,dragT=0,dragMoved=0,dragSX=0,dragSY=0;
+/* EVERY pointer currently down on the room, id -> its last screen point.
+   A touchscreen has no wheel, and canvas{touch-action:none} has to stay
+   (the one-finger drag IS the look control, so the browser must not steal
+   it) — between them that left the dolly with no input at all on a phone:
+   CAM.dist sat at its 2.7 default for the whole visit while the rig
+   advertised a 1.7-4.2 range. The second finger is the only dolly a phone
+   can have, so it is measured here instead of left to the platform. */
+const touchPts=new Map();
+let pinchD=0;                  /* the spread at the last sample, px */
+let multiTouch=false;          /* this gesture has had two fingers in it at some point */
+function pinchDist(){
+  if(touchPts.size<2)return pinchD;   /* nothing to measure: keep the baseline */
+  /* the FIRST TWO down, by Map insertion order. A third finger landing
+     mid-pinch must not change which pair is being measured, or the scale
+     jumps by whatever the new spread happens to be. */
+  const it=touchPts.values(),a=it.next().value,b=it.next().value;
+  return Math.hypot(a.x-b.x,a.y-b.y);
+}
+/* Every way out of a gesture funnels through here — a finger lifted, a
+   pointer cancelled by the OS, a mouse button released off-window. Miss
+   one and the Map keeps a phantom, and a phantom is a permanent
+   two-finger state: the look would never answer the mouse again. */
+function dropPointer(id){
+  touchPts.delete(id);
+  if(dragId===id)dragId=null;
+  if(!touchPts.size){multiTouch=false;return;}
+  if(touchPts.size>1){pinchD=pinchDist();return;}  /* three down to two: re-baseline or it snaps */
+  /* Back to one finger, and the look goes to whoever is left — not
+     necessarily the finger that opened the gesture. Which of the two lifts
+     first is not ours to choose, and freezing the camera because it was
+     "the wrong one" strands the look until the whole hand leaves the
+     glass, which is half of all pinches. Re-seeded from where that finger
+     IS: the move handler stops writing dragX/dragY while two are down, so
+     without this the next sample pours the entire travel of the pinch into
+     the yaw. multiTouch stays true until the hand is off — this survivor
+     is the tail of a zoom, and a zoom must never end as a walk order. */
+  const only=touchPts.keys().next().value,q=touchPts.get(only);
+  dragId=only;dragX=q.x;dragY=q.y;
+}
 function lookActive(){
   if(guest.state!=="walk"||RM||cafeClosed)return false;
   if(zoomItem)return false;          /* something is open over the room */
@@ -8718,12 +9218,53 @@ function lookActive(){
 addEventListener("pointerdown",e=>{
   if(!lookActive()||e.button!==0)return;
   if(e.target&&e.target.closest&&e.target.closest(".tools,.howto,.cv,.zoom,.jbx"))return;
+  touchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  /* THE SECOND FINGER IS A PINCH, and a pinch is neither a look nor a
+     walk. The first finger keeps its drag state, so lifting the second
+     hands the look straight back without the visitor re-pressing — but
+     from here the move handler stops steering and the up handler refuses
+     to post a walk order for anything this gesture touched. That refusal
+     is also the fix for a much older bug: with no guard at all the second
+     finger ran the whole tap-to-walk path on its own and nudged him some
+     17 cm sideways every time somebody tried to zoom. */
+  if(touchPts.size>1){multiTouch=true;pinchD=pinchDist();return;}
+  /* another pointer is already driving: this one is a passenger, not a
+     second steering wheel. Deliberately keyed on the id and not on
+     dragId!==null — a mouse keeps the same pointerId for life, and a
+     button released off-window leaves the drag standing, so a blanket
+     refusal would kill desktop look until the cursor happened to move. */
+  if(dragId!==null&&dragId!==e.pointerId)return;
   dragId=e.pointerId;dragX=e.clientX;dragY=e.clientY;CAM.yawV=0;
   dragT=e.timeStamp;dragMoved=0;dragSX=e.clientX;dragSY=e.clientY;
 });
 addEventListener("pointermove",e=>{
+  const p=touchPts.get(e.pointerId);
+  if(p){p.x=e.clientX;p.y=e.clientY;}
+  /* TWO FINGERS ARE A DOLLY AND NOTHING ELSE. The ratio of the old spread
+     to the new one scales the boom directly, so the room comes to the
+     fingers instead of creeping in fixed steps the way the wheel does, and
+     the baseline is reset every sample — that is what lets a finger join
+     or leave mid-gesture without the frame lurching. Clamped to the rig's
+     own declared range, the same one the wheel obeys. */
+  if(touchPts.size>1){
+    /* the gesture layer dies with the look: he can reach the chair in the
+       middle of a pinch, and a dolly that keeps running once seated drives
+       CAM.dist to a bound behind the visitor's back — leaveTable() never
+       resets it, so the next walk would start wrong for the rest of the visit */
+    if(!lookActive()){touchPts.clear();multiTouch=false;dragId=null;return;}
+    const d=pinchDist();
+    if(pinchD>8&&d>8){
+      CAM.dist=Math.max(CAM.minDist,Math.min(CAM.maxDist,CAM.dist*(pinchD/d)));
+      CAM.idle=0;          /* a dolly is looking around: hold the recentre off */
+    }
+    pinchD=d;
+    return;                /* the look below would steer off whichever of the two moved */
+  }
   if(dragId===null||e.pointerId!==dragId)return;
-  if(!lookActive()||!(e.buttons&1)){dragId=null;return;}   /* he sat down mid-drag, or the button went up off-window */
+  /* he sat down mid-drag, or the button went up off-window. Drop the
+     pointer as well as the drag: left in the Map it is exactly the
+     phantom that makes every later gesture look like a pinch. */
+  if(!lookActive()||!(e.buttons&1)){dropPointer(e.pointerId);return;}
   const dx=e.clientX-dragX,dy=e.clientY-dragY;
   dragX=e.clientX;dragY=e.clientY;
   dragMoved=Math.max(dragMoved,Math.hypot(e.clientX-dragSX,e.clientY-dragSY));
@@ -8734,15 +9275,23 @@ addEventListener("pointermove",e=>{
      stopping dead — the weight the spec asks for */
   CAM.yawV=-dx*CAM.sens*7;
 });
-function endDrag(e){if(dragId!==null&&(!e||e.pointerId===dragId))dragId=null;}
+function endDrag(e){
+  if(e)dropPointer(e.pointerId);
+  else{touchPts.clear();multiTouch=false;dragId=null;}   /* no pointer named: the whole hand is off */
+}
 addEventListener("pointerup",e=>{
-  /* a tap (barely moved, quickly released) is a walk order, not a look */
-  if(dragId!==null&&e.pointerId===dragId&&dragMoved<9&&e.timeStamp-dragT<450&&lookActive())
+  /* a tap (barely moved, quickly released) is a walk order, not a look —
+     and never a finger that was part of a pinch. multiTouch outlives the
+     second finger on purpose: which of the two comes up first is not ours
+     to choose, and the survivor of a zoom must not turn into a tap. */
+  if(!multiTouch&&dragId!==null&&e.pointerId===dragId&&dragMoved<9&&e.timeStamp-dragT<450&&lookActive())
     walkOrder(e.clientX,e.clientY);
   endDrag(e);
 });
 addEventListener("pointercancel",endDrag);
-addEventListener("blur",()=>{dragId=null;});
+/* blur carries no pointerId, so it cannot go through endDrag's usual door:
+   call it bare and let it forget the lot */
+addEventListener("blur",()=>{endDrag();});
 addEventListener("wheel",e=>{
   if(!lookActive())return;
   e.preventDefault();
@@ -8963,6 +9512,10 @@ function animate(){
     }
     updateSeatHud();
   }
+  /* the tap ping runs on its own clock, outside the block above: that one
+     stops the frame the beacon is gone, and a ping fired on the last step
+     into the chair still has half a second left to spend */
+  updateWalkMarker(dt);
 
   for(const s of steam){
     const ph=(t*.5+s.userData.phase)%1.6;

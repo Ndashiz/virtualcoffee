@@ -98,9 +98,10 @@ en muet il parle toujours, sous-titres compris, on ne l'entend simplement pas.
 | Une section déjà entendue | *« Ah, you weren't listening »* (`reclick`), puis il la rejoue en entier |
 | Les cinq entendues | Second palier : off the clock, l'IA, pourquoi la banque, comment j'ai construit ça — plus l'outro |
 | Cliquer Simon | La section « off the clock » (deux bières sur la table), une fois le palier ouvert |
-| L'outro (ou touche `0`) | Le lien LinkedIn apparaît, puis le café ferme |
+| L'outro (ou touche `0`) | Il conclut, puis le café ferme (le lien LinkedIn, lui, est là depuis la première option) |
 | Pastille ⏭ Skip ou `espace` | Le fait taire — la section reste alors non entendue |
-| « 📄 See the resume » / « ⬇ Download it » | Sous la boîte dès la première option, même pendant qu'il parle : la feuille remonte, ou le CV se télécharge |
+| « 📄 See the resume » / « ⬇ Download it » / « in — LinkedIn » | Sous la boîte dès la première option, même pendant qu'il parle : la feuille remonte, le CV se télécharge (le **PDF**, `CV_Simon_Goffin_2026.pdf`), ou le profil s'ouvre |
+| Pastille « 📄 Resume (text) » | En haut à droite dès le chargement, par-dessus tout : ouvre le CV en texte plat, seul chemin direct au doigt |
 | « 🚶 Leave the table » | Il se lève (même animation qu'à l'assise, jouée à l'envers) et la salle est à vous ; l'anneau se rallume, et en revenant s'asseoir la boîte rouvre telle quelle — sections validées, palier, outro compris |
 | Le jukebox du mur avant | Silent disco : casques sans fil, cinq habitués qui viennent danser sur l'audio réel ; la voix de Simon garde toujours la priorité (ducking), s'asseoir renvoie la foule, le son suit la distance à l'émetteur |
 | Version texte (sans WebGL, café fermé, ou lien d'évitement au clavier) | Le CV complet, accessible et indexable — sa croix ✕, `Échap` ou un clic dans la marge sombre la referment. La pastille qui l'ouvrait a disparu du café : la feuille sur la table et « See the resume » font le travail |
