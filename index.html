@@ -92,10 +92,9 @@
 
   /* Stacking, bottom to top: overlays 12 · sign 20 · prompt 20 ·
      how-to 50 · text resume 60 · zoom 70 · tools 75 · skip link 80.
-     The tools stay on top so the mute pill and the resume pill are both
-     reachable from over the welcome card; the skip link outranks even
-     them, because a control you can only reach by Tab is worth nothing
-     if something covers it.
+     The tools stay on top so the mute pill is reachable from over the
+     welcome card; the skip link outranks even them, because a control
+     you can only reach by Tab is worth nothing if something covers it.
      75 and not 70, because at 70 the bar merely TIED with the zoom, and a
      tie is broken by document order — the zoom is declared later, so it
      painted over the pills. That cost two things at once, the zoom
@@ -106,45 +105,13 @@
      while you read. */
   .tools{position:fixed;top:calc(16px + env(safe-area-inset-top));
     right:calc(16px + env(safe-area-inset-right));z-index:75;
-    /* wrap so the bar never walks off the left edge: with the jukebox in
-       play it carries four controls, and a 320 px phone runs out of room
-       before it runs out of buttons. Inert whenever the content fits, so
-       every desktop width is byte-identical to before. */
-    display:flex;flex-wrap:wrap;justify-content:flex-end;
-    gap:8px;align-items:center;}
+    display:flex;gap:8px;align-items:center;}
   .pill:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
 
   .pill{border:1px solid #3a4d56;border-radius:999px;background:rgba(22,28,33,.88);
     backdrop-filter:blur(3px);color:#9fb4bc;padding:8px 15px;cursor:pointer;
     font-family:"Space Grotesk",sans-serif;font-size:13px;transition:.18s;}
   .pill:hover{color:var(--gold);border-color:var(--gold);}
-
-  /* ── The one pill that is never hidden ─────────────────────────
-     Every other control in this bar is scene chrome and starts `hidden`.
-     This one cannot. A phone has no Tab key, so the skip link at the top
-     of the page does not exist for a thumb, and "See the resume" only
-     appears once the visitor is seated and the dialogue box is up — a
-     walk and a monologue away. Without a permanent door there is no way
-     at all into the flat resume by touch, and the flat resume is the
-     document people came for. .tools outranks every full-screen layer
-     (75), so it is live and clickable from the first frame.
-     Gold on the outside, filled on hover: the .pill:hover rule only
-     swaps the colours this one already has, so without its own hover it
-     would be the single control in the bar with no mouse feedback.
-     No touch floor here — that goes in the mobile block. A text pill is
-     45 px tall on its own once the emoji drags the line box up, and
-     forcing 44 on the shared desktop bar pushed the mute pill down. */
-  #cvBtn{font-weight:600;line-height:16px;
-    color:var(--gold);border-color:var(--gold);}
-  #cvBtn:hover{background:var(--gold);color:#20303a;}
-  /* Panel open, button dead: the sheet is the whole screen by then and
-     the pill would sit above it arguing with the panel's own ✕. Hidden
-     rather than toggled, because openCV() resets scrollTop — a second tap
-     meant to close would throw the reader back to the top of a document
-     they were halfway down. :has() is a progressive nicety: where it is
-     missing the pill simply stays put, which is merely pointless, never
-     broken. */
-  body:has(#cv-text:not([hidden])) #cvBtn{display:none;}
 
   /* Mute: icon only — the speaker glyph is the one control nobody needs
      told.
@@ -480,8 +447,7 @@
        way in as well, and until you sit down there is no CV row to dodge
        — the caption belongs on the letterbox then. */
     body:has(.talk:not([hidden])) .subs{bottom:calc(11vh + 10px + var(--cvrow,88px) + 10px);}
-    /* clears the tools bar, which is now 44 px tall because of #cvBtn */
-    .skip{bottom:auto;top:calc(70px + env(safe-area-inset-top));}
+    .skip{bottom:auto;top:calc(60px + env(safe-area-inset-top));}
   }
   /* Short but wide: the phone on its side. Width to spend and no height,
      so the menu goes three across, the CV row is one line of pills instead
@@ -536,9 +502,6 @@
     .sign small{font-size:8.5px;letter-spacing:1.8px;}
     .tools{gap:6px;}
     .pill{padding:7px 12px;font-size:12px;}
-    /* the 44 px touch floor the icon pills never got — mobile only, so the
-       desktop bar keeps the compact height a mouse is happy with */
-    #cvBtn{min-height:44px;padding:11px 15px;}
     .prompt{font-size:16px;white-space:normal;width:min(92vw,340px);text-align:center;line-height:1.3;}
     .hcard{padding:20px 18px 18px;}
     .hcard h2{font-size:30px;}
@@ -666,20 +629,6 @@
 </div>
 <div class="sign" id="sign">Virtual Coffee<small>discussion with Simon</small></div>
 <div class="tools">
-  <!-- The resume, one tap away, from the first frame and from anywhere —
-       the bar sits above every full-screen layer (z-index 75), so this
-       holds over the welcome card and over an open newspaper alike.
-       Deliberately NOT `hidden` like the rest of the bar (see the #cvBtn
-       rule): the skip link above it is a keyboard affordance and a phone
-       has no keyboard, so this is the only permanent door to the flat CV.
-       Labelled apart from the dialogue box's "See the resume" on purpose
-       — that one lifts the sheet on the table, this one opens the flat
-       text you can actually read on a phone.
-       Wired in the VC shell rather than here or in the scene, because it
-       has to survive the no-WebGL path where no scene ever runs. -->
-  <button class="pill" id="cvBtn" type="button"
-          aria-label="Resume — read the text version"
-          title="Read the resume as text">📄 Resume (text)</button>
   <!-- The jukebox pair, hidden until a headset is actually on. The note
        is the one-click music mute the spec demands from anywhere; the
        eject is the way OUT of the silent disco from anywhere — the
@@ -965,14 +914,14 @@ window.VC = (function(){
      the getter and onLang survive so nothing downstream throws. */
 
   /* ── Text resume panel ──────────────────────────────────────────
-     The pill that opens this is back in the tools bar, and this time it
-     is not a duplicate of "See the resume": that one lives inside the
-     dialogue box, which only exists once the visitor has walked in, sat
-     down and heard himself introduced — and what it lifts is the sheet
-     on the table, which renders its body copy at about five pixels on a
-     phone. A thumb arriving on the welcome card had nothing at all
-     before the pill: the skip link is keyboard-only by construction, and
-     there is no Tab key on a phone. The panel
+     There is NO pill in the café opening this — Simon's call, twice now.
+     Worth writing down so the next session does not re-litigate it: the
+     cost is real and known. "See the resume" only exists inside the
+     dialogue box, so it is a walk and a monologue away, and what it
+     lifts is the sheet on the table, whose body copy measures about five
+     pixels on a phone. The skip link below is keyboard-only by
+     construction and a phone has no Tab key. So on a touchscreen there
+     is currently no direct route to this panel at all. The panel
      itself stays exactly where it was, because it is not decoration:
      it is what a crawler indexes, what a no-WebGL visitor gets (see
      textOnly), what the closed café offers, and what a screen reader
@@ -1010,7 +959,7 @@ window.VC = (function(){
      and with it every way of closing the panel (see panelOnly). */
   function textOnly(reason){
     console.warn('[virtual-coffee] 3D unavailable —', reason);
-    ['howto', 'sign', 'prompt', 'app', 'cvSkip', 'cvBtn'].forEach(id => {
+    ['howto', 'sign', 'prompt', 'app', 'cvSkip'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });
@@ -1026,18 +975,6 @@ window.VC = (function(){
   {
     const skip = document.getElementById('cvSkip');
     if (skip) skip.addEventListener('click', e => { e.preventDefault(); openCV(); });
-  }
-  /* The pill in the tools bar: the touch counterpart of the skip link.
-     Resolved through window.VC at CLICK time and never captured here —
-     VCPing replaces VC.openCV in the next <script> to count the opens,
-     so a reference taken now would be the unwrapped original and every
-     tap on the pill would go quietly uncounted. The fallback to the
-     local openCV is for the impossible case only, and costs nothing. */
-  {
-    const btn = document.getElementById('cvBtn');
-    if (btn) btn.addEventListener('click', () => {
-      ((window.VC && window.VC.openCV) || openCV)();
-    });
   }
   if (!hasWebGL) textOnly('no WebGL context');
 

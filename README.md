@@ -33,11 +33,6 @@ outro's reveal, which put the one link a recruiter actually wants behind eight
 minutes of audio. The outro ends the visit. When Simon finishes that outro the
 barista comes over, says they're closing, and the room empties around you.
 
-Nothing above is the only way in. A **`📄 Resume (text)` pill sits in the tools
-bar from the first frame**, over the welcome card and over everything else, and
-opens the flat text resume in one tap — because the skip link that used to be
-the only direct route is reachable by Tab, and a phone has no Tab key.
-
 **A reload costs nothing.** The visit rides in `sessionStorage` — per tab,
 gone when the tab closes — so a page that comes back (a phone discarding a
 background tab is the usual reason, and why "left alone for ten minutes" used
@@ -757,8 +752,7 @@ whole thing.
 
 ### Mute
 
-The speaker pill — one of the two permanent controls in the tools bar, beside
-`📄 Resume (text)` — or the `M` key cuts the
+The speaker pill — the only one left in the tools bar — or the `M` key cuts the
 voice, and the choice is remembered in `localStorage["vc:muted"]`: sound off is
 a first-class way to read this page, not a failure state.
 
