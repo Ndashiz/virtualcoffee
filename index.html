@@ -4767,15 +4767,34 @@ function makeAgent(id,kind,opts){
 function setMode(a,m,dur){a.mode=m;a.modeT=0;a.modeDur=dur;a.onModeEnter=true;}
 
 /* --- gaze: eyes lead, head follows, torso beyond 60 deg --- */
-const _gv=new THREE.Vector3(),_gp=new THREE.Vector3();
+const _gv=new THREE.Vector3(),_gp=new THREE.Vector3(),_gh=new THREE.Vector3();
 const LIM={eyeYaw:.44,eyePitch:.3,headYaw:1.05,headPitch:.44,chestYaw:.7};
 function pickGazeTarget(a){
   const c=[];
   /* a walker looks WHERE HE IS GOING first — the ahead candidate
      outweighs the whole room, so a glance at Simon stays a glance
-     (Simon: they must look where they walk, logically) */
-  if(a.walkK>.25)c.push({w:9,pos:[a.pos.x+Math.sin(a.yaw)*2.6,1.5,
-    a.pos.z+Math.cos(a.yaw)*2.6]});
+     (Simon: they must look where they walk, logically)
+     AT HIS OWN EYE HEIGHT, AND FAR. Both halves are the fix to a real
+     defect: the point used to sit at a flat y=1.5, two and a half metres
+     out. The courier's head rides at 1.79 — a grown man on a 6 cm kerb —
+     so "ahead" was already 6 degrees BELOW his eyeline, and because the
+     point does not move until the next pick while he keeps walking into
+     it, the angle steepened to 11 as he closed, then snapped back. Eleven
+     degrees is two thirds of LIM.eyePitch, and since anything under that
+     limit is spent entirely by the eyeballs (gazeLayer gives the head
+     what the eyes cannot take, and here they could), it read as a man
+     staring at his own shoes with a level head.
+     Reading the head's real height zeroes the pitch for everyone, tall or
+     short, kerb or floor. Nine metres rather than two and a half is what
+     keeps it zero while he walks: the closing distance no longer swings
+     the angle, and a walker fixing a far point is what walking looks
+     like. The point is a direction, not a place — it may sit inside a
+     wall, nothing raycasts it. */
+  if(a.walkK>.25){
+    a.rig.J.head.getWorldPosition(_gh);
+    c.push({w:9,pos:[a.pos.x+Math.sin(a.yaw)*9,_gh.y,
+      a.pos.z+Math.cos(a.yaw)*9]});
+  }
   if(a.group&&a.group.speaker&&a.group.speaker!==a)
     c.push({w:6,obj:a.group.speaker.rig.J.head});
   c.push({w:2.5,obj:simonHead});
