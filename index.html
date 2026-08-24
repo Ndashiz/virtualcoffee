@@ -4756,7 +4756,7 @@ function makeAgent(id,kind,opts){
     blinkT:1+Math.random()*3,blinkPhase:0,blinkQueue:false,
     nodT:jit(6,.45),postureIdx:(Math.random()*3)|0,postureK:1,postureT:jit(13,.5),
     gestureT:jit(2.8,.45),selfT:jit(26,.5),
-    group:null,speed:.42+Math.random()*.16,
+    group:null,speed:.90+Math.random()*.20,   /* see the note on walkLayer's stride */
     walkPhase:0,walkK:0,
     mode:0,modeT:0,modeDur:0,onModeEnter:true,
     blob:contactShadow(0,0,.32)
@@ -5156,7 +5156,7 @@ function reskin(a){
       s==="skin"?.5:s==="hair"?.45:.25);
   });
   a.rig.root.scale.setScalar(.96+Math.random()*.08);
-  a.speed=.42+Math.random()*.16;
+  a.speed=.90+Math.random()*.20;
   a.rateMul=.9+Math.random()*.2;
   a.seed=Math.random()*100;
 }
@@ -5191,7 +5191,7 @@ const courier=makeAgent("courier","courier",
   {shirt:COURIER_SHIRT,pants:0x3a4048,skin:0xdcae86,hair:0x2c2018,eye:0x4a2f1c});
 courier.rig.root.visible=false;courier.blob.visible=false;
 courier.rig.root.scale.setScalar(1.03);   /* a grown man among the extras */
-courier.speed=.60;
+courier.speed=1.20;
 courier.active=true;                      /* walkLayer's gate; he steers by path */
 courier.st="cab";courier.stT=jit(9,.35);  /* first round soon after entering */
 courier.pathI=0;courier.path=null;courier.carry=false;courier.faceYaw=null;
@@ -5361,7 +5361,7 @@ function tickCourier(a,dtT){
         ICE_FLOOR.forEach(function(b){b.visible=false;});     /* and yesterday's pair shelved */
         courierShow(a,ICE_SPAWN);
         a.yaw=Math.PI;          /* facing -z, where he is about to walk */
-        a.path=ICE_ENTER;a.pathI=0;a.speed=.60;
+        a.path=ICE_ENTER;a.pathI=0;a.speed=1.20;
         courierSt(a,"toRear");
       }
       break;
@@ -5376,7 +5376,7 @@ function tickCourier(a,dtT){
       break;
     case "grab":
       if(a.stT<=0){
-        a.faceYaw=null;a.path=ICE_CARRY;a.pathI=0;a.speed=.52;
+        a.faceYaw=null;a.path=ICE_CARRY;a.pathI=0;a.speed=1.00;
         a.nudged=false;
         courierSt(a,"carryIn");
       }
@@ -5427,7 +5427,7 @@ function tickCourier(a,dtT){
           barista.gazeLock=null;
         a.gazeLock=null;a.faceYaw=null;
         a.path=ICE_OUT;a.pathI=0;
-        a.speed=.62;            /* +18% or so: unloaded legs, the brief's tell */
+        a.speed=1.25;           /* +25%: unloaded legs, the brief's tell */
         /* the optional business, one round in three: he shakes the cold
            out of his fingers on the way back — timed to land once he is
            back on the pavement, never over the parquet */
@@ -5464,7 +5464,7 @@ function tickCourier(a,dtT){
       break;
     case "close":
       if(a.stT<=0){
-        a.faceYaw=null;a.path=ICE_EXIT;a.pathI=0;a.speed=.62;
+        a.faceYaw=null;a.path=ICE_EXIT;a.pathI=0;a.speed=1.25;
         courierSt(a,"toCab");
       }
       break;
@@ -5494,8 +5494,13 @@ function courierLayer(a,buf,dt){
      leaf) the carry overwrite stands aside — he is standing then, so
      there is no swing to kill anyway */
   if(a.carry&&!a.shots.length){
-    /* short heavy strides, no bounce to speak of */
-    a.stepLen=.40;a.bounceAmp=.010;
+    /* Short heavy strides — through the SWING, not through a stride
+       length set beside it. The old pair (stepLen .40, amplitude
+       untouched at .5) was the same lie as the default one and the worst
+       case in the room: legs spreading .667 while the body advanced .40,
+       38% of every step spent sliding. Squeezing swingK squeezes the
+       stride with it, because walkLayer computes one from the other. */
+    a.swingK=.85;
     const w=a.walkK,ph=Math.sin(a.walkPhase*2)*.022;
     /* counter-flexion: ten kilos a side hang in front of the heels, so
        the trunk pays for them behind */
@@ -5511,7 +5516,7 @@ function courierLayer(a,buf,dt){
     buf.wristL.x=-.12;buf.wristL.z=ph*.8;
     buf.wristR.x=-.12;buf.wristR.z=-ph*.8;
   }else{
-    a.stepLen=.55;a.bounceAmp=.028;
+    a.swingK=1;                     /* unloaded: the full stride back */
     /* unloaded: the walk cycle's own opposition swing, amplified a
        touch, chest open, chin up */
     if(a.st==="walkOut"){
@@ -6139,7 +6144,7 @@ function walkLayer(a,buf,ac,dt){
   let v=0;
   if(a.ctl){                       /* the guest, under arrow-key control */
     const cl=Math.hypot(a.ctl[0],a.ctl[1]);
-    const sp=a.speed*(a===guest&&CAM.sprint?1.55:1);
+    const sp=a.speed*(a===guest&&CAM.sprint?1.45:1);
     const vx=a.ctl[0]/cl*sp,vz=a.ctl[1]/cl*sp;
     a.pos.x+=vx*dt;a.pos.z+=vz*dt;
     a.yaw=angleDamp(a.yaw,Math.atan2(vx,vz),.14,dt);
@@ -6170,18 +6175,55 @@ function walkLayer(a,buf,ac,dt){
   if(a.collide&&a.state==="walk")a.collide(a);
   a.walkK=damp(a.walkK,Math.min(1,v/.25),.12,dt);
   if(a.walkK<.02){a.rig.root.position.y=a.rootY;return;}
-  const stepLen=(a.stepLen||.52)*a.rig.root.scale.x;
+  /* FLEXION AND EXTENSION ARE NOT THE SAME JOINT. LIMITS.hip.x gives 120
+     degrees of leg-forward and 20 of leg-back, which is anatomically
+     right — and the pose used to ask for .5 rad both ways, so applyPose
+     clipped the entire back half. The support hip sat pinned at exactly
+     20 degrees for a quarter of every step while the body kept
+     translating, and a leg that cannot move while the floor does is the
+     definition of a skate. Asking for what the joint can actually give
+     keeps it moving all the way round. swingK shortens the whole gait for
+     a body that has reason to take smaller steps — and because the stride
+     below is derived from these same two angles, it can never shorten the
+     step without shortening the swing that draws it. */
+  const sw=a.swingK||1,hFwd=.50*sw,hBack=.34*sw;
+  /* thigh + shin, off the RIG and not off HUMAN: those constants (.3976 /
+     .3824) are the mesh's own proportions, while the joints rest at
+     .44 / .38 — measured on every agent, capsule cast and person.obj
+     alike, so one number is honest for all of them. */
+  const leg=.82*a.rig.root.scale.x;
+  /* The stride is DERIVED from the swing instead of declared next to it,
+     and that is the whole repair. stepLen was a hand-set .52 while the
+     legs actually spread .667: the body advanced 22% less per step than
+     the feet asked for, and the difference came out as the foot sliding
+     backwards under a walking man. A number computed from the swing
+     cannot drift away from it again. */
+  const stepLen=leg*(Math.sin(hFwd)+Math.sin(hBack));
   a.walkPhase+=(v/stepLen)*dt*Math.PI;
   const p=a.walkPhase,s=Math.sin(p),c=Math.cos(p);
+  const hL=s>0?s*hBack:s*hFwd,hR=s>0?-s*hFwd:-s*hBack;
   addPose(buf,{
-    hipL:{x:s*.5},hipR:{x:-s*.5},
+    hipL:{x:hL},hipR:{x:hR},
     kneeL:{x:Math.max(0,-c)*.75},kneeR:{x:Math.max(0,c)*.75},
     pelvis:{y:s*.08},chest:{y:-s*.12},
     shoulderL:{x:-s*.35},shoulderR:{x:s*.35},
     elbowL:{x:-.25-Math.max(0,s)*.25},elbowR:{x:-.25+Math.min(0,s)*.25},
     head:{z:s*.025}
   },a.walkK);
-  a.rig.root.position.y=a.rootY+Math.abs(s)*(a.bounceAmp||.022)*a.walkK;
+  /* THE PELVIS RIDES ON WHICHEVER LEG IS DOWN. A straight leg swung to an
+     angle only reaches leg*cos(angle) below the hip, so at full spread
+     BOTH ankles climb — and the old bounce added height at exactly that
+     moment, in perfect opposition to a real gait. Measured: the pelvis
+     was highest at the spread and lowest at the passing, the reverse of a
+     body, and both feet cleared the floor seven frames in ten. The cast
+     was not walking, it was bouncing along on tiptoe.
+     Dropping the root by whatever the SHALLOWER leg lost plants that foot
+     on the ground and produces the bob for free, in the right phase:
+     highest at the passing where the leg stands vertical, lowest at the
+     spread. Nothing left to tune — it is no longer a taste, it is the
+     geometry, and it scales itself with the rig and with swingK. */
+  const drop=leg*(1-Math.cos(Math.min(Math.abs(hL),Math.abs(hR))));
+  a.rig.root.position.y=a.rootY-drop*a.walkK;
 }
 /* the guest's sit-down: lower, slide onto the seat, settle the yaw — then
    hold the seated base for good. His automatic rootY<0 path is gated off
@@ -6344,7 +6386,7 @@ function startClosing(){
   barista.gazeLock=null;barista.shots.length=0;
   /* 8 m of detour: at a stroll the watchdog below fires before he ever
      arrives and he delivers the line from behind his own counter */
-  barista.speed=1.0;
+  barista.speed=1.15;
   /* unfreeze the trio: updateGroups stops running, and a laugh or a
      gesture caught mid-shake would stay locked on their faces */
   for(let i=0;i<groups.length;i++){groups[i].speaker=null;groups[i].laughing=0;}
@@ -6402,7 +6444,7 @@ function tickLeaving(a,dtT){
        stay on it — clearing those would wipe the furniture as he stood */
     if(a.prop&&a.prop.parent&&a.prop.parent!==scene)a.prop.visible=false;
     a.prop=null;
-    a.speed=.48+Math.random()*.22;
+    a.speed=.90+Math.random()*.20;
   }
   const wp=a.exitPath[a.exitLeg];
   if(!wp){                               /* through the door, out of the scene */
@@ -6803,7 +6845,7 @@ function jbRecruit(a,i){
   if(i<3)G_STAND.members=G_STAND.members.filter(m=>m!==a);
   a.prop=null;
   a.rootY=0;                        /* off the stool — the pose unbends */
-  a.speed=.7+Math.random()*.15;
+  a.speed=1.10+Math.random()*.20;
   a.jbFace=Math.atan2(JUKEBOX.x-JB_SPOTS[i][0],JUKEBOX.z-JB_SPOTS[i][1]);
 }
 function jbSummon(){
@@ -6912,7 +6954,7 @@ function tickJukebox(dtT){
           j.back=JB_PATHS[i].slice(0,JB_PATHS[i].length-1).reverse()
             .concat([[JB_HOME[i].x,JB_HOME[i].z]]);
           j.leg2=0;
-          a.speed=.55+Math.random()*.15;           /* home at a stroll */
+          a.speed=.95+Math.random()*.15;           /* home at a stroll */
         }
         break;
       case "return":{
@@ -8466,7 +8508,7 @@ function startEntrance(){
   guest.rig.root.scale.setScalar(1);
   /* the seat moved across the table, so the walk is ~8 m: at a stroll
      that is a quarter-minute of nothing happening */
-  guest.speed=.95;
+  guest.speed=1.20;
   guest.active=true;guest.vPauseT=0;guest.walkK=0;guest.walkPhase=0;
   guest.prop=paper;                    /* idle glances go to the resume */
   guest.rig.root.visible=true;guest.blob.visible=true;
