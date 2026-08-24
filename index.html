@@ -5171,6 +5171,127 @@ const visitor=makeAgent("visitor","visitor",{});
 visitor.rig.root.visible=false;visitor.blob.visible=false;
 visitor.vTimer=8+Math.random()*10;     /* first visit soon after entering */
 visitor.vLeg=0;visitor.vDir=1;visitor.vPauseT=0;visitor.active=false;
+
+/* ---------------- THE WINDOW TABLES ----------------
+   Four chairs were laid against the glazing and nobody ever sat in them.
+   From the guest's chair they are the whole right half of the frame, so an
+   empty pair of tables is the one thing in the room that says "set" rather
+   than "café" — Simon's note was that we should sometimes see people
+   sitting there.
+
+   They come in through the same doorway as the stroller and leave the same
+   way, and they take the same precaution: `courier.inShop` holds the spawn,
+   because there is one door and the delivery has it.
+
+   THE SEATS ARE THE FAR ONES ON PURPOSE. The model lays ten chairs; six of
+   them are on the east side, and the courier's carry route passes within
+   0.35 m of assise.7 and 0.59 m of assise.4 — he would walk through a
+   seated customer. The four window chairs are 2.8 m off his nearest
+   waypoint, which is the whole reason these are the ones that get used.
+
+   Seat heights: rootY -.295 is measured, not guessed — it is where the
+   guest's own pelvis lands on a .503 seat, and SEAT_POSE rides on rootY<0
+   exactly as it does for the three stool sitters. Nobody needs the guest's
+   sit BLEND here: you meet these two already seated, or walking. */
+/* The trunk runs SOUTH of the whole window cluster and every chair is then
+   taken on a straight run north. The obvious lane — along the glazing —
+   was measured walking 5 cm from the centre of the far table: to reach a
+   chair on the far side of a table you have to go round the table, and a
+   straight line from a lane that shares its z never does. Clearances
+   below are the measured minimum from any walking sample to any table or
+   chair centre; a body is .25 and a café table .30, so .55 is the floor
+   and nothing here is under .62. */
+const SIT_LANE=[[6.52,.75],[5.60,1.00],[3.10,1.05]];
+/* chair centre, the yaw that turns them to their own table, the last trunk
+   point they need, and the point they turn north from */
+const SIT_SEATS=[
+  {pos:[3.84,1.70],yaw:-1.429,lane:1,via:[3.84,1.02]},   /* table at (3.07,1.81) */
+  {pos:[2.31,1.92],yaw: 1.714,lane:2,via:[2.31,1.05]},
+  {pos:[0.97,2.34],yaw:-1.427,lane:2,via:[0.97,1.15]},   /* table at (0.21,2.45) */
+  {pos:[-.55,2.55],yaw: 1.700,lane:2,via:[-.55,1.35]}
+];
+const SIT_ROOTY=-.295;
+const sitters=[];
+for(let i=0;i<2;i++){
+  const s=makeAgent("sitter"+i,"sitter",{});
+  s.rig.root.visible=false;s.blob.visible=false;
+  s.active=false;s.st="away";s.seat=null;s.lane=1;
+  /* staggered, and never both at once on the first pass: two strangers
+     arriving in step read as a scripted pair */
+  s.stT=18+Math.random()*22+i*16;
+  sitters.push(s);
+}
+function freeSeat(a){
+  const taken=sitters.filter(s=>s!==a&&s.seat&&s.st!=="away").map(s=>s.seat);
+  const free=SIT_SEATS.filter(s=>taken.indexOf(s)<0);
+  return free.length?free[(Math.random()*free.length)|0]:null;
+}
+function sitterSeat(a,s){
+  a.walkTarget=null;a.active=false;
+  a.pos.set(s.pos[0],0,s.pos[1]);a.yaw=s.yaw;a.rootY=SIT_ROOTY;
+}
+function tickSitter(a,dtT){
+  /* Reduced motion: they are simply THERE, seated, from the first frame.
+     The tables stop being empty without anything having to move to make it
+     happen — which is the point of the setting, not of the walk. */
+  if(RM){
+    if(a.st!=="sat"){
+      const s=freeSeat(a);if(!s)return;
+      a.seat=s;reskin(a);sitterSeat(a,s);
+      a.rig.root.visible=true;a.blob.visible=true;a.st="sat";a.stT=1e9;
+    }
+    return;
+  }
+  /* closing time: whoever is seated gets up and joins the exodus */
+  if(closing&&a.st!=="away"&&a.st!=="out"){
+    a.rootY=0;a.active=true;a.lane=a.seat?a.seat.lane:1;a.st="out";openDoor();
+  }
+  a.stT-=dtT;
+  switch(a.st){
+    case "away":{
+      if(a.stT>0||closing)return;
+      if(courier.inShop){a.stT=4;return;}   /* one doorway, and it is taken */
+      const s=freeSeat(a);
+      if(!s){a.stT=10;return;}
+      a.seat=s;a.lane=1;a.active=true;a.rootY=0;
+      reskin(a);
+      a.pos.set(SIT_LANE[0][0],0,SIT_LANE[0][1]);
+      a.yaw=Math.atan2(SIT_LANE[1][0]-SIT_LANE[0][0],SIT_LANE[1][1]-SIT_LANE[0][1]);
+      a.rig.root.visible=true;a.blob.visible=true;
+      a.st="in";openDoor();
+      return;
+    }
+    case "in":{
+      /* trunk, then the turn north, then the chair */
+      const t=a.lane<=a.seat.lane?SIT_LANE[a.lane]
+             :a.lane===a.seat.lane+1?a.seat.via:a.seat.pos;
+      if(Math.hypot(t[0]-a.pos.x,t[1]-a.pos.z)<.2){
+        if(t!==a.seat.pos){a.lane++;return;}
+        sitterSeat(a,a.seat);
+        a.st="sat";a.stT=45+Math.random()*55;   /* long enough to be furniture */
+        return;
+      }
+      a.walkTarget=[t[0],t[1]];
+      return;
+    }
+    case "sat":
+      if(a.stT>0)return;
+      a.rootY=0;a.active=true;a.lane=a.seat.lane+1;a.st="out";openDoor();
+      return;
+    case "out":{
+      if(a.lane<0||!a.seat){
+        a.active=false;a.walkTarget=null;
+        a.rig.root.visible=false;a.blob.visible=false;
+        a.seat=null;a.st="away";a.stT=35+Math.random()*45;openDoor();
+        return;
+      }
+      const t=a.lane>a.seat.lane?a.seat.via:SIT_LANE[a.lane];
+      if(Math.hypot(t[0]-a.pos.x,t[1]-a.pos.z)<.2){a.lane--;return;}
+      a.walkTarget=[t[0],t[1]];
+      return;
+    }
+  }
+}
 function reskin(a){
   const o={shirt:pickPal(PALETTES.shirt),pants:pickPal(PALETTES.pants),
     skin:pickPal(PALETTES.skin),hair:pickPal(PALETTES.hair),
@@ -6401,6 +6522,7 @@ function behaviourTick(dtT){
       case "drinker":tickDrinker(a,dtT);break;
       case "reader":tickReader(a,dtT);break;
       case "visitor":tickVisitor(a,dtT);break;
+      case "sitter":tickSitter(a,dtT);break;
       case "courier":tickCourier(a,dtT);break;
       case "guest":tickGuest(a,dtT);break;
     }
