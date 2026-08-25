@@ -2695,6 +2695,18 @@ const PRESS=[
     }
   }}
 ];
+/* WHERE THE PRESS HANGS, and the sconces with it — one table, read by both,
+   because the frames and their lights drifting apart is exactly the fault
+   Simon photographed. The model's rail is 2.437 / 4.132 / 5.827 at a pitch
+   of 1.695, and a fourth frame cannot join it: the next station left is .742,
+   behind the diploma cabinet that owns the wall from -1.88 to .92, and the
+   next right is 7.522, past a wall that ends at 7.09.
+   So all four are re-spaced instead, at a pitch of 1.45 across the only run
+   that is genuinely clear — the Employee of the Month plaque ends at 1.71 and
+   the shopfront starts at 6.93. A .47 frame at 2.10 clears the plaque by
+   15 cm, one at 6.45 clears the shopfront by 24, and the sconces are dragged
+   onto the same stations by the loader. */
+const PRESS_X=[2.10,3.55,5.00,6.45];
 PRESS.forEach((art,i)=>{
   const SS=2;
   const c=document.createElement("canvas");
@@ -2720,19 +2732,7 @@ PRESS.forEach((art,i)=>{
      x = 2.437 / 4.132 / 5.827 on the front wall, and the frames take
      the lit wall right below them — same rail height as the plaque,
      clear of the potted plant that fronts the wall at x≈3.9 */
-  /* The three model sconces sit at 2.437 / 4.132 / 5.827, spaced 1.695, and
-     the fourth frame cannot join that rhythm: the next station left is .742
-     and the DIPLOMA CABINET owns the wall from -1.88 to .92, while the next
-     station right is 7.522 and the shopfront starts at 6.93. The gap left of
-     the first sconce looks free and is not: the Employee of the Month plaque
-     sits at 1.52 and spans .38, leaving .49 m of daylight for a .47 frame.
-     What is actually free is the far end — the BUSINESS frame stops at 6.06
-     and the shopfront starts at 6.93 — so the fourth hangs at 6.49, with
-     20 cm clear either side. Off the rail's rhythm and deliberately so: it
-     is the only clear stretch in the room, and a frame behind a cabinet or
-     shouldering a plaque is worse than a frame out of step.
-     Kept last in the list so the existing three do not move. */
-  g.position.set([2.437,4.132,5.827,6.49][i],1.80,3.788);
+  g.position.set(PRESS_X[i],1.80,3.788);
   g.rotation.y=Math.PI;
   scene.add(g);
 });
@@ -2761,7 +2761,7 @@ PRESS.forEach((art,i)=>{
   bulb.position.y=-.03;g.add(bulb);
   const arm=new THREE.Mesh(new THREE.BoxGeometry(.05,.06,.24),brassSolid);
   arm.position.set(0,.045,.17);g.add(arm);
-  g.position.set(6.49,2.625,3.45);
+  g.position.set(PRESS_X[3],2.625,3.45);
   scene.add(g);
 }
 
@@ -3390,6 +3390,15 @@ function updateVan(dt){
     "ampoule","lettrage_ice_cube",...OUTSIDE]);
   /* objects the scene drives one by one — everything else merges by material */
   const SPECIAL=new Set(["ampoule.0","ampoule.1","ampoule.2","paillasson.0",
+    /* The three front-wall sconces, singled out so they can be MOVED. The
+       press wall grew a fourth story and the model's rail cannot take it:
+       its pitch is 1.695 and the next station either way is behind the
+       diploma cabinet or past the end of the wall. Evenly spacing four
+       therefore means re-spacing the three, and merged by material they
+       are one lump of brass with every other fitting in the room. */
+    "abat_jour_applique.0","abat_jour_applique.1","abat_jour_applique.2",
+    "ampoule_applique.0","ampoule_applique.1","ampoule_applique.2",
+    "bras_applique.0","bras_applique.1","bras_applique.2",
     /* the ICE CUBE tailgate and its lettering: merged by material they
        are one box with the caisse and can never swing — see the van
        section above */
@@ -3420,6 +3429,18 @@ function updateVan(dt){
     CAFE.backWall=CAFE.meshes.get("m:platre_vert")||null;
     CAFE.bulbs=[CAFE.meshes.get("ampoule.0"),CAFE.meshes.get("ampoule.1"),
                 CAFE.meshes.get("ampoule.2")];
+    /* Re-space the sconces onto the four-frame rail. The model bakes world
+       coordinates into the vertices, so a mesh starts at position 0 and
+       moving it is an OFFSET, not a placement — hence the deltas rather
+       than the targets. PRESS_X is the single source of truth for where
+       the frames hang; sconce i belongs over frame i. */
+    for(let i=0;i<3;i++){
+      const dx=PRESS_X[i]-[2.437,4.132,5.827][i];
+      ["abat_jour_applique.","ampoule_applique.","bras_applique."].forEach(function(pre){
+        const m=CAFE.meshes.get(pre+i);
+        if(m)m.position.x+=dx;
+      });
+    }
     CAFE.ready=true;
     buildDoorPivot();
     buildIceVan();
@@ -4313,44 +4334,50 @@ function drawTV(t){
      few centimetres before the frame did — and a picture that pokes out
      from behind an obstacle with no frame around it reads, exactly, as
      an image spilling out of the television. */
-  [{w:1.30,pos:[-1.24,2.46,-4.7],rot:[.06,.13,0],glow:.32},
-   {w:1.70,pos:[5.85,1.56,-4.7],rot:[0,-.10,0],glow:.5}]
+  /* z=-4.60, not -4.70, and this is the real answer to "the picture spills
+     out of the set". Both sets are ANGLED into the room, and a panel that
+     is angled swings its far edge backwards: half of 1.70 at .10 rad is
+     8.5 cm, half of 1.30 at .13 rad is the same 8.4, and the bezel adds
+     2.5 more. Parked 5 cm off a wall whose face is at -4.75, that put the
+     far bar 3 cm INSIDE the plaster — measured by raycast, which found the
+     wall 7 mm in front of it. The frame was never missing; the wall was
+     eating it. With the picture proud of a solid bezel the picture alone
+     survived the clip, which is exactly what "an image with no left edge"
+     looks like. 15 cm off the wall clears the worst corner of both sets
+     with room to spare, and a bracket that deep is what a tilted screen
+     hangs on anyway. */
+  [{w:1.30,pos:[-1.24,2.46,-4.60],rot:[.06,.13,0],glow:.32},
+   {w:1.70,pos:[5.85,1.56,-4.60],rot:[0,-.10,0],glow:.5}]
   .forEach(function(d){
     const g=new THREE.Group();
     const sw=d.w-FRAME*2,sh=sw*9/16;           /* 16:9, always */
-    /* A REAL BEZEL, WITH A HOLE IN IT — and that is the half of this that
-       widening the frame could never fix. The bezel used to be a solid box
-       with the picture laid on its face, 7 mm PROUD, because two coplanar
-       faces z-fight; so the image was physically in front of the
-       television, and no border width was ever going to make it read as
-       being inside one. Worse, proud geometry parallaxes: seen from the
-       side the picture slides across its own frame and overhangs the far
-       edge, which is exactly the "the image spills out of the set" Simon
-       kept pointing at.
-       An extruded rectangle with a rectangular hole is the same one mesh
-       and one draw call as the box was, and it lets the picture sit 17 mm
-       down IN the well. The frame's inner edge now occludes the picture's
-       edge from every angle, which is what a television does. */
-    const outerW=d.w,outerH=sh+FRAME*2;
-    const shape=new THREE.Shape();
-    shape.moveTo(-outerW/2,-outerH/2);shape.lineTo(outerW/2,-outerH/2);
-    shape.lineTo(outerW/2,outerH/2);shape.lineTo(-outerW/2,outerH/2);
-    shape.closePath();
-    const hole=new THREE.Path();            /* wound the other way, as holes must be */
-    hole.moveTo(-sw/2,-sh/2);hole.lineTo(-sw/2,sh/2);
-    hole.lineTo(sw/2,sh/2);hole.lineTo(sw/2,-sh/2);
-    hole.closePath();
-    shape.holes.push(hole);
-    const bezel=new THREE.Mesh(
-      new THREE.ExtrudeGeometry(shape,{depth:.05,bevelEnabled:false}),bezelMat);
-    bezel.position.z=-.025;                 /* extrude runs +z from 0: re-centre it */
-    bezel.castShadow=true;g.add(bezel);
-    /* EXACTLY the hole, not a millimetre over. An oversized plane was the
-       first instinct — tuck the edges behind the frame so no grazing angle
-       finds a sliver of wall — but the extrusion already solves that: a
-       real hole has inner walls, and they are what you see down the side
-       of the well. Oversizing only cropped the picture and broke its 16:9,
-       which cost the channel bug its left edge. */
+    /* A REAL BEZEL WITH A REAL HOLE, BUILT FROM FOUR BARS.
+       The picture used to be a plane laid on a solid box, 7 mm PROUD,
+       because two coplanar faces z-fight — so it sat physically in front
+       of the television and no border width could make it read as being
+       inside one. Widening the frame did not fix that, and Simon said so.
+       The second attempt punched the hole with an ExtrudeGeometry and a
+       Path, which is the tidy way and quietly wrong: three.js triangulated
+       the front cap with the LEFT bar missing. The geometry checked out
+       under every numeric test — outer box centred, hole edge at exactly
+       .75, borders symmetric on paper — and the render still showed a
+       television with no left edge, because none of those numbers ask
+       whether the triangles were actually emitted. Tinting the picture
+       magenta and looking is what found it.
+       Four boxes cannot be triangulated wrongly. They tile the surround
+       exactly — the side bars run the picture's height and butt into the
+       top and bottom bars at the corners — and each bar's inner face is
+       the wall of the well, so the recess still reads from an angle.
+       Three extra meshes per set against a scene of 850, for a frame that
+       is actually there. */
+    const bw=sw+FRAME,bh=sh+FRAME;
+    [[d.w,FRAME,0, bh/2],[d.w,FRAME,0,-bh/2],
+     [FRAME,sh,-bw/2,0],[FRAME,sh, bw/2,0]].forEach(function(b){
+      const m=new THREE.Mesh(new THREE.BoxGeometry(b[0],b[1],.05),bezelMat);
+      m.position.set(b[2],b[3],0);m.castShadow=true;g.add(m);
+    });
+    /* 17 mm down in the well: behind the bars, so their inner edges cut
+       the picture's edge from every angle, which is what a set does */
     const screen=new THREE.Mesh(new THREE.PlaneGeometry(sw,sh),screenMat);
     screen.position.z=.008;g.add(screen);
     /* the painter draws into whatever context it is given: hand it the
@@ -4361,8 +4388,10 @@ function drawTV(t){
     addReadable(screen,"HENRY TV — live","tv",512,288,function(gg){
       const keep=TV.ctx;TV.ctx=gg;drawTV(clock.elapsedTime);TV.ctx=keep;
     },true);
-    const arm=new THREE.Mesh(new THREE.BoxGeometry(.18,.18,.08),armMat);
-    arm.position.z=-.06;g.add(arm);
+    /* the bracket now has to reach: the bezel's back face is at -.025 and
+       the wall is 15 cm behind the group's origin */
+    const arm=new THREE.Mesh(new THREE.BoxGeometry(.18,.18,.13),armMat);
+    arm.position.z=-.09;g.add(arm);
     /* the wash a screen throws on the wall either side of it */
     const glow=new THREE.PointLight(0x8fb6ff,d.glow,2.4+d.w,2);
     glow.position.set(0,0,.42);g.add(glow);
