@@ -39,7 +39,7 @@ The audit is not a look at the screen. It is:
 3. **Write the numbers into the commit.** "It looks fine" is how the waiter
    shipped walking through a customer.
 
-Two mechanisms keep bodies apart, and they are not interchangeable:
+Three mechanisms keep bodies apart, and they are not interchangeable:
 
 - **`steerAgents()`** (in `walkLayer`) is the one that actually avoids: if the
   direction of travel points into a body within `AVOID_R`, it takes the
@@ -53,6 +53,28 @@ Two mechanisms keep bodies apart, and they are not interchangeable:
   towards their waypoints. Its push is in metres per SECOND, never per frame: a
   per-frame cap silently becomes a per-frame speed and loses the race to a
   walker as soon as the frame rate drops.
+
+- **`yieldToGuest()`** (in `behaviourTick`) is for the case neither of the
+  others covers: a body that is STANDING has no route to bend, so before this
+  existed the player walked into it and the separation pass slid it, feet
+  still, like furniture. It steps off the line, waits, and walks back to its
+  mark. Only bodies with nowhere else to go are eligible — hijacking the
+  `walkTarget` of an agent whose own tick drives it is overwritten ten times a
+  second.
+
+**Plan A is the route; plan B is the way round whoever is on it — and the
+other body is choosing its plan B at the same instant.** `steerAgents` splits
+on whether the obstacle is closing: a body merely in the way is furniture, so
+take the cheaper tangent; a body walking AT you is a negotiation, so both take
+the tangent on the SAME side of the line between them, which is opposite in
+the world for the two of them. Neither has to know what the other decided —
+the geometry decides, identically, for both. Letting each take "the tangent
+that goes my way" is what put the courier inside the waiter: two bodies
+choosing the same gap. The choice is committed for ~1 s, because re-deciding
+every frame as the angle drifts is what makes two people shuffle in a doorway.
+
+**The guest is never pushed.** He is the player; being shoved by the scenery
+reads as a bug. Whoever he meets takes the whole correction.
 
 Only a body in MOTION takes a push, or the standing trio (`.85` m apart) drifts
 apart for ever. The courier never yields — his route threads authored

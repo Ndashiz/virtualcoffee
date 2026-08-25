@@ -5448,7 +5448,11 @@ function sitterSeat(a,s){
 
    He is a normal agent, so separateAgents() keeps him out of the customers
    and the courier keeps right of way over him. */
-const WAITER_HOME=[3.30,-2.45];         /* clear of the last stool and of table.2 */
+/* HIS STATION IS BEHIND THE COUNTER, not out on the floor. A waiter with
+   nothing to do stands on the staff side; parked in the middle of the room
+   holding an empty tray he reads as a mannequin somebody forgot to switch
+   on. The east end of the corridor, where it widens past the back unit. */
+const WAITER_HOME=[3.48,-4.45];
 /* BEHIND THE COUNTER, where the cups come from and where they go. Simon's
    rule, and it is the right one: a customer should never watch a waiter
    collect a coffee or dump a dirty cup — those two moments belong off the
@@ -5461,15 +5465,15 @@ const WAITER_HOME=[3.30,-2.45];         /* clear of the last stool and of table.
    stands half inside the marble the way the barista already does — the
    camera grazes the top of the counter at under two degrees, so nobody
    has ever seen either of them do it. */
-const WAITER_BACK=[2.95,-4.42];
+const WAITER_BACK=[2.90,-4.42];         /* where the tray and the cups live */
 const CUP_STORE=[2.60,1.055,-4.72];     /* on the back unit, and hidden anyway */
-const BACK_IN=[[3.55,-3.20],[3.50,-4.45],WAITER_BACK];   /* round the east end */
-const BACK_OUT=[[3.50,-4.45],[3.55,-3.20]];              /* and out again */
+const BACK_OUT=[[3.50,-4.45],[3.58,-3.15]];   /* round the east end, into the room */
+const BACK_IN =[[3.58,-3.15],[3.50,-4.45]];   /* and back behind it */
 const WAITER_LANE=[[2.90,-1.60],[3.15,-0.20],[3.10,1.05]];
 const waiter=makeAgent("waiter","waiter",
   {shirt:0x2f3a44,pants:0x23232b,skin:0xdcae86,hair:0x1c1712});
 waiter.pos.set(WAITER_HOME[0],0,WAITER_HOME[1]);
-waiter.yaw=Math.PI*.15;waiter.active=false;waiter.st="home";waiter.stT=6;
+waiter.yaw=.35;waiter.active=false;waiter.st="home";waiter.stT=6;
 waiter.job=null;waiter.leg=0;waiter.plan=null;waiter.phase=0;
 { /* a short apron, the same cut the barista wears */
   const ap=new THREE.Mesh(new THREE.BoxGeometry(.30,.34,.055),
@@ -5484,7 +5488,11 @@ waiter.job=null;waiter.leg=0;waiter.plan=null;waiter.phase=0;
      and the cup standing on it stays put. */
   const tray=new THREE.Mesh(new THREE.BoxGeometry(.30,.014,.22),
     stdMat(0x3a2a1c,.55,.1,.6));
-  tray.castShadow=true;scene.add(tray);
+  /* AND HE DOES NOT START WITH IT. The tray belongs to the round, not to
+     the man: he picks it up when he goes for the order and puts it back
+     when he is done. A tray permanently welded to his hand made every idle
+     moment look like an interrupted delivery. */
+  tray.castShadow=true;tray.visible=false;scene.add(tray);
   waiter.tray=tray;
 }
 /* One cup per table. A cup is only ever in three places — out of sight in
@@ -5525,6 +5533,9 @@ function waiterJob(){
       return {t:i,seat:tableCups[i].userData.seat,mode:"clear"};
   return null;
 }
+/* Called from trayLayer, which runs every frame whatever state he is in —
+   not from the tick, which only visits two of them. A cup that follows the
+   tray in some states and not others is a cup that teleports. */
 function waiterCarry(a){
   /* a carried cup stands ON THE TRAY, not beside it. The drinker's cup
      rides his wrist because he is drinking from it; this one is being
@@ -5561,29 +5572,37 @@ function waiterReach(a,then){
    state machines that mirror each other drift apart the first time one of
    them is touched. */
 function waiterPlan(j){
-  const stand=SEAT_SERVE[j.seat].stand;
-  const toTable=WAITER_LANE.concat([stand]);
-  const toHome=WAITER_LANE.slice().reverse().concat([WAITER_HOME]);
+  const toTable=BACK_OUT.concat(WAITER_LANE,[SEAT_SERVE[j.seat].stand]);
+  const toBack =WAITER_LANE.slice().reverse().concat(BACK_IN,[WAITER_BACK]);
+  /* Both rounds begin the same way and for the same reason: he walks to the
+     back station and comes away with a tray. Serving, the coffee is on it
+     already; clearing, it is empty and there to carry the dirty cup home
+     on. Everything the customer must not see — collecting, stowing — is a
+     phase that starts and ends behind the counter. */
   if(j.mode==="serve")return [
-    {legs:BACK_IN,                 act:"take", face:"back"},
-    {legs:BACK_OUT.concat(toTable),act:"give", face:"cup"},
-    {legs:toHome,                  act:null,   face:"idle"}];
+    {legs:[WAITER_BACK], act:"take", face:"back"},   /* tray AND cup */
+    {legs:toTable,       act:"give", face:"cup"},
+    {legs:toBack,        act:"stow", face:"back"},
+    {legs:[WAITER_HOME], act:null,   face:"idle"}];
   return [
-    {legs:toTable,                                    act:"take", face:"cup"},
-    {legs:WAITER_LANE.slice().reverse().concat(BACK_IN),act:"drop",face:"back"},
-    {legs:BACK_OUT.concat([WAITER_HOME]),             act:null,   face:"idle"}];
+    {legs:[WAITER_BACK], act:"tray", face:"back"},   /* the tray alone */
+    {legs:toTable,       act:"take", face:"cup"},
+    {legs:toBack,        act:"stow", face:"back"},
+    {legs:[WAITER_HOME], act:null,   face:"idle"}];
 }
 function waiterAct(a,what){
   const j=a.job,c=tableCups[j.t];
-  if(what==="take"){
-    if(c.userData.where==="back")c.visible=true;
-    c.userData.where="held";
+  if(what==="tray"){
+    a.tray.visible=true;
+  }else if(what==="take"){
+    a.tray.visible=true;c.visible=true;c.userData.where="held";
   }else if(what==="give"){
     const sv=SEAT_SERVE[j.seat];
     c.userData.where="table";c.userData.seat=j.seat;
     c.position.set(sv.cup[0],sv.cup[1],sv.cup[2]);
-  }else if(what==="drop"){
-    cupToBack(c,j.t);
+  }else if(what==="stow"){
+    if(c.userData.where==="held")cupToBack(c,j.t);
+    a.tray.visible=false;
   }
 }
 function tickWaiter(a,dtT){
@@ -5597,6 +5616,7 @@ function tickWaiter(a,dtT){
     if(a.job){
       const c=tableCups[a.job.t];
       if(c.userData.where==="held")cupToBack(c,a.job.t);
+      if(a.tray)a.tray.visible=false;
       a.job=null;a.plan=null;a.st="shutWalk";a.leg=0;a.active=true;
       a.shots.length=0;a.dip=0;
     }
@@ -5615,7 +5635,6 @@ function tickWaiter(a,dtT){
       return;
     }
     case "walk":{
-      waiterCarry(a);
       const ph=a.plan[a.phase];
       if(a.leg<ph.legs.length){
         if(walkLeg(a,ph.legs[a.leg]))a.leg++;
@@ -5626,7 +5645,7 @@ function tickWaiter(a,dtT){
         const sv=SEAT_SERVE[a.job.seat];
         a.yaw=Math.atan2(sv.cup[0]-a.pos.x,sv.cup[2]-a.pos.z);
       }else if(ph.face==="back")a.yaw=Math.PI;   /* to the back unit */
-      else a.yaw=Math.PI*.15;
+      else a.yaw=.35;                            /* at his post, facing the room */
       if(!ph.act){                                /* end of the round */
         a.job=null;a.plan=null;a.st="home";a.stT=1.5;
         return;
@@ -5637,7 +5656,6 @@ function tickWaiter(a,dtT){
       return;
     }
     case "act":
-      waiterCarry(a);
       if(a.stT<=0){a.phase++;a.leg=0;a.active=true;a.st="walk";}
       return;
   }
@@ -6745,19 +6763,54 @@ function steerAround(a,dx,dz){
    tangent naturally pass each other on the same side they would in life.
    NOT applied to the guest: he is steered by a person, and a route that
    argues with the keys is worse than a bump. He is still pushed. */
-const AVOID_R=.78;
-function steerAgents(a,dx,dz){
+const AVOID_R=.86;
+const DETOUR_HOLD=1.1;            /* seconds a chosen side stays chosen */
+function steerAgents(a,dx,dz,dt){
+  /* PLAN A is the route. PLAN B is the way round whoever is standing on it,
+     and the whole difficulty is that the other body is choosing a plan B at
+     the same moment — so the two choices have to agree without talking.
+     The first version let each of them take "the tangent that still goes my
+     way". For a body crossing yours that is the right answer. For a body
+     walking AT you it is the wrong one: both compute it from their own
+     heading, both can land on the same gap, and two people stepping the
+     same way is how the courier ended up inside the waiter.
+     So the rule splits on whether the obstacle is coming towards you:
+     · a body that is not closing is an obstacle — go the way that costs
+       least, exactly as steerAround does for the furniture;
+     · a body that IS closing is a negotiation — both take the tangent on
+       the SAME side of the line between them, which is opposite in the
+       world for the two of them, so they separate instead of mirroring.
+       Neither has to know what the other decided; the geometry decides.
+     And the choice is committed for a beat. Re-deciding every frame as the
+     angle drifts is what makes two bodies shuffle in a doorway. */
+  let bx=0,bz=0,bl=0,best=null,bd=9;
   for(let i=0;i<agents.length;i++){
     const b=agents[i];
     if(b===a||!b.rig.root.visible)continue;
     const rx=a.pos.x-b.pos.x,rz=a.pos.z-b.pos.z,rl=Math.hypot(rx,rz);
-    if(rl<1e-4||rl>AVOID_R)continue;
+    if(rl<1e-4||rl>AVOID_R||rl>=bd)continue;
     if(-(dx*rx+dz*rz)/rl<=.05)continue;      /* not heading into him */
-    const tx=-rz/rl,tz=rx/rl;                /* the two tangents */
-    const s=(dx*tx+dz*tz)>=0?1:-1;           /* the one that still goes his way */
-    return [tx*s,tz*s];
+    best=b;bd=rl;bx=rx;bz=rz;bl=rl;
   }
-  return [dx,dz];
+  if(a.detour&&(a.detour.t-=dt)<=0)a.detour=null;
+  if(!best){return [dx,dz];}
+  const tx=-bz/bl,tz=bx/bl;                  /* the two tangents */
+  let side;
+  if(a.detour&&a.detour.id===best.id)side=a.detour.side;
+  else{
+    /* is he closing on me, or merely in the way? */
+    const closing=best.walkK>.12&&
+      ((best.pos.x-a.pos.x)*(-bx)+(best.pos.z-a.pos.z)*(-bz))<0;
+    side=closing?1:((dx*tx+dz*tz)>=0?1:-1);
+    a.detour={id:best.id,side:side,t:DETOUR_HOLD};
+  }
+  /* blend the tangent with the original heading rather than replacing it:
+     a hard right-angle turn to dodge reads as a glitch, and the arrive
+     ramp already slows him where it matters */
+  const k=Math.min(1,(AVOID_R-bl)/(AVOID_R-BODY_R*2)),w=.25+.75*k;
+  const ox=dx*(1-w)+tx*side*w,oz=dz*(1-w)+tz*side*w;
+  const ol=Math.hypot(ox,oz)||1;
+  return [ox/ol,oz/ol];
 }
 function walkLayer(a,buf,ac,dt){
   let v=0;
@@ -6779,7 +6832,7 @@ function walkLayer(a,buf,ac,dt){
       const arrive=Math.min(1,d/.45);
       /* only the guest steers: the extras' routes are authored to be clear */
       let h=a.collide?steerAround(a,dx/d,dz/d):[dx/d,dz/d];
-      h=steerAgents(a,h[0],h[1]);          /* and round each other */
+      h=steerAgents(a,h[0],h[1],dt);       /* and round each other */
       const vx=h[0]*a.speed*arrive,vz=h[1]*a.speed*arrive;
       a.pos.x+=vx*dt;a.pos.z+=vz*dt;
       a.yaw=angleDamp(a.yaw,Math.atan2(vx,vz),.14,dt);
@@ -6904,23 +6957,46 @@ function sitLayer(a,buf,dt){
    into the buffer every frame, and a man swinging a loaded tray would tip
    it. Written as an overwrite for the same reason courierLayer overwrites
    its arms — blending against the swing would only halve it. */
+const _tw=new THREE.Vector3(),_tw2=new THREE.Vector3();
 function trayLayer(a,buf){
-  if(a.kind!=="waiter")return;
-  /* upper arm hanging, forearm folded across the body and level: the pose
-     a tray is actually carried in, and the one that puts the hand where
-     the tray below can sit on it */
-  buf.shoulderL.x=-.58;buf.shoulderL.y=.30;buf.shoulderL.z=.26;
-  buf.elbowL.x=-1.34;buf.elbowL.y=0;buf.elbowL.z=0;
-  buf.wristL.x=0;buf.wristL.y=0;buf.wristL.z=0;
-  if(!a.tray)return;
-  a.rig.J.wristL.getWorldPosition(a.tray.position);
-  /* carried in FRONT of the hip, not hanging beside it: 10 cm along his own
-     facing is the difference between a man holding a tray and a man with a
-     plank stuck to his side */
-  a.tray.position.y-=.025;
-  a.tray.position.x+=Math.sin(a.yaw)*.10;
-  a.tray.position.z+=Math.cos(a.yaw)*.10;
+  if(a.kind!=="waiter"||!a.tray||!a.tray.visible)return;
+  /* BOTH HANDS, UNDERNEATH. A tray is carried on the flat of two hands, not
+     pinched at a corner — one-handed it read as a clipboard. These angles
+     are swept against the rig rather than reasoned: they put the wrists
+     22 cm apart, which is the span the tray needs.
+     The right arm is held here only while nothing else is using it.
+     shotsLayer runs BEFORE this one, so an unconditional overwrite would
+     erase the reach that places a cup — and taking one hand off the tray to
+     set a coffee down is what a waiter does anyway. */
+  buf.shoulderL.x=-.75;buf.shoulderL.y=.10;buf.shoulderL.z=.12;
+  buf.elbowL.x=-1.20;buf.elbowL.y=0;buf.elbowL.z=0;
+  buf.wristL.x=.10;buf.wristL.y=0;buf.wristL.z=0;
+  const two=!a.shots.length;
+  if(two){
+    buf.shoulderR.x=-.75;buf.shoulderR.y=-.10;buf.shoulderR.z=-.12;
+    buf.elbowR.x=-1.20;buf.elbowR.y=0;buf.elbowR.z=0;
+    buf.wristR.x=.10;buf.wristR.y=0;buf.wristR.z=0;
+  }
+  /* THE TRAY SITS ON THE HANDS, so it is placed from them and not from a
+     guessed offset on the chest — measured, the chest anchor put it 33 cm
+     below the palms. Midpoint of the two wrists while both are on it; and
+     when the right one leaves, the offset it had from the LEFT wrist is
+     what it keeps, so the tray stays where the remaining hand is holding
+     it instead of lurching after the arm that walked away. */
+  a.rig.J.wristL.getWorldPosition(_tw);
+  if(two){
+    a.rig.J.wristR.getWorldPosition(_tw2);
+    a.tray.position.lerpVectors(_tw,_tw2,.5);
+    a.tray.position.y+=.035;
+    if(!a.trayOff)a.trayOff=new THREE.Vector3();
+    a.trayOff.copy(a.tray.position).sub(_tw);
+  }else if(a.trayOff){
+    a.tray.position.copy(_tw).add(a.trayOff);
+  }else{
+    a.tray.position.copy(_tw);a.tray.position.y+=.035;
+  }
   a.tray.rotation.set(0,a.yaw,0);      /* level, always */
+  waiterCarry(a);                      /* and whatever is standing on it */
 }
 function typingLayer(a,buf,ac){
   if(!a.typing)return;
@@ -7036,7 +7112,13 @@ function separateAgents(dt){
          who is not the courier moves, moving or not. The standing trio is
          .85 m apart and can never reach this branch. */
       const deep=d<BODY_R;
-      const aP=(deep||a.walkK>.05)&&!aFix, bP=(deep||b.walkK>.05)&&!bFix;
+      let aP=(deep||a.walkK>.05)&&!aFix, bP=(deep||b.walkK>.05)&&!bFix;
+      /* THE GUEST IS NEVER PUSHED. He is the player: being shoved by the
+         scenery reads as a bug, and a metre of corridor he cannot hold is
+         worse than an NPC standing a little off its mark. Whoever he meets
+         takes the whole correction. */
+      if(a===guest&&!bFix){aP=false;bP=true;}
+      else if(b===guest&&!aFix){bP=false;aP=true;}
       if(!aP&&!bP)continue;
       if(d<1e-4){dx=1;dz=0;d=1;}  /* exactly stacked: any direction will do */
       const push=Math.min(BODY_R*2-d,(deep?PUSH_RATE_DEEP:PUSH_RATE)*dt);
@@ -7059,6 +7141,54 @@ function separateAgents(dt){
 }
 const TICK_DT=1/10;
 let tickAcc=0;
+/* ---- GETTING OUT OF THE WAY ----
+   steerAgents() only helps a body that is already walking somewhere: it
+   bends a route. Someone STANDING has no route to bend, so the guest walked
+   into the standing trio and the separation pass simply slid them, feet
+   still, like furniture. Simon's note is the right one — a person you walk
+   towards steps aside.
+   Only bodies with nowhere to go are eligible (`!a.active`), which in this
+   room is exactly the three at the counter: hijacking the walkTarget of an
+   agent whose own tick is driving it would be overwritten ten times a
+   second. They step off the line, wait, and walk back to the spot they were
+   standing on — a café where the regulars end the evening scattered across
+   the floor is worse than one where they never move at all. */
+const YIELD_R=1.15;               /* he starts moving before you reach him */
+const YIELD_STEP=.75;
+function yieldToGuest(dtT){
+  const gm=guest.rig.root.visible&&guest.walkK>.15;
+  const gx=Math.sin(guest.yaw),gz=Math.cos(guest.yaw);
+  for(let i=0;i<agents.length;i++){
+    const a=agents[i];
+    if(a===guest||!a.rig.root.visible||a.kind==="courier")continue;
+    if(a.rootY<-.05)continue;                    /* seated: walk round him */
+    if(a.yieldT>0){                              /* stepping aside already */
+      a.yieldT-=dtT;
+      if(a.yieldT<=0&&a.yieldHome){
+        a.walkTarget=[a.yieldHome[0],a.yieldHome[1]];a.active=true;
+      }
+      continue;
+    }
+    /* back on his mark: stand down */
+    if(a.yieldHome){
+      if(Math.hypot(a.pos.x-a.yieldHome[0],a.pos.z-a.yieldHome[1])<.16){
+        a.pos.x=a.yieldHome[0];a.pos.z=a.yieldHome[1];
+        a.walkTarget=null;a.active=false;a.yieldHome=null;
+        if(a.yieldYaw!==undefined){a.yaw=a.yieldYaw;a.yieldYaw=undefined;}
+      }
+      continue;
+    }
+    if(!gm||a.active)continue;
+    const dx=a.pos.x-guest.pos.x,dz=a.pos.z-guest.pos.z,d=Math.hypot(dx,dz);
+    if(d>YIELD_R||d<1e-4)continue;
+    if((gx*dx+gz*dz)/d<.55)continue;             /* not in front of him */
+    const tx=-dz/d,tz=dx/d;                      /* the two ways off the line */
+    const s=(gx*tx+gz*tz)>=0?-1:1;               /* the one that clears him */
+    a.yieldHome=[a.pos.x,a.pos.z];a.yieldYaw=a.yaw;
+    a.walkTarget=[a.pos.x+tx*s*YIELD_STEP,a.pos.z+tz*s*YIELD_STEP];
+    a.active=true;a.yieldT=2.6;
+  }
+}
 function behaviourTick(dtT){
   if(!closing)updateGroups(dtT);   /* closing time: the chat is over */
   for(let i=0;i<agents.length;i++){
@@ -7090,6 +7220,7 @@ function behaviourTick(dtT){
       case "guest":tickGuest(a,dtT);break;
     }
   }
+  yieldToGuest(dtT);  /* and anyone standing where the player is heading */
   tickJukebox(dtT);   /* the silent disco has its own choreography clock */
 }
 /* ---------------- LAST ORDERS ----------------
