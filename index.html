@@ -5284,6 +5284,7 @@ function tickSitter(a,dtT){
     case "away":{
       if(a.stT>0||closing)return;
       if(courier.inShop){a.stT=4;return;}   /* one doorway, and it is taken */
+      if(!doorClear(SIT_LANE[0])){a.stT=3;return;}
       const s=freeSeat(a);
       if(!s){a.stT=10;return;}
       a.seat=s;a.lane=1;a.active=true;a.rootY=0;
@@ -6242,6 +6243,7 @@ function tickVisitor(a,dtT){
     if(courier.inShop)return;   /* one doorway: the delivery has it */
     a.vTimer-=dtT;
     if(a.vTimer<=0){
+      if(!doorClear(VISIT_PATH[0])){a.vTimer=3;return;}
       a.active=true;
       reskin(a);
       a.rig.root.visible=true;a.blob.visible=true;
@@ -6526,6 +6528,95 @@ function animateAgents(dt){
     if(a.walkK<.02)a.rig.root.position.y=a.rootY+(a.jbBob||0);
     a.rig.root.rotation.y=a.yaw;
     a.blob.position.set(a.pos.x,(a.groundY||0)+.006,a.pos.z);
+  }
+  separateAgents(dt);
+}
+/* ---- NOBODY WALKS THROUGH ANYBODY ----
+   Until now the only collision in the room was the guest against the
+   FURNITURE: GUEST_BLOCKERS and GUEST_RECTS, and `a.collide` exists on
+   exactly one agent. Bodies passed through each other freely, which is
+   invisible most of the time — the extras' routes are authored apart —
+   and glaring the moment two of them share the doorway, which is what
+   Simon caught the stroller doing to the courier.
+
+   A radial push after everyone has moved, not a steering rule before:
+   steering needs a plan and deadlocks when two plans disagree, while a
+   push cannot fail and cannot loop. It runs on the twelve visible agents,
+   so sixty-six pairs of one hypot each — nothing.
+
+   THREE RULES, and each is a decision rather than a detail:
+   · Only a body that is MOVING takes the push. The standing trio chats at
+     .85 m and the window-bar pair sits at 1.00, both inside the .52 m
+     envelope: a symmetric push would shove them apart on the first frame
+     and the trio would drift for ever.
+   · The COURIER never yields. His route threads the room on authored
+     clearances a shove would break, and a delivery man having right of
+     way over the customers is what a café looks like anyway.
+   · The push is capped per frame, so nothing is ever teleported out of a
+     collision — bodies ease apart over a few frames instead of popping.
+   Hidden agents are skipped, and that is not an optimisation: every one
+   of them parks at the origin while invisible, so five of them are exactly
+   stacked and would blow apart the frame one of them was shown. */
+const BODY_R=.26;                 /* half a set of shoulders */
+/* One door, and the stroller, the two window customers and the courier
+   all use it. Spawning is the one moment a body can be placed straight
+   on top of another, so it asks first — the separation pass can pull two
+   merged bodies apart, but nobody should ever see it have to. */
+function doorClear(pt){
+  for(let i=0;i<agents.length;i++){
+    const a=agents[i];
+    if(!a.rig.root.visible)continue;
+    if(Math.hypot(a.pos.x-pt[0],a.pos.z-pt[1])<.8)return false;
+  }
+  return true;
+}
+/* Metres per SECOND, not per frame, and that distinction is the whole
+   difference between a rule and a coincidence: a per-frame cap silently
+   becomes a per-frame SPEED, so the same code separates bodies briskly at
+   60 fps and loses the race to a courier walking at 1.2 m/s when the frame
+   rate drops. Measured on a software renderer at 5 fps, a .05-per-frame
+   cap let him close to 36 cm; expressed as a rate it holds the envelope at
+   any cadence. Well above walking speed on purpose — the push is also
+   clamped to the actual overlap, so it can never overshoot into a shove. */
+const PUSH_RATE=2.5,PUSH_RATE_DEEP=6;
+function separateAgents(dt){
+  for(let i=0;i<agents.length;i++){
+    const a=agents[i];
+    if(!a.rig.root.visible)continue;
+    const aFix=a.kind==="courier";
+    for(let j=i+1;j<agents.length;j++){
+      const b=agents[j];
+      if(!b.rig.root.visible)continue;
+      let dx=b.pos.x-a.pos.x,dz=b.pos.z-a.pos.z;
+      let d=Math.hypot(dx,dz);
+      if(d>=BODY_R*2)continue;
+      const bFix=b.kind==="courier";
+      /* Normally only a body in motion gives way. But a body INSIDE
+         another one is a different case: at spawn walkK is still damping
+         up from zero, so two arrivals sharing the doorway would have sat
+         merged, waiting to be considered movers. Under one radius, anyone
+         who is not the courier moves, moving or not. The standing trio is
+         .85 m apart and can never reach this branch. */
+      const deep=d<BODY_R;
+      const aP=(deep||a.walkK>.05)&&!aFix, bP=(deep||b.walkK>.05)&&!bFix;
+      if(!aP&&!bP)continue;
+      if(d<1e-4){dx=1;dz=0;d=1;}  /* exactly stacked: any direction will do */
+      const push=Math.min(BODY_R*2-d,(deep?PUSH_RATE_DEEP:PUSH_RATE)*dt);
+      dx/=d;dz/=d;
+      const ka=aP?(bP?.5:1):0,kb=bP?(aP?.5:1):0;
+      if(ka){a.pos.x-=dx*push*ka;a.pos.z-=dz*push*ka;}
+      if(kb){b.pos.x+=dx*push*kb;b.pos.z+=dz*push*kb;}
+    }
+  }
+  /* the rigs were written from a.pos a few lines ago — and the guest gets
+     his furniture clamp re-run, or a push could seat him in a tabletop */
+  for(let i=0;i<agents.length;i++){
+    const a=agents[i];
+    if(!a.rig.root.visible)continue;
+    if(a.collide&&a.state==="walk")a.collide(a);
+    a.rig.root.position.x=a.pos.x;
+    a.rig.root.position.z=a.pos.z;
+    a.blob.position.x=a.pos.x;a.blob.position.z=a.pos.z;
   }
 }
 const TICK_DT=1/10;
