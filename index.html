@@ -5562,7 +5562,11 @@ function waiterCarry(a){
 /* reach out, then straighten: one gesture serves putting a cup down and
    picking one up, because from across the room they are the same move */
 function waiterReach(a,then){
-  playShot(a,1.9,function(k,buf){
+  /* 1.25 s, not 1.9. Setting a cup down is a quick move, and the first
+     version held the pose long enough that Simon read it as the waiter
+     being stuck — which is a fair reading of a man standing motionless
+     with his arm out for two seconds. */
+  playShot(a,1.25,function(k,buf){
     const p=k<.5?easeInOut(k/.5):1-easeInOut((k-.5)/.5);
     /* He STOOPS. A tabletop is at .80 and his shoulder rides near 1.34, so
        an arm alone reaches down at the wrong angle and the hand arrives
@@ -5639,6 +5643,7 @@ function tickWaiter(a,dtT){
     return;
   }
   a.stT-=dtT;
+  waiterWatchdog(a,dtT);
   switch(a.st){
     case "home":{
       if(a.stT>0)return;
@@ -5663,7 +5668,7 @@ function tickWaiter(a,dtT){
         a.job=null;a.plan=null;a.st="home";a.stT=1.5;
         return;
       }
-      a.st="act";a.stT=2.0;
+      a.st="act";a.stT=1.35;
       const what=ph.act;
       waiterReach(a,function(){waiterAct(a,what);});
       return;
@@ -5672,6 +5677,27 @@ function tickWaiter(a,dtT){
       if(a.stT<=0){a.phase++;a.leg=0;a.active=true;a.st="walk";}
       return;
   }
+}
+/* WATCHDOG. Nothing in three thousand frames of testing ever stalled him,
+   but a round is four walks and two gestures deep and the failure mode —
+   standing in the room for ever holding a coffee — is the most visible
+   one a background character has. If a phase has not changed in twelve
+   seconds, the round is abandoned: whatever he is holding goes back out of
+   sight and he walks to his post. A café that quietly recovers beats one
+   that needs a reload. */
+const WAITER_WD=12;
+function waiterWatchdog(a,dtT){
+  const k=a.st+"/"+a.phase+"/"+a.leg;
+  if(k!==a.wdKey){a.wdKey=k;a.wdT=0;return;}
+  if(a.st==="home"||!a.job)return;             /* idling is not stalling */
+  if((a.wdT=(a.wdT||0)+dtT)<WAITER_WD)return;
+  const c=tableCups[a.job.t];
+  if(c.userData.where==="held")cupToBack(c,a.job.t);
+  if(a.tray)a.tray.visible=false;
+  a.shots.length=0;a.dip=0;a.job=null;a.plan=null;
+  a.leg=0;a.phase=0;a.active=true;a.st="walk";
+  a.plan=[{legs:[WAITER_HOME],act:null,face:"idle"}];
+  a.wdT=0;
 }
 /* true the frame he arrives — the same .2 m acceptance the customers use,
    so nobody creeps the last centimetres of a leg at walking pace */
@@ -7096,6 +7122,17 @@ function animateAgents(dt){
    of them parks at the origin while invisible, so five of them are exactly
    stacked and would blow apart the frame one of them was shown. */
 const BODY_R=.26;                 /* half a set of shoulders */
+/* SEATED, and the definition is the pose layer's own: `rootY<0` is the
+   cast's sitting convention and `sit` is the guest's blend. Written once
+   because it was written twice, and the second one used a threshold of
+   -.05 while the stool customers ride at -.01 — so the drinker and the
+   reader read as STANDING, my give-way rule walked them off their stools,
+   and they slid along the window bar at seat height with a walk cycle
+   fighting SEAT_POSE, which is what "she has no legs" was.
+   A seated body is furniture. It is never pushed and never asked to move:
+   tickLeaving stands the cast up (`a.rootY=0`) before it walks them home,
+   and anything that moves a body owes it the same courtesy. */
+function seated(a){return a.rootY<0||!!a.sit;}
 /* One door, and the stroller, the two window customers and the courier
    all use it. Spawning is the one moment a body can be placed straight
    on top of another, so it asks first — the separation pass can pull two
@@ -7121,14 +7158,14 @@ function separateAgents(dt){
   for(let i=0;i<agents.length;i++){
     const a=agents[i];
     if(!a.rig.root.visible)continue;
-    const aFix=a.kind==="courier";
+    const aFix=a.kind==="courier"||seated(a);
     for(let j=i+1;j<agents.length;j++){
       const b=agents[j];
       if(!b.rig.root.visible)continue;
       let dx=b.pos.x-a.pos.x,dz=b.pos.z-a.pos.z;
       let d=Math.hypot(dx,dz);
       if(d>=BODY_R*2)continue;
-      const bFix=b.kind==="courier";
+      const bFix=b.kind==="courier"||seated(b);
       /* Normally only a body in motion gives way. But a body INSIDE
          another one is a different case: at spawn walkK is still damping
          up from zero, so two arrivals sharing the doorway would have sat
@@ -7137,10 +7174,12 @@ function separateAgents(dt){
          .85 m apart and can never reach this branch. */
       const deep=d<BODY_R;
       let aP=(deep||a.walkK>.05)&&!aFix, bP=(deep||b.walkK>.05)&&!bFix;
-      /* THE GUEST IS NEVER PUSHED. He is the player: being shoved by the
-         scenery reads as a bug, and a metre of corridor he cannot hold is
-         worse than an NPC standing a little off its mark. Whoever he meets
-         takes the whole correction. */
+      /* THE GUEST IS NEVER PUSHED — unless what he has walked into cannot
+         move either. He is the player and being shoved by the scenery reads
+         as a bug, so whoever he meets takes the whole correction; but a
+         seated customer IS scenery, and the courier has a route to keep.
+         Against those two he is the one who gives, which is the only way a
+         chair can stop him without a body sliding out from under someone. */
       if(a===guest&&!bFix){aP=false;bP=true;}
       else if(b===guest&&!aFix){bP=false;aP=true;}
       if(!aP&&!bP)continue;
@@ -7185,7 +7224,7 @@ function yieldToGuest(dtT){
   for(let i=0;i<agents.length;i++){
     const a=agents[i];
     if(a===guest||!a.rig.root.visible||a.kind==="courier")continue;
-    if(a.rootY<-.05)continue;                    /* seated: walk round him */
+    if(seated(a))continue;                       /* seated: walk round him */
     if(a.yieldT>0){                              /* stepping aside already */
       a.yieldT-=dtT;
       if(a.yieldT<=0&&a.yieldHome){

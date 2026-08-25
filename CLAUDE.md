@@ -88,7 +88,18 @@ been turned away by the same body and, past `STUCK_MAX`, walks straight at it
 and lets the separation pass part them. Better a shoulder brushed than a
 delivery that never arrives.
 
-**The guest is never pushed.** He is the player; being shoved by the scenery
+**A seated body is furniture.** `seated(a)` is `rootY<0 || a.sit`, which is the
+pose layer's own definition — and it must be, because the second copy of that
+test used `-.05` while the stool customers ride at `-.01`, so the drinker and
+the reader read as standing, the give-way rule walked them off their stools,
+and they slid along the window bar at seat height with a walk cycle fighting
+SEAT_POSE. A seated body is never pushed and never asked to move. Anything
+that DOES move one owes it what `tickLeaving` already does: stand it up
+(`a.rootY=0`) first.
+
+**The guest is never pushed** — unless what he walked into cannot move either.
+
+ He is the player; being shoved by the scenery
 reads as a bug. Whoever he meets takes the whole correction.
 
 Only a body in MOTION takes a push, or the standing trio (`.85` m apart) drifts
