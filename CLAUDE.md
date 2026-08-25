@@ -36,7 +36,15 @@ The audit is not a look at the screen. It is:
    the minimum distance for every PAIR. The envelope is `BODY_R*2` = `.52`.
    Drive the guest across the service lanes while you do it: the tightest
    encounters are the ones nobody stages.
-3. **Write the numbers into the commit.** "It looks fine" is how the waiter
+3. **A STATION is stricter than a route.** A waypoint another body walks
+   through for a second is a passing encounter and steering handles it. A
+   spot where somebody STANDS for minutes is a wall. Check every new resting
+   position against every point of every other agent's paths, and keep
+   `.8` m: the waiter's post shipped 21 cm from `ICE_CARRY`'s last waypoint,
+   so the courier's delivery target sat inside a body that never moved and
+   he circled it for ever. The courier never yields, so nothing could
+   resolve it.
+4. **Write the numbers into the commit.** "It looks fine" is how the waiter
    shipped walking through a customer.
 
 Three mechanisms keep bodies apart, and they are not interchangeable:
@@ -72,6 +80,13 @@ the geometry decides, identically, for both. Letting each take "the tangent
 that goes my way" is what put the courier inside the waiter: two bodies
 choosing the same gap. The choice is committed for ~1 s, because re-deciding
 every frame as the angle drifts is what makes two people shuffle in a doorway.
+
+**Nothing may orbit.** A steering rule with no way to give up will circle a
+body that never moves: every approach is deflected, the waypoint behind it is
+never reached, and the route never ends. `steerAgents` counts how long it has
+been turned away by the same body and, past `STUCK_MAX`, walks straight at it
+and lets the separation pass part them. Better a shoulder brushed than a
+delivery that never arrives.
 
 **The guest is never pushed.** He is the player; being shoved by the scenery
 reads as a bug. Whoever he meets takes the whole correction.

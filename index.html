@@ -5448,11 +5448,20 @@ function sitterSeat(a,s){
 
    He is a normal agent, so separateAgents() keeps him out of the customers
    and the courier keeps right of way over him. */
-/* HIS STATION IS BEHIND THE COUNTER, not out on the floor. A waiter with
-   nothing to do stands on the staff side; parked in the middle of the room
-   holding an empty tray he reads as a mannequin somebody forgot to switch
-   on. The east end of the corridor, where it widens past the back unit. */
-const WAITER_HOME=[3.48,-4.45];
+/* HIS STATION IS BEHIND THE COUNTER, not out on the floor — and WEST of the
+   delivery corner, which is the whole point of these numbers.
+   The first placement put him at (3.48,-4.45), and that is 21 cm from
+   ICE_CARRY's last waypoint. The courier sets the ice down at (3.12,-4.44)
+   and leaves through (3.5,-4.24): the waiter's post was standing on both.
+   The courier never yields — his route threads authored clearances — so his
+   target sat inside a body that never moved, and he circled it. Measured
+   against every point of all four ICE_* paths, the station is now .92 m
+   clear and the collection point 1.42, while the barista at (.42,-4.30) is
+   1.79 and 1.28 away. The corridor is only .27 m wide this far west and he
+   stands half inside the marble, exactly as she already does — the camera
+   grazes the counter top at under two degrees and neither of them has ever
+   been seen doing it. */
+const WAITER_HOME=[2.20,-4.40];
 /* BEHIND THE COUNTER, where the cups come from and where they go. Simon's
    rule, and it is the right one: a customer should never watch a waiter
    collect a coffee or dump a dirty cup — those two moments belong off the
@@ -5465,10 +5474,14 @@ const WAITER_HOME=[3.48,-4.45];
    stands half inside the marble the way the barista already does — the
    camera grazes the top of the counter at under two degrees, so nobody
    has ever seen either of them do it. */
-const WAITER_BACK=[2.90,-4.42];         /* where the tray and the cups live */
-const CUP_STORE=[2.60,1.055,-4.72];     /* on the back unit, and hidden anyway */
-const BACK_OUT=[[3.50,-4.45],[3.58,-3.15]];   /* round the east end, into the room */
-const BACK_IN =[[3.58,-3.15],[3.50,-4.45]];   /* and back behind it */
+const WAITER_BACK=[1.70,-4.40];         /* where the tray and the cups live */
+const CUP_STORE=[1.60,1.055,-4.72];     /* on the back unit, and hidden anyway */
+/* Out past the delivery corner and into the room. He still crosses it —
+   there is one way round the counter and the courier uses it too — but he
+   crosses it walking, which is what steerAgents is for; what he no longer
+   does is STAND in it. */
+const BACK_OUT=[[3.35,-4.62],[3.66,-3.05]];   /* round the east end, into the room */
+const BACK_IN =[[3.66,-3.05],[3.35,-4.62]];   /* and back behind it */
 const WAITER_LANE=[[2.90,-1.60],[3.15,-0.20],[3.10,1.05]];
 const waiter=makeAgent("waiter","waiter",
   {shirt:0x2f3a44,pants:0x23232b,skin:0xdcae86,hair:0x1c1712});
@@ -6765,6 +6778,7 @@ function steerAround(a,dx,dz){
    argues with the keys is worse than a bump. He is still pushed. */
 const AVOID_R=.86;
 const DETOUR_HOLD=1.1;            /* seconds a chosen side stays chosen */
+const STUCK_MAX=2.4;              /* and how long deflecting may go on */
 function steerAgents(a,dx,dz,dt){
   /* PLAN A is the route. PLAN B is the way round whoever is standing on it,
      and the whole difficulty is that the other body is choosing a plan B at
@@ -6796,13 +6810,23 @@ function steerAgents(a,dx,dz,dt){
   if(!best){return [dx,dz];}
   const tx=-bz/bl,tz=bx/bl;                  /* the two tangents */
   let side;
-  if(a.detour&&a.detour.id===best.id)side=a.detour.side;
-  else{
+  if(a.detour&&a.detour.id===best.id){
+    side=a.detour.side;
+    /* PROGRESS GUARANTEE. A steering rule with no way to give up will orbit
+       a body that never moves: every approach gets deflected, so the
+       waypoint behind it is never reached and the route never ends. That is
+       what "the courier goes round in circles" was. After a couple of
+       seconds of being turned away by the same body, stop turning and walk
+       at it — separateAgents is behind this and will part them, and for the
+       courier, who never takes a push, it parts them by moving the other
+       one. Better a shoulder brushed than a delivery that never arrives. */
+    if((a.detour.stuck+=dt)>STUCK_MAX)return [dx,dz];
+  }else{
     /* is he closing on me, or merely in the way? */
     const closing=best.walkK>.12&&
       ((best.pos.x-a.pos.x)*(-bx)+(best.pos.z-a.pos.z)*(-bz))<0;
     side=closing?1:((dx*tx+dz*tz)>=0?1:-1);
-    a.detour={id:best.id,side:side,t:DETOUR_HOLD};
+    a.detour={id:best.id,side:side,t:DETOUR_HOLD,stuck:0};
   }
   /* blend the tangent with the original heading rather than replacing it:
      a hard right-angle turn to dodge reads as a glitch, and the arrive
