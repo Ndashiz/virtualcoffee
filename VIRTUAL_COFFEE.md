@@ -103,6 +103,7 @@ en muet il parle toujours, sous-titres compris, on ne l'entend simplement pas.
 | « 📄 See the resume » / « ⬇ Download it » / « in — LinkedIn » | Sous la boîte dès la première option, même pendant qu'il parle : la feuille remonte, le CV se télécharge (le **PDF**, `CV_Simon_Goffin_2026.pdf`), ou le profil s'ouvre |
 | « 🚶 Leave the table » | Il se lève (même animation qu'à l'assise, jouée à l'envers) et la salle est à vous ; l'anneau se rallume, et en revenant s'asseoir la boîte rouvre telle quelle — sections validées, palier, outro compris |
 | Les tables de la vitrine | Deux clients épisodiques entrent par la porte, s'installent aux tables du devant et repartent — les chaises de la vitrine ne sont plus jamais toutes vides bien longtemps |
+| Le serveur | Plateau en main, il porte un café à qui vient de s'asseoir — posé **devant** le client, pas au milieu de la table — et revient débarrasser la tasse quand la place se libère |
 | Le jukebox du mur avant | Silent disco : casques sans fil, cinq habitués qui viennent danser sur l'audio réel ; la voix de Simon garde toujours la priorité (ducking), s'asseoir renvoie la foule, le son suit la distance à l'émetteur |
 | Version texte (sans WebGL, café fermé, ou lien d'évitement au clavier) | Le CV complet, accessible et indexable — sa croix ✕, `Échap` ou un clic dans la marge sombre la referment. La pastille qui l'ouvrait a disparu du café : la feuille sur la table et « See the resume » font le travail |
 

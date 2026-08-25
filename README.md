@@ -27,7 +27,10 @@ a permanent **See the resume / Download it / Leave the table** row from its
 first option: seeing the sheet again or keeping it must never be more than one
 tap away, and leaving is not quitting — stand up mid-visit (the sit-down blend,
 run backwards), wander the room, and the moment you take the chair again the
-box reopens exactly as you left it, green markers, tier and all. The **LinkedIn
+box reopens exactly as you left it, green markers, tier and all. Sit at one of
+the window tables and **a waiter brings you a coffee** — tray in hand, stooping
+to set the cup down in front of you — and comes back for the cup once you have
+gone. The **LinkedIn
 link rides in that row too, from the very first option** — it used to be the
 outro's reveal, which put the one link a recruiter actually wants behind eight
 minutes of audio. The outro ends the visit. When Simon finishes that outro the

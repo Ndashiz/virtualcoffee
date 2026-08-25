@@ -5391,10 +5391,25 @@ const SIT_LANE=[[6.52,.75],[5.60,1.00],[3.10,1.05]];
 /* chair centre, the yaw that turns them to their own table, the last trunk
    point they need, and the point they turn north from */
 const SIT_SEATS=[
-  {pos:[3.84,1.70],yaw:-1.429,lane:1,via:[3.84,1.02]},   /* table at (3.07,1.81) */
-  {pos:[2.31,1.92],yaw: 1.714,lane:2,via:[2.31,1.05]},
-  {pos:[0.97,2.34],yaw:-1.427,lane:2,via:[0.97,1.15]},   /* table at (0.21,2.45) */
-  {pos:[-.55,2.55],yaw: 1.700,lane:2,via:[-.55,1.35]}
+  {pos:[3.84,1.70],yaw:-1.429,lane:1,via:[3.84,1.02],table:0},
+  {pos:[2.31,1.92],yaw: 1.714,lane:2,via:[2.31,1.05],table:0},
+  {pos:[0.97,2.34],yaw:-1.427,lane:2,via:[0.97,1.15],table:1},
+  {pos:[-.55,2.55],yaw: 1.700,lane:2,via:[-.55,1.35],table:1}
+];
+/* A cup belongs in front of the person drinking it, not in the middle of
+   the table — so the spot is derived from the SEAT, at 62% of the way from
+   the chair to the table's centre: 48 cm from the customer, comfortably
+   within reach, and 29 cm from the centre on tops of radius .42 and .48,
+   so it sits well inside the wood either way.
+   `stand` is where the waiter puts himself to reach it: half a metre back
+   on the open side, which leaves 15 cm between him and the table's rim and
+   at least 69 cm to the nearest chair. A waiter leans over the table; he
+   does not stand in it, and he does not stand in the customer's lap. */
+const SEAT_SERVE=[
+  {cup:[3.363,.837,1.768],stand:[3.292,1.273]},
+  {cup:[2.781,.837,1.852],stand:[2.710,1.357]},
+  {cup:[0.499,.837,2.408],stand:[0.419,1.854]},
+  {cup:[-0.079,.837,2.488],stand:[-0.152,1.933]}
 ];
 const SIT_ROOTY=-.295;
 const sitters=[];
@@ -5415,6 +5430,215 @@ function freeSeat(a){
 function sitterSeat(a,s){
   a.walkTarget=null;a.active=false;
   a.pos.set(s.pos[0],0,s.pos[1]);a.yaw=s.yaw;a.rootY=SIT_ROOTY;
+}
+/* ---------------- THE WAITER ----------------
+   The room had a barista who made coffee and customers who sat down, and
+   nothing in between: cups appeared on the counter and were never carried
+   anywhere, tables were never cleared. He is the join. Sit at a window
+   table and a coffee arrives; leave, and someone comes for the cup.
+
+   He works the customer side, coming round the EAST end of the counter the
+   way the barista's own closing route does — a straight line from the pass
+   to the window walks through the counter, the machine and the pastry case.
+
+   ONE cup mesh per table, not one per journey. A cup is only ever in three
+   places — waiting on the pass, riding his wrist, or standing on a table —
+   so three states of the same object say everything, and nothing has to be
+   created or destroyed while the café is running.
+
+   He is a normal agent, so separateAgents() keeps him out of the customers
+   and the courier keeps right of way over him. */
+const WAITER_HOME=[3.30,-2.45];         /* clear of the last stool and of table.2 */
+const WAITER_PASS=[2.45,-2.92];         /* where he stands to lift off the counter */
+const WAITER_LANE=[[2.90,-1.60],[3.15,-0.20],[3.10,1.05]];
+const waiter=makeAgent("waiter","waiter",
+  {shirt:0x2f3a44,pants:0x23232b,skin:0xdcae86,hair:0x1c1712});
+waiter.pos.set(WAITER_HOME[0],0,WAITER_HOME[1]);
+waiter.yaw=Math.PI*.15;waiter.active=false;waiter.st="home";waiter.stT=6;
+waiter.job=null;waiter.leg=0;
+{ /* a short apron, the same cut the barista wears */
+  const ap=new THREE.Mesh(new THREE.BoxGeometry(.30,.34,.055),
+    stdMat(0x1d232a,.92,0,.25));
+  ap.position.set(0,-.16,.11);waiter.rig.J.chest.add(ap);
+  /* THE TRAY, and he never puts it down. It is NOT a child of the hand:
+     parented to the wrist it inherits every rotation in the arm chain, so
+     it tips with the forearm and a tray carrying a coffee turns into a
+     blade held edge-on — which is precisely how the first version looked.
+     It lives in the scene and is driven from the wrist's position with a
+     LEVEL rotation instead, so it stays flat whatever the arm is doing,
+     and the cup standing on it stays put. */
+  const tray=new THREE.Mesh(new THREE.BoxGeometry(.30,.014,.22),
+    stdMat(0x3a2a1c,.55,.1,.6));
+  tray.castShadow=true;scene.add(tray);
+  waiter.tray=tray;
+}
+/* the cups: index 0 and 1 belong to the two window tables, and each one
+   lives on the pass until it is carried away from it */
+const PASS_AT=[[2.45,1.253,-3.25],[2.62,1.253,-3.25]];
+const tableCups=[0,1].map(function(_,i){
+  const c=new THREE.Mesh(new THREE.CylinderGeometry(.035,.03,.07,14),
+    stdMat(0xf0e8dc,.18,0,1.2));
+  c.castShadow=true;c.position.set(PASS_AT[i][0],PASS_AT[i][1],PASS_AT[i][2]);
+  c.userData.where="pass";       /* "pass" | "held" | "table" */
+  scene.add(c);return c;
+});
+/* which SEAT of table i is occupied, or -1 — the cup goes in front of a
+   person, so the job has to name the chair and not just the table */
+function seatTaken(i){
+  for(let k=0;k<sitters.length;k++){
+    const s=sitters[k];
+    if(s.st==="sat"&&s.seat&&s.seat.table===i)return SIT_SEATS.indexOf(s.seat);
+  }
+  return -1;
+}
+/* what wants doing, in priority order: a seated customer with no coffee
+   first, an abandoned cup second, nothing third */
+function waiterJob(){
+  for(let i=0;i<2;i++){
+    const seat=seatTaken(i);
+    if(seat>=0&&tableCups[i].userData.where==="pass")
+      return {t:i,seat:seat,mode:"serve"};
+  }
+  for(let i=0;i<2;i++)
+    if(seatTaken(i)<0&&tableCups[i].userData.where==="table")
+      return {t:i,seat:tableCups[i].userData.seat,mode:"clear"};
+  return null;
+}
+function waiterCarry(a){
+  /* a carried cup stands ON THE TRAY, not beside it. The drinker's cup
+     rides his wrist because he is drinking from it; this one is being
+     ferried, and the whole point of giving him a tray was that the coffee
+     travels on something. The right hand is what lifts it off and puts it
+     down — which is why the cup changes state at the deepest point of the
+     reach, and why that swap reads as the placement rather than as a jump. */
+  const c=a.job&&tableCups[a.job.t];
+  if(!c||c.userData.where!=="held"||!a.tray)return;
+  c.position.copy(a.tray.position);
+  c.position.y+=.042;
+}
+/* reach out, then straighten: one gesture serves both putting a cup down
+   and picking one up, because from across the room they are the same move */
+function waiterReach(a,then){
+  playShot(a,1.9,function(k,buf){
+    const p=k<.5?easeInOut(k/.5):1-easeInOut((k-.5)/.5);
+    /* He STOOPS. A tabletop is at .80 and his shoulder rides near 1.34, so
+       an arm alone reaches down at the wrong angle and the hand arrives
+       above the cup rather than at it. Hips and knees fold, the spine
+       follows, and the root drops 13 cm — the legs bending in place would
+       otherwise leave him hovering, since forward kinematics rotates a
+       joint without ever shortening the body it hangs from. */
+    a.dip=-.13*p;
+    addPose(buf,{shoulderR:{x:-1.28*p,z:-.14*p},elbowR:{x:-.62*p},
+      chest:{x:.30*p},spine:{x:.17*p},neck:{x:.10*p},
+      hipL:{x:-.34*p},hipR:{x:-.34*p},kneeL:{x:.40*p},kneeR:{x:.40*p}},1);
+    if(k>=.48&&k<=.52&&!a.didReach){a.didReach=true;then();}
+    if(k>.9){a.didReach=false;}
+    if(k>=1)a.dip=0;
+  });
+}
+function tickWaiter(a,dtT){
+  if(RM)return;                    /* reduced motion: he stays put */
+  /* Closing time: he abandons the round rather than freezing mid-room with
+     a coffee in the air. Anything in his hands goes back on the pass and he
+     walks to his station — staff stay when the customers leave, and a
+     waiter caught halfway to a table for the rest of the evening is the
+     kind of detail that says "the simulation stopped". */
+  if(closing){
+    if(a.job){
+      const c=tableCups[a.job.t];
+      if(c.userData.where==="held"){
+        c.userData.where="pass";
+        c.position.set(PASS_AT[a.job.t][0],PASS_AT[a.job.t][1],PASS_AT[a.job.t][2]);
+      }
+      a.job=null;a.st="toHome";a.leg=0;a.active=true;a.shots.length=0;a.dip=0;
+    }
+    if(a.st==="toHome"&&walkLeg(a,WAITER_HOME)){
+      a.active=false;a.walkTarget=null;a.yaw=Math.PI*.15;a.st="shut";
+    }
+    return;
+  }
+  a.stT-=dtT;
+  switch(a.st){
+    case "home":{
+      if(a.stT>0)return;
+      const j=waiterJob();
+      if(!j){a.stT=2.5;return;}
+      a.job=j;a.leg=0;a.active=true;
+      /* serving starts at the pass, clearing starts at the table */
+      a.st=j.mode==="serve"?"toPass":"toTable";
+      return;
+    }
+    case "toPass":
+      if(walkLeg(a,WAITER_PASS)){
+        a.active=false;a.yaw=Math.PI;      /* face the counter */
+        a.st="lift";a.stT=1.6;
+        waiterReach(a,function(){
+          tableCups[a.job.t].userData.where="held";});
+      }
+      return;
+    case "lift":
+      waiterCarry(a);
+      if(a.stT<=0){a.active=true;a.leg=0;
+        a.st=a.job.mode==="serve"?"toTable":"toPass2";}
+      return;
+    case "toTable":{
+      waiterCarry(a);
+      const sv=SEAT_SERVE[a.job.seat];
+      const legs=WAITER_LANE.concat([sv.stand]);
+      if(a.leg<legs.length){
+        if(walkLeg(a,legs[a.leg]))a.leg++;
+        return;
+      }
+      a.active=false;a.walkTarget=null;
+      a.yaw=Math.atan2(sv.cup[0]-a.pos.x,sv.cup[2]-a.pos.z);
+      a.st="act";a.stT=1.6;
+      const j=a.job;
+      waiterReach(a,function(){
+        const c=tableCups[j.t];
+        if(j.mode==="serve"){
+          const sv=SEAT_SERVE[j.seat];
+          c.userData.where="table";c.userData.seat=j.seat;
+          c.position.set(sv.cup[0],sv.cup[1],sv.cup[2]);
+        }else c.userData.where="held";
+      });
+      return;
+    }
+    case "act":
+      waiterCarry(a);
+      if(a.stT<=0){a.active=true;a.leg=0;
+        a.st=a.job.mode==="serve"?"toHome":"toPass2";}
+      return;
+    case "toPass2":{
+      waiterCarry(a);
+      const legs=WAITER_LANE.slice().reverse().concat([WAITER_PASS]);
+      if(a.leg<legs.length){if(walkLeg(a,legs[a.leg]))a.leg++;return;}
+      a.active=false;a.walkTarget=null;a.yaw=Math.PI;
+      a.st="drop";a.stT=1.6;
+      const j=a.job;
+      waiterReach(a,function(){
+        const c=tableCups[j.t];
+        c.userData.where="pass";
+        c.position.set(PASS_AT[j.t][0],PASS_AT[j.t][1],PASS_AT[j.t][2]);
+      });
+      return;
+    }
+    case "drop":
+      waiterCarry(a);
+      if(a.stT<=0){a.active=true;a.leg=0;a.st="toHome";}
+      return;
+    case "toHome":
+      if(walkLeg(a,WAITER_HOME)){
+        a.active=false;a.walkTarget=null;a.yaw=Math.PI*.15;
+        a.job=null;a.st="home";a.stT=1.5;
+      }
+      return;
+  }
+}
+/* true the frame he arrives — the same .2 m acceptance the customers use,
+   so nobody creeps the last centimetres of a leg at walking pace */
+function walkLeg(a,pt){
+  if(Math.hypot(pt[0]-a.pos.x,pt[1]-a.pos.z)<.2)return true;
+  a.walkTarget=[pt[0],pt[1]];return false;
 }
 function tickSitter(a,dtT){
   /* Reduced motion: they are simply THERE, seated, from the first frame.
@@ -6638,6 +6862,30 @@ function sitLayer(a,buf,dt){
    rather than inward at each other, and bend to lay the fingers on the
    keys (#57, #72) — the hands are built palm-to-thigh, which is right
    for an arm at rest and wrong for one at a keyboard. */
+/* The left arm is folded across the body and STAYS there, walking, serving
+   and standing still alike, because that is what carrying a tray is. It has
+   to be a layer rather than a pose set once: walkLayer writes an arm swing
+   into the buffer every frame, and a man swinging a loaded tray would tip
+   it. Written as an overwrite for the same reason courierLayer overwrites
+   its arms — blending against the swing would only halve it. */
+function trayLayer(a,buf){
+  if(a.kind!=="waiter")return;
+  /* upper arm hanging, forearm folded across the body and level: the pose
+     a tray is actually carried in, and the one that puts the hand where
+     the tray below can sit on it */
+  buf.shoulderL.x=-.58;buf.shoulderL.y=.30;buf.shoulderL.z=.26;
+  buf.elbowL.x=-1.34;buf.elbowL.y=0;buf.elbowL.z=0;
+  buf.wristL.x=0;buf.wristL.y=0;buf.wristL.z=0;
+  if(!a.tray)return;
+  a.rig.J.wristL.getWorldPosition(a.tray.position);
+  /* carried in FRONT of the hip, not hanging beside it: 10 cm along his own
+     facing is the difference between a man holding a tray and a man with a
+     plank stuck to his side */
+  a.tray.position.y-=.025;
+  a.tray.position.x+=Math.sin(a.yaw)*.10;
+  a.tray.position.z+=Math.cos(a.yaw)*.10;
+  a.tray.rotation.set(0,a.yaw,0);      /* level, always */
+}
 function typingLayer(a,buf,ac){
   if(!a.typing)return;
   /* typing pause ~1 s in 6: hands still, head lifts a touch —
@@ -6669,6 +6917,7 @@ function animateAgents(dt){
     listenerLayer(a,a.buf,dt);
     laughLayer(a,a.buf,ac);
     typingLayer(a,a.buf,ac);
+    trayLayer(a,a.buf);
     danceLayer(a,a.buf,dt);
     courierLayer(a,a.buf,dt);
     breathLayer(a,a.buf,ac);
@@ -6678,7 +6927,7 @@ function animateAgents(dt){
     a.rig.root.position.x=a.pos.x;
     a.rig.root.position.z=a.pos.z;
     /* jbBob: the dance's knee-bounce — zero for anyone not on the floor */
-    if(a.walkK<.02)a.rig.root.position.y=a.rootY+(a.jbBob||0);
+    if(a.walkK<.02)a.rig.root.position.y=a.rootY+(a.jbBob||0)+(a.dip||0);
     a.rig.root.rotation.y=a.yaw;
     a.blob.position.set(a.pos.x,(a.groundY||0)+.006,a.pos.z);
   }
@@ -6800,6 +7049,7 @@ function behaviourTick(dtT){
       case "reader":tickReader(a,dtT);break;
       case "visitor":tickVisitor(a,dtT);break;
       case "sitter":tickSitter(a,dtT);break;
+      case "waiter":tickWaiter(a,dtT);break;
       case "courier":tickCourier(a,dtT);break;
       case "guest":tickGuest(a,dtT);break;
     }
