@@ -4155,9 +4155,11 @@ function drawTV(t){
      "the television" and the red strap and the ticker under it as
      something painted on the wall. A frame only does its job if it can be
      told apart from BOTH the picture and the wall. */
+  /* No polygonOffset any more: it existed to stop the picture z-fighting
+     the bezel's face, and the picture no longer shares a plane with it —
+     it sits in a hole, behind the frame. */
   const bezelMat=new THREE.MeshStandardMaterial({color:0x343a42,roughness:.38,
-    metalness:.45,envMapIntensity:1.1,
-    polygonOffset:true,polygonOffsetFactor:2,polygonOffsetUnits:2});
+    metalness:.45,envMapIntensity:1.1});
   const armMat=new THREE.MeshStandardMaterial({color:0x1a1c20,roughness:.65});
   const screenMat=new THREE.MeshBasicMaterial({map:tex});
   /* Two sets, one feed — which is what a café with two screens does.
@@ -4192,10 +4194,41 @@ function drawTV(t){
   .forEach(function(d){
     const g=new THREE.Group();
     const sw=d.w-FRAME*2,sh=sw*9/16;           /* 16:9, always */
-    const bezel=new THREE.Mesh(new THREE.BoxGeometry(d.w,sh+FRAME*2,.05),bezelMat);
+    /* A REAL BEZEL, WITH A HOLE IN IT — and that is the half of this that
+       widening the frame could never fix. The bezel used to be a solid box
+       with the picture laid on its face, 7 mm PROUD, because two coplanar
+       faces z-fight; so the image was physically in front of the
+       television, and no border width was ever going to make it read as
+       being inside one. Worse, proud geometry parallaxes: seen from the
+       side the picture slides across its own frame and overhangs the far
+       edge, which is exactly the "the image spills out of the set" Simon
+       kept pointing at.
+       An extruded rectangle with a rectangular hole is the same one mesh
+       and one draw call as the box was, and it lets the picture sit 17 mm
+       down IN the well. The frame's inner edge now occludes the picture's
+       edge from every angle, which is what a television does. */
+    const outerW=d.w,outerH=sh+FRAME*2;
+    const shape=new THREE.Shape();
+    shape.moveTo(-outerW/2,-outerH/2);shape.lineTo(outerW/2,-outerH/2);
+    shape.lineTo(outerW/2,outerH/2);shape.lineTo(-outerW/2,outerH/2);
+    shape.closePath();
+    const hole=new THREE.Path();            /* wound the other way, as holes must be */
+    hole.moveTo(-sw/2,-sh/2);hole.lineTo(-sw/2,sh/2);
+    hole.lineTo(sw/2,sh/2);hole.lineTo(sw/2,-sh/2);
+    hole.closePath();
+    shape.holes.push(hole);
+    const bezel=new THREE.Mesh(
+      new THREE.ExtrudeGeometry(shape,{depth:.05,bevelEnabled:false}),bezelMat);
+    bezel.position.z=-.025;                 /* extrude runs +z from 0: re-centre it */
     bezel.castShadow=true;g.add(bezel);
+    /* EXACTLY the hole, not a millimetre over. An oversized plane was the
+       first instinct — tuck the edges behind the frame so no grazing angle
+       finds a sliver of wall — but the extrusion already solves that: a
+       real hole has inner walls, and they are what you see down the side
+       of the well. Oversizing only cropped the picture and broke its 16:9,
+       which cost the channel bug its left edge. */
     const screen=new THREE.Mesh(new THREE.PlaneGeometry(sw,sh),screenMat);
-    screen.position.z=.032;g.add(screen);
+    screen.position.z=.008;g.add(screen);
     /* the painter draws into whatever context it is given: hand it the
        overlay's and it broadcasts there instead, at twice the resolution */
     /* Both sets — the small one over the counter and the big one by the fridge — carry the
