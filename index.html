@@ -194,6 +194,19 @@
     font-size:15px;cursor:pointer;box-shadow:0 6px 22px rgba(0,0,0,.45);
     transition:transform .12s ease;}
   .zoomback:hover{transform:scale(1.05);}
+  /* 52 px, which clears the 44 px touch floor without a mobile-only rule,
+     and parked against the gutters rather than over the page: the paper
+     pans under a finger and a control sitting on it would eat the pan. */
+  .zoomnav{position:absolute;top:50%;transform:translateY(-50%);z-index:2;
+    width:52px;height:52px;display:flex;align-items:center;justify-content:center;
+    background:rgba(22,28,33,.86);backdrop-filter:blur(3px);
+    border:1px solid #3a4d56;border-radius:999px;color:var(--gold);
+    cursor:pointer;transition:background .16s,color .16s,border-color .16s;}
+  .zoomnav:hover{background:var(--gold);color:#20303a;border-color:var(--gold);}
+  .zoomnav:focus-visible{outline:2px solid var(--gold);outline-offset:3px;}
+  .zoomnav.prev{left:calc(14px + env(safe-area-inset-left));}
+  .zoomnav.next{right:calc(14px + env(safe-area-inset-right));}
+  .zoomnav[hidden]{display:none;}
   .zoomfig{margin:0;display:flex;flex-direction:column;align-items:center;gap:11px;
     max-width:100%;min-height:0;}
   .zoomstage{position:relative;line-height:0;}
@@ -238,6 +251,11 @@
   .readhint b{color:var(--gold);font-weight:700;}
   @media (max-width:640px){
     .zoom{padding:76px 10px 22px;}
+    /* On a phone the page is opened at reading size and fills the width,
+       so the gutters vanish: the arrows move to the bottom corners, where
+       there is still room beside the caption. */
+    .zoomnav{top:auto;bottom:calc(12px + env(safe-area-inset-bottom));
+      transform:none;width:56px;height:56px;}
     .zoomback{top:14px;left:14px;padding:10px 17px 10px 12px;font-size:14px;}
     .zoomfig canvas{border-width:8px;max-height:calc(100dvh - 200px);}
     .readhint{font-size:12px;padding:6px 12px;}
@@ -768,6 +786,25 @@
       <path d="M20 12H4"/><path d="M10.5 5.5 4 12l6.5 6.5"/>
     </svg>
     <span>Back to the café</span>
+  </button>
+  <!-- Reading one story off the wall and then having to walk to the next
+       frame to read the next was the whole friction: the press hangs at
+       four points along a wall you cannot see all of at once. These two
+       ride the overlay and only appear for the newspapers — the plaque is
+       not an article and the television is not a page. -->
+  <button class="zoomnav prev" id="zoomPrev" type="button" hidden
+          aria-label="Previous article" title="Previous article">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
+         stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M15 5 8 12l7 7"/>
+    </svg>
+  </button>
+  <button class="zoomnav next" id="zoomNext" type="button" hidden
+          aria-label="Next article" title="Next article">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
+         stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M9 5l7 7-7 7"/>
+    </svg>
   </button>
   <figure class="zoomfig">
     <div class="zoomstage" id="zoomStage">
@@ -2610,6 +2647,53 @@ const PRESS=[
       x.beginPath();x.moveTo(s,fh-64);x.quadraticCurveTo(s-5,fh-74,s,fh-84);x.stroke();
     }
   }}
+ ,
+ /* The fourth story, and the one Simon had to be talked into: being the
+    unpaid syndic of your own building is not a thing people put on a wall.
+    It belongs on this one because it is the same job as the day job with
+    the software taken out — a small product with owners, a budget, a
+    roadmap and a regulator. */
+ {kicker:"H O U S I N G",
+  head:["THREE OWNERS, FOUR LOTS,","ONE UNPAID SYNDIC"],
+  deck:"Volunteer managing agent of ACP Roodebeek — the works, the money, the law",
+  capt:"Four lots, one roof, one set of books.",
+  desk:"FROM OUR HOUSING DESK",
+  body:"BRUSSELS — Simon Goffin is the syndic of ACP Roodebeek, the owners' "+
+   "association of his own building: three owners, four lots, nobody on a "+
+   "retainer. He does it unpaid. He coordinates the structural works, runs "+
+   "the money — the budget, the calls for provisions, the chasing that "+
+   "follows — and keeps a rolling view of what the place will need next, on "+
+   "the argument that maintenance deferred is value lost. He also has to "+
+   "know the law: a Belgian co-ownership is a regulated thing, and the rules "+
+   "land on the syndic's desk either way.",
+  illo:(x,fw,fh)=>{
+    x.lineWidth=1.6;
+    x.beginPath();x.moveTo(12,fh-18);x.lineTo(fw-12,fh-18);x.stroke();   /* the street */
+    /* the building: one roof, and the four lots drawn as the party walls
+       that actually divide them */
+    x.strokeRect(26,28,124,fh-46);
+    x.beginPath();x.moveTo(20,28);x.lineTo(156,28);x.stroke();           /* cornice */
+    x.beginPath();x.moveTo(88,28);x.lineTo(88,fh-18);                    /* the vertical split */
+    x.moveTo(26,76);x.lineTo(150,76);x.stroke();                         /* and the horizontal */
+    for(let r=0;r<2;r++)for(let c=0;c<2;c++)                             /* a window per lot */
+      x.strokeRect(40+c*62,40+r*48,24,18);
+    /* the ledger: a budget, the calls for provisions, and what is owed */
+    x.strokeRect(178,34,78,60);
+    for(let i=0;i<5;i++){
+      x.beginPath();x.moveTo(186,46+i*10);x.lineTo(248,46+i*10);x.stroke();
+    }
+    x.font='700 18px "Space Grotesk",sans-serif';x.textAlign="center";
+    x.fillText("\u20AC",217,fh-24);
+    /* the three owners — the middle one is carrying the file */
+    for(let i=0;i<3;i++){
+      const bx=282+i*24;
+      x.beginPath();x.arc(bx,fh-58,5,0,7);x.stroke();
+      x.beginPath();x.moveTo(bx,fh-53);x.lineTo(bx,fh-38);
+      x.moveTo(bx,fh-49);x.lineTo(bx-7,fh-42);x.moveTo(bx,fh-49);x.lineTo(bx+7,fh-42);
+      x.moveTo(bx,fh-38);x.lineTo(bx-6,fh-24);x.moveTo(bx,fh-38);x.lineTo(bx+6,fh-24);x.stroke();
+      if(i===1)x.strokeRect(bx+7,fh-50,11,14);
+    }
+  }}
 ];
 PRESS.forEach((art,i)=>{
   const SS=2;
@@ -2636,10 +2720,50 @@ PRESS.forEach((art,i)=>{
      x = 2.437 / 4.132 / 5.827 on the front wall, and the frames take
      the lit wall right below them — same rail height as the plaque,
      clear of the potted plant that fronts the wall at x≈3.9 */
-  g.position.set([2.437,4.132,5.827][i],1.80,3.788);
+  /* The three model sconces sit at 2.437 / 4.132 / 5.827, spaced 1.695, and
+     the fourth frame cannot join that rhythm: the next station left is .742
+     and the DIPLOMA CABINET owns the wall from -1.88 to .92, while the next
+     station right is 7.522 and the shopfront starts at 6.93. The gap left of
+     the first sconce looks free and is not: the Employee of the Month plaque
+     sits at 1.52 and spans .38, leaving .49 m of daylight for a .47 frame.
+     What is actually free is the far end — the BUSINESS frame stops at 6.06
+     and the shopfront starts at 6.93 — so the fourth hangs at 6.49, with
+     20 cm clear either side. Off the rail's rhythm and deliberately so: it
+     is the only clear stretch in the room, and a frame behind a cabinet or
+     shouldering a plaque is worse than a frame out of step.
+     Kept last in the list so the existing three do not move. */
+  g.position.set([2.437,4.132,5.827,6.49][i],1.80,3.788);
   g.rotation.y=Math.PI;
   scene.add(g);
 });
+/* THE FOURTH SCONCE, built to the model's own measurements rather than to
+   taste: shade .29 across by .23 tall, centred 2.625 up at z 3.45; bulb .09;
+   and the ARM the first attempt missed entirely — bras_applique runs .05
+   square from z 3.74 at the wall out to 3.50, sitting at y 2.67, ABOVE the
+   shade rather than behind its middle. Without it the lamp floated.
+   MATS lives inside the loader's scope and this runs before it, so the
+   brass is rebuilt from the same numbers; the shade is double-sided because
+   it is open underneath and you see its inside from the room.
+   No point light: the model's three throw none either — they are emissive
+   shells — and a fourth that actually lit the wall would be the only one
+   that did. */
+{
+  const brass=new THREE.MeshStandardMaterial({color:0xc9a25a,metalness:.85,
+    roughness:.4,envMapIntensity:1.2,side:THREE.DoubleSide});
+  const brassSolid=new THREE.MeshStandardMaterial({color:0xc9a25a,metalness:.9,
+    roughness:.32,envMapIntensity:1.4});
+  const g=new THREE.Group();
+  const shade=new THREE.Mesh(new THREE.CylinderGeometry(.125,.145,.20,18,1,true),brass);
+  g.add(shade);
+  const bulb=new THREE.Mesh(new THREE.SphereGeometry(.045,10,8),
+    new THREE.MeshStandardMaterial({color:0x1a1208,emissive:0xffd9a0,
+      emissiveIntensity:4.2,roughness:1}));
+  bulb.position.y=-.03;g.add(bulb);
+  const arm=new THREE.Mesh(new THREE.BoxGeometry(.05,.06,.24),brassSolid);
+  arm.position.set(0,.045,.17);g.add(arm);
+  g.position.set(6.49,2.625,3.45);
+  scene.add(g);
+}
 
 /* glow sprite + shaft */
 const glowTex=ctex(128,128,(x)=>{
@@ -9412,9 +9536,39 @@ function openZoom(it){
      first one was left. */
   zoomStage.scrollTop=zoomStage.scrollLeft=0;
   readHint.classList.remove("on");
+  showZoomNav(it);
   document.body.style.cursor="default";
   document.getElementById("zoomBack").focus();
 }
+/* ---- moving along the wall without walking along it ----
+   The press hangs at four points spread over a wall you cannot take in from
+   one place, so having read one story you had to walk to the next frame to
+   read the next. These two arrows fold that walk away.
+   Only the NEWSPAPERS are in the ring: the plaque is not an article and the
+   television is not a page, and putting them in the same cycle would make
+   "next" mean nothing in particular. The list is read from READABLES at
+   click time rather than captured, so a story added to PRESS joins the
+   rotation by existing — which is exactly how the fourth one did.
+   Each step goes back through openZoom, so it counts as a read and rewinds
+   the scroll, the same as opening it off the wall. */
+function pressRing(){
+  return READABLES.filter(function(r){return r.key.indexOf("press-")===0;});
+}
+function showZoomNav(it){
+  const ring=pressRing(),n=ring.length,i=ring.indexOf(it);
+  const on=i>=0&&n>1;
+  zoomPrev.hidden=!on;zoomNext.hidden=!on;
+}
+function zoomStep(d){
+  if(!zoomItem)return;
+  const ring=pressRing(),n=ring.length,i=ring.indexOf(zoomItem);
+  if(i<0||n<2)return;
+  openZoom(ring[(i+d+n)%n]);
+}
+const zoomPrev=document.getElementById("zoomPrev"),
+      zoomNext=document.getElementById("zoomNext");
+zoomPrev.addEventListener("click",function(){zoomStep(-1);});
+zoomNext.addEventListener("click",function(){zoomStep(1);});
 function closeZoom(){
   if(!zoomItem)return;
   /* Hands the seconds since the last heartbeat to the thing that was open, then points the
@@ -9427,7 +9581,16 @@ function closeZoom(){
 document.getElementById("zoomBack").addEventListener("click",closeZoom);
 /* the backdrop closes too, but not the picture itself */
 zoomEl.addEventListener("pointerdown",e=>{if(e.target===zoomEl)closeZoom();});
-addEventListener("keydown",e=>{if(e.key==="Escape")closeZoom();});
+addEventListener("keydown",e=>{
+  if(e.key==="Escape"){closeZoom();return;}
+  /* the arrows only mean "next story" while a story is open — everywhere
+     else they are the walk controls, and stealing them would be worse than
+     not having them here at all */
+  if(zoomItem&&!zoomEl.hidden){
+    if(e.key==="ArrowRight"){e.preventDefault();zoomStep(1);}
+    else if(e.key==="ArrowLeft"){e.preventDefault();zoomStep(-1);}
+  }
+});
 
 function walkOrder(cx,cy){
   /* a tap on something you can read is not a walk order */

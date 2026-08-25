@@ -156,12 +156,17 @@ a sa propre horloge interne (jamais deux animations synchrones).
 cinq cuites dans la carte (trois sur le mur avant, deux repeintes au fond)
 racontaient des titres inventés — un café tapissé de manchettes sur son patron,
 ça se lit comme de la vantardise. La règle n'a jamais été « pas de presse »,
-c'était « pas de presse inventée » : sous les trois appliques du mur avant
-pendent désormais trois unes du **Daily Salfari** (`drawArticle()`, même
-homonymie douteuse que l'employé du mois) — l'immeuble retapé seul en deux ans
+c'était « pas de presse inventée » : sous les appliques du mur avant pendent
+désormais quatre unes du **Daily Salfari** (`drawArticle()`, même homonymie
+douteuse que l'employé du mois) — l'immeuble retapé seul en deux ans
 (électricité, plomberie, maçonnerie), le premier triathlon après un an de
-préparation, le studio web + IA en indépendant complémentaire. Chacune avec son
-illustration à l'encre, lisible en zoom comme tout ce qui s'accroche à un mur.
+préparation, le studio web + IA en indépendant complémentaire, et le mandat de
+syndic bénévole de sa propre copropriété (ACP Roodebeek, trois propriétaires,
+quatre lots : travaux, appels de provisions, normes légales). La quatrième
+pend au bout du mur avec une applique construite pour elle, le modèle n'en
+livrant que trois. Chacune avec son illustration à l'encre, lisible en zoom
+comme tout ce qui s'accroche à un mur — et **une flèche de chaque côté passe
+à l'article suivant** sans qu'il faille retourner au mur.
 Reste aussi le petit cadre : **« Employee of the Month — Tonio Salfari »**,
 décerné pour services rendus derrière un comptoir où personne ne l'a jamais vu.
 Peint en canvas comme l'ardoise (`drawEotm()`), repeint sur `VC.fontsReady`.

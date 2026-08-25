@@ -144,12 +144,17 @@ The map's three framed press clippings are **dropped** in the preprocessor
 with them: a café papered with invented headlines about its own owner reads as
 bragging. What hangs on that wall now is one small plaque — *Employee of the
 Month*, awarded to a man nobody in the room has ever met — painted by
-`drawEotm()`, and, back by popular demand under the three sconces, three
+`drawEotm()`, and, back by popular demand under the sconces, four
 frames of **The Daily Salfari** (`drawArticle()`): the building he rebuilt
-alone, the first triathlon, the one-man web-and-AI studio. The rule was never
-"no press" — it was "no invented press", and those three actually happened.
+alone, the first triathlon, the one-man web-and-AI studio, and the unpaid
+syndic of his own co-ownership. The rule was never "no press" — it was
+"no invented press", and all four actually happened. The fourth hangs at the
+far end with a sconce built for it, the model having shipped only three.
 Like the plaque they are registered readables: walk up and they open full
-size, article legible, ink illustration and all. The preprocessor also squares up the eight wheels (the export
+size, article legible, ink illustration and all — and once one is open,
+**an arrow either side steps to the next story** without walking back to the
+wall (the plaque and the television stay out of that ring: one is not an
+article and the other is not a page). The preprocessor also squares up the eight wheels (the export
 mounts them sideways), copies the ICE CUBE lettering onto the van's rear doors,
 moves the plant off the one run of wall a toilet door fits on, and clones the
 van one parking bay over for a second firm — BravoReno the electrician, whose
