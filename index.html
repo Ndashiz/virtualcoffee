@@ -8337,6 +8337,47 @@ const SK=0xe8b58c;
     sh.add(elbow);simon.add(sh);
     if(s>0)simon.userData.rShoulder=sh;
   }
+  /* HE HAD NO LEGS. Not lost — never built: this group was a torso, a pair
+     of arms and a head, on the assumption that the table hides everything
+     below. It did, for as long as the visitor could only look at him from
+     the far chair. He can now walk round the room, and from the side Simon
+     was a bust floating over a chair.
+     They hang off the torso's own hip line at .79 rather than off the seat
+     at .503, because moving him down would move his head, his gaze
+     targets, the sheet and the seated camera framing with it — every
+     anchor in the conversation is measured from where he is. So the thighs
+     start high and slope steeply, which is what the tabletop covers, and
+     what actually shows below the table is the shins and the shoes, which
+     land on the floor where they should.
+     Built as separate groups off `simon` rather than nested at the knee:
+     a chain accumulates rotations and the shin then has to cancel the
+     thigh's, which is one sign error away from a leg pointing backwards —
+     the mistake his own forearm was fixed for. */
+  /* envMapIntensity damped, unlike the rest of Simon: his shirt is a plain
+     standard material and the room's environment washes it from navy to
+     pale blue, which suits a shirt. Trousers that pale read as pyjamas —
+     .28 is what the cast's own legs use, and his have to look like they
+     belong to the same room as theirs. */
+  const mPants=stdMat(0x2e2e38,.9,0,.28);
+  const mShoe=stdMat(0x1b1c22,.8,0,.22);
+  for(const s of[-1,1]){
+    const hipX=.11*s,kneeX=.12*s;
+    /* hip (.79, z .03) -> knee (.53, z .34) -> ankle (.09, z .30) */
+    const thigh=new THREE.Group();
+    thigh.position.set(hipX,.79,.03);
+    thigh.rotation.x=-Math.atan2(.31,.26);          /* forward and down */
+    const th=new THREE.Mesh(new THREE.CylinderGeometry(.075,.065,.405,12),mPants);
+    th.position.y=-.2025;th.castShadow=true;thigh.add(th);
+    simon.add(thigh);
+    const shin=new THREE.Group();
+    shin.position.set(kneeX,.53,.34);
+    shin.rotation.x=-Math.atan2(-.04,.44);          /* down, a touch tucked */
+    const sn=new THREE.Mesh(new THREE.CylinderGeometry(.062,.052,.442,12),mPants);
+    sn.position.y=-.221;sn.castShadow=true;shin.add(sn);
+    simon.add(shin);
+    const shoe=new THREE.Mesh(new THREE.BoxGeometry(.10,.055,.20),mShoe);
+    shoe.position.set(kneeX,.055,.34);shoe.castShadow=true;simon.add(shoe);
+  }
 }
 /* Simon's head rides .07 higher than it used to, and his collar came
    down to meet it: the skull used to bottom out at 1.415 against a
