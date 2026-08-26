@@ -2736,34 +2736,6 @@ PRESS.forEach((art,i)=>{
   g.rotation.y=Math.PI;
   scene.add(g);
 });
-/* THE FOURTH SCONCE, built to the model's own measurements rather than to
-   taste: shade .29 across by .23 tall, centred 2.625 up at z 3.45; bulb .09;
-   and the ARM the first attempt missed entirely — bras_applique runs .05
-   square from z 3.74 at the wall out to 3.50, sitting at y 2.67, ABOVE the
-   shade rather than behind its middle. Without it the lamp floated.
-   MATS lives inside the loader's scope and this runs before it, so the
-   brass is rebuilt from the same numbers; the shade is double-sided because
-   it is open underneath and you see its inside from the room.
-   No point light: the model's three throw none either — they are emissive
-   shells — and a fourth that actually lit the wall would be the only one
-   that did. */
-{
-  const brass=new THREE.MeshStandardMaterial({color:0xc9a25a,metalness:.85,
-    roughness:.4,envMapIntensity:1.2,side:THREE.DoubleSide});
-  const brassSolid=new THREE.MeshStandardMaterial({color:0xc9a25a,metalness:.9,
-    roughness:.32,envMapIntensity:1.4});
-  const g=new THREE.Group();
-  const shade=new THREE.Mesh(new THREE.CylinderGeometry(.125,.145,.20,18,1,true),brass);
-  g.add(shade);
-  const bulb=new THREE.Mesh(new THREE.SphereGeometry(.045,10,8),
-    new THREE.MeshStandardMaterial({color:0x1a1208,emissive:0xffd9a0,
-      emissiveIntensity:4.2,roughness:1}));
-  bulb.position.y=-.03;g.add(bulb);
-  const arm=new THREE.Mesh(new THREE.BoxGeometry(.05,.06,.24),brassSolid);
-  arm.position.set(0,.045,.17);g.add(arm);
-  g.position.set(PRESS_X[3],2.625,3.45);
-  scene.add(g);
-}
 
 /* glow sprite + shaft */
 const glowTex=ctex(128,128,(x)=>{
@@ -3434,11 +3406,36 @@ function updateVan(dt){
        moving it is an OFFSET, not a placement — hence the deltas rather
        than the targets. PRESS_X is the single source of truth for where
        the frames hang; sconce i belongs over frame i. */
+    const SCONCE_X0=[2.437,4.132,5.827];
     for(let i=0;i<3;i++){
-      const dx=PRESS_X[i]-[2.437,4.132,5.827][i];
+      const dx=PRESS_X[i]-SCONCE_X0[i];
       ["abat_jour_applique.","ampoule_applique.","bras_applique."].forEach(function(pre){
         const m=CAFE.meshes.get(pre+i);
         if(m)m.position.x+=dx;
+      });
+    }
+    /* THE FOURTH SCONCE IS A COPY OF THE FIRST, not a rebuild of it. The
+       first attempt modelled it by hand from the bounding boxes — .29 by
+       .23 by .28 — and it was close enough to measure right and wrong
+       enough to see: a narrower cone, a differently seated bulb, no proper
+       arm. A shade is a lathe of a shape, not a set of extents.
+       Sharing the geometry AND the material also settles "the same
+       behaviour" for good: whatever the room ever does to applique 0 — a
+       material dimmed at closing, an emissive turned down — reaches this
+       one by construction, because it IS that material. The model bakes
+       world coordinates into its vertices, so the copy is placed by the
+       same offset arithmetic as the three above. */
+    {
+      const dx4=PRESS_X[3]-SCONCE_X0[0];
+      ["abat_jour_applique.","ampoule_applique.","bras_applique."].forEach(function(pre){
+        const src=CAFE.meshes.get(pre+"0");
+        if(!src)return;
+        const m=new THREE.Mesh(src.geometry,src.material);
+        m.position.copy(src.position);
+        m.position.x=dx4;                 /* absolute, not relative to the moved source */
+        m.castShadow=src.castShadow;m.receiveShadow=src.receiveShadow;
+        scene.add(m);
+        CAFE.meshes.set(pre+"3",m);       /* so anything sweeping the map finds it too */
       });
     }
     CAFE.ready=true;
@@ -8298,7 +8295,20 @@ window.__jukebox=()=>({on:JB.on,playing:JB.playing,
   guestHs:!!(guest.jbHs&&guest.jbHs.visible)});
 
 /* ---------------- SIMON ---------------- */
-const simon=new THREE.Group();simon.position.set(0,0,-1.08);scene.add(simon);
+/* -.10 on the whole man, and the number is set by his ARMS, not by his
+   seat. He was built torso-up on the assumption the table hid the rest, so
+   his hips floated 29 cm above the chair he is supposedly sitting on — fine
+   from the far chair, absurd from the side, which is where the visitor can
+   now walk. Dropping him is the fix, and the ceiling on it is where his
+   hands land. MEASURED, not estimated: they sit at .915 and the tabletop
+   is at .802, so .10 is the drop that rests them ON the table. The first
+   attempt used .16 off an eyeballed hand height and buried them 4.7 cm
+   INSIDE the wood — on this file the probe is worth more than the
+   arithmetic, every time.
+   Everything measured from him comes down by the same .10 — SIMON_HEAD_Y,
+   the click box, the seated camera's look target — because they are all
+   the same man. */
+const simon=new THREE.Group();simon.position.set(0,-.10,-1.08);scene.add(simon);
 const SK=0xe8b58c;
 {
   const mShirt=new THREE.MeshStandardMaterial({color:0x2c4a6e,roughness:.75});
@@ -8340,43 +8350,38 @@ const SK=0xe8b58c;
   /* HE HAD NO LEGS. Not lost — never built: this group was a torso, a pair
      of arms and a head, on the assumption that the table hides everything
      below. It did, for as long as the visitor could only look at him from
-     the far chair. He can now walk round the room, and from the side Simon
-     was a bust floating over a chair.
-     They hang off the torso's own hip line at .79 rather than off the seat
-     at .503, because moving him down would move his head, his gaze
-     targets, the sheet and the seated camera framing with it — every
-     anchor in the conversation is measured from where he is. So the thighs
-     start high and slope steeply, which is what the tabletop covers, and
-     what actually shows below the table is the shins and the shoes, which
-     land on the floor where they should.
+     the far chair.
+     All the numbers below are LOCAL, and the group now sits .10 lower, so
+     read them as world+.10: the hip band runs from world .52 to .69, the
+     knees sit at .555 — a centimetre above the .503 seat, which is what a
+     thigh resting on a chair does — and the feet land at world .055 under
+     the table, where a seated man's feet are.
      Built as separate groups off `simon` rather than nested at the knee:
      a chain accumulates rotations and the shin then has to cancel the
      thigh's, which is one sign error away from a leg pointing backwards —
      the mistake his own forearm was fixed for. */
-  /* envMapIntensity damped, unlike the rest of Simon: his shirt is a plain
-     standard material and the room's environment washes it from navy to
-     pale blue, which suits a shirt. Trousers that pale read as pyjamas —
-     .28 is what the cast's own legs use, and his have to look like they
-     belong to the same room as theirs. */
   const mPants=stdMat(0x2e2e38,.9,0,.28);
   const mShoe=stdMat(0x1b1c22,.8,0,.22);
+  /* the hips, which is what actually meets the chair — the shirt stops at
+     local .785 and without this he ended at the waist */
+  const pelvis=new THREE.Mesh(new THREE.CylinderGeometry(.235,.215,.17,16),mPants);
+  pelvis.position.set(0,.705,.02);pelvis.castShadow=true;simon.add(pelvis);
   for(const s of[-1,1]){
-    const hipX=.11*s,kneeX=.12*s;
-    /* hip (.79, z .03) -> knee (.53, z .34) -> ankle (.09, z .30) */
+    const hipX=.105*s,kneeX=.12*s;
     const thigh=new THREE.Group();
-    thigh.position.set(hipX,.79,.03);
-    thigh.rotation.x=-Math.atan2(.31,.26);          /* forward and down */
-    const th=new THREE.Mesh(new THREE.CylinderGeometry(.075,.065,.405,12),mPants);
-    th.position.y=-.2025;th.castShadow=true;thigh.add(th);
+    thigh.position.set(hipX,.70,.10);
+    thigh.rotation.x=-Math.atan2(.36,.045);         /* forward, all but level */
+    const th=new THREE.Mesh(new THREE.CylinderGeometry(.078,.068,.363,12),mPants);
+    th.position.y=-.1815;th.castShadow=true;thigh.add(th);
     simon.add(thigh);
     const shin=new THREE.Group();
-    shin.position.set(kneeX,.53,.34);
-    shin.rotation.x=-Math.atan2(-.04,.44);          /* down, a touch tucked */
-    const sn=new THREE.Mesh(new THREE.CylinderGeometry(.062,.052,.442,12),mPants);
-    sn.position.y=-.221;sn.castShadow=true;shin.add(sn);
+    shin.position.set(kneeX,.655,.46);
+    shin.rotation.x=-Math.atan2(-.04,.465);         /* down, a touch tucked */
+    const sn=new THREE.Mesh(new THREE.CylinderGeometry(.062,.052,.467,12),mPants);
+    sn.position.y=-.2335;sn.castShadow=true;shin.add(sn);
     simon.add(shin);
     const shoe=new THREE.Mesh(new THREE.BoxGeometry(.10,.055,.20),mShoe);
-    shoe.position.set(kneeX,.055,.34);shoe.castShadow=true;simon.add(shoe);
+    shoe.position.set(kneeX,.155,.46);shoe.castShadow=true;simon.add(shoe);
   }
 }
 /* Simon's head rides .07 higher than it used to, and his collar came
@@ -8386,7 +8391,7 @@ const SK=0xe8b58c;
    animate loop breathes his head around this exact height. */
 /* 1.64, was 1.67: the head sits .03 lower now that the neck lost 15 %
    of its height — same 15 mm of cylinder tucked into the skull as before. */
-const SIMON_HEAD_Y=1.64;
+const SIMON_HEAD_Y=1.54;   /* 1.64 -.10, with the rest of him */
 const simonHead=new THREE.Group();simonHead.position.set(0,SIMON_HEAD_Y,-1.08);scene.add(simonHead);
 {
   const mSkin=new THREE.MeshStandardMaterial({color:SK,roughness:.6});
@@ -8447,7 +8452,7 @@ mouthMesh.position.set(0,-.088,.168);simonHead.add(mouthMesh);
 /* invisible hitbox so visitors can tap Simon himself (off-resume story) */
 const simonBox=new THREE.Mesh(new THREE.BoxGeometry(.85,1.35,.65),
   new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
-simonBox.position.set(0,1.25,-1.08);scene.add(simonBox);
+simonBox.position.set(0,1.15,-1.08);scene.add(simonBox);
 
 /* Simon's cup + saucer + steam + pen + croissant */
 const saucer=new THREE.Mesh(new THREE.CylinderGeometry(.085,.07,.014,20),
@@ -9742,7 +9747,7 @@ const SHOTS={
      counter, the chalkboard, the window and every extra in the place.
      A range this wide means NOTHING blurs by distance; the only rack
      focus left is the deliberate one, when you hover the resume. */
-  gameplay: {pos:[.42,1.42,2.6], look:[0,1.12,-.95], fov:52,focus:3.5, range:14, roll:.006, shake:1},
+  gameplay: {pos:[.42,1.42,2.6], look:[0,1.02,-.95], fov:52,focus:3.5, range:14, roll:.006, shake:1},
   /* Third-person chase for the walk in — the arrays below are rewritten
      every frame by updateFollowShot(). Nothing else changes: the same
      damping that used to blend between fixed setups now trails the
