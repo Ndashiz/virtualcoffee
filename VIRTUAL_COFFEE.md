@@ -100,14 +100,20 @@ en muet il parle toujours, sous-titres compris, on ne l'entend simplement pas.
 | Cliquer Simon | La section « off the clock » (deux bières sur la table), une fois le palier ouvert |
 | L'outro (ou touche `0`) | Il conclut, puis le café ferme (le lien LinkedIn, lui, est là depuis la première option) |
 | Pastille ⏭ Skip ou `espace` | Le fait taire — la section reste alors non entendue |
-| « 📄 See the resume » / « ⬇ Download it » / « in — LinkedIn » | Sous la boîte dès la première option, même pendant qu'il parle : la feuille remonte, le CV se télécharge (le **PDF**, `CV_Simon_Goffin_2026.pdf`), ou le profil s'ouvre |
+| « 📄 See the resume » / « ⬇ Download it » / « in — LinkedIn » | Sous la boîte dès la première option, même pendant qu'il parle : la feuille remonte (au doigt, c'est la visionneuse plein écran qui s'ouvre — voir plus bas), le CV se télécharge (le **PDF**, `CV_Simon_Goffin_2026.pdf`), ou le profil s'ouvre |
 | « 🚶 Leave the table » | Il se lève (même animation qu'à l'assise, jouée à l'envers) et la salle est à vous ; l'anneau se rallume, et en revenant s'asseoir la boîte rouvre telle quelle — sections validées, palier, outro compris |
 | Les tables de la vitrine | Deux clients épisodiques entrent par la porte, s'installent aux tables du devant et repartent — les chaises de la vitrine ne sont plus jamais toutes vides bien longtemps |
 | Le serveur | Plateau en main, il porte un café à qui vient de s'asseoir — posé **devant** le client, pas au milieu de la table — et revient débarrasser la tasse quand la place se libère |
 | Le jukebox du mur avant | Silent disco : casques sans fil, cinq habitués qui viennent danser sur l'audio réel ; la voix de Simon garde toujours la priorité (ducking), s'asseoir renvoie la foule, le son suit la distance à l'émetteur |
 | Version texte (sans WebGL, café fermé, ou lien d'évitement au clavier) | Le CV complet, accessible et indexable — sa croix ✕, `Échap` ou un clic dans la marge sombre la referment. La pastille qui l'ouvrait a disparu du café : la feuille sur la table et « See the resume » font le travail |
 
-Sur mobile, la boîte devient un panneau en bas d'écran, sur deux colonnes.
+Sur mobile, la boîte devient un panneau en bas d'écran, sur deux colonnes. Et
+« See the resume » n'y remonte pas la feuille : une A4 cadrée dans un téléphone,
+c'est 5 px de corps de texte, et la boîte de dialogue — pleine largeur en bas —
+en couvre le tiers inférieur. Au doigt, le bouton ouvre donc le CV dans la
+visionneuse des journaux : page entière, corps à 17 px, qui se déplace sous le
+doigt, et au-dessus de la boîte au lieu d'être dessous. La feuille 3D, elle,
+remonte toujours quand on s'assoit, sur tous les appareils.
 
 **Un rechargement ne coûte rien.** La visite tient dans `sessionStorage` — un
 onglet, effacée à sa fermeture. Si la page revient (un téléphone qui vide un

@@ -25,7 +25,10 @@ heard. Once all five are done a **second tier** opens — off the clock, AI long
 term, why banking, how I built this — along with the wrap-up. The box carries
 a permanent **See the resume / Download it / Leave the table** row from its
 first option: seeing the sheet again or keeping it must never be more than one
-tap away, and leaving is not quitting — stand up mid-visit (the sit-down blend,
+tap away. On a touchscreen that tap opens the sheet full-screen in the readers'
+overlay instead of lifting it into the room — a whole A4 framed on a phone is
+five-pixel body copy — so the phone gets the page whole, at 17 px, panning under
+a finger. Leaving is not quitting — stand up mid-visit (the sit-down blend,
 run backwards), wander the room, and the moment you take the chair again the
 box reopens exactly as you left it, green markers, tier and all. Sit at one of
 the window tables and **a waiter brings you a coffee** — tray in hand, stooping

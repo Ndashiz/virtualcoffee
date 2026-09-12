@@ -268,11 +268,14 @@
      much of it there is — lands at 8.7 to 10.4 px, in a serif, in two columns.
      That is the small print nobody could read from the floor, still unreadable
      with the thing in your hands, which is the one reason it opens at all.
-     So the phone stops fitting and starts panning. 4/3 of the painter's own
-     units puts its smallest possible body size on 14 px — what the text resume
+     So the phone stops fitting and starts panning, at a width openZoom hands
+     over in --zw. For a wall document that is 4/3 of the painter's own units,
+     which puts its smallest possible body size on 14 px — what the text resume
      gives its own prose — and is also what a full-screen 1080p desktop already
-     gets: the phone is handed the same page, not a thumbnail of it. The price
-     is one sideways swipe per column, against a page that could not be read.
+     gets: the phone is handed the same page, not a thumbnail of it. A document
+     painted at its own resolution declares its own width instead, against the
+     same 14 px floor (the resume: see RESUME_DOC). The price is one sideways
+     swipe per column, against a page that could not be read.
      Deliberately its own @media instead of a line inside the max-width:640px
      block above: nothing here reads a value from that block — not its padding,
      not its border — and the .zoom.paper qualifier outranks it, so that block's
@@ -287,7 +290,7 @@
        leaves the page unpannable — the one gesture this whole block is for.
        The 16px below is the two borders of the line above it: border-box. */
     .zoom.paper .zoomfig canvas{border-width:8px;touch-action:pan-x pan-y;
-      width:calc(var(--zw,420)*4px/3 + 16px);height:auto;
+      width:calc(var(--zw,560)*1px + 16px);height:auto;
       max-width:none;max-height:none;}
   }
   /* A phone on its side is 393 px tall and 116 of them are padding. The title
@@ -9173,13 +9176,37 @@ cvDlEl.addEventListener("click",function(e){
      for it — a link that waits on a counter is a broken link. */
   li.addEventListener("click",()=>PING.tap("linkedin"));
 }
+/* The sheet as a document rather than as a prop, for the one screen the
+   reading pose cannot serve. A4 at 1240 across is already three times the
+   resolution a wall document is painted at, so it goes to the overlay as its
+   own bitmap (ss:1 — see paintZoom) at the width that lands its smallest body
+   copy on the same 14 px floor the press gets: 1240 x .875 = 1085. Which also
+   puts the navy sidebar — photo, contact, skills, certifications, languages —
+   at 343 px, inside a 390 px phone on its own, so only the white column ever
+   needs the sideways swipe.
+   Deliberately NOT in READABLES, where it would otherwise belong: the mesh on
+   the table is already claimed by pick() for the hover lift and for
+   tap-to-lift, and two systems steering one thing is how the courier ended up
+   inside the waiter. */
+const RESUME_DOC={key:"resume",title:"Simon Goffin — resume",
+  w:CW,h:CH,ss:1,read:1085,redraw(g){g.drawImage(cnv,0,0);}};
 /* "See the resume": the sheet comes back up in the reading pose — the
    same beat as sitting down, minus the monologue. A second tap, a click
    beside it, or space puts it back down. Works mid-sentence on purpose:
    he keeps talking, you keep the subtitles, and the sheet drops on its
-   own the moment a new section starts (see playSection). */
+   own the moment a new section starts (see playSection).
+   On a touchscreen that beat cannot pay off, and the numbers are not close:
+   the pose is solved to FIT the frame, so a whole A4 on a 390 px phone is
+   474 px tall and its body copy ~5 px, with the dialogue box — full-width
+   down there — over the bottom 40% of what there is. So a thumb gets the
+   overlay the newspapers already use, the one surface in this page built to
+   be read: whole page, 17 px body, pans under a finger, and at z-index 70 it
+   is OVER the dialogue box instead of under it. Nothing else changes — the
+   3D lift is exactly as it was on a pointer, and the sheet still rises when
+   you sit down on every device. This is only what the button does. */
 document.getElementById("cvPeek").addEventListener("click",()=>{
   if(cafeClosed)return;
+  if(TOUCH){openZoom(RESUME_DOC);return;}
   if(reading){endReading();return;}
   reading=true;
   /* retarget in flight: the sheet may already be half-way up a hover
@@ -10047,7 +10074,12 @@ function pickReadable(cx,cy){
 }
 function paintZoom(){
   if(!zoomItem)return;
-  const k=2,g=zoomC.getContext("2d");
+  /* 2x because a wall document is painted from vectors at ~420 units and the
+     overlay shows it at three times that: the supersample is what keeps its
+     hairlines and its serifs out of the mush. A document that arrives as a
+     bitmap of its own — the resume, painted at 1240 across — gains nothing
+     from being upscaled into a canvas four times its area, so it asks for 1. */
+  const k=zoomItem.ss||2,g=zoomC.getContext("2d");
   if(zoomC.width!==zoomItem.w*k){zoomC.width=zoomItem.w*k;zoomC.height=zoomItem.h*k;}
   g.setTransform(k,0,0,k,0,0);
   zoomItem.redraw(g);
@@ -10066,11 +10098,15 @@ function openZoom(it){
   zoomItem=it;
   /* What the overlay has to know about what it is showing. On a phone the CSS
      stops fitting the page to the screen and opens it at a size the body copy
-     survives — a multiple of the units the painter works in, which the screen
-     knows nothing about. `paper` is the distinction this function already
-     makes below: a printed thing is read and panned, a live feed is watched,
-     and panning a moving picture is not reading. */
-  zoomEl.style.setProperty("--zw",it.w);
+     survives, and --zw is that size: a reading width in CSS px, which the
+     screen knows nothing about. A wall document is painted around 420 units
+     across and takes the 4/3 boost that clears 14 px of body copy; the resume
+     is painted at 1240 and carries its own (see RESUME_DOC). The arithmetic
+     lives here, where the item is known — the stylesheet only ever multiplies
+     by 1px. `paper` is the distinction this function already makes below: a
+     printed thing is read and panned, a live feed is watched, and panning a
+     moving picture is not reading. */
+  zoomEl.style.setProperty("--zw",it.read||Math.round(it.w*4/3));
   zoomEl.classList.toggle("paper",!it.live);
   zoomCap.textContent=it.title;
   paintZoom();
@@ -10425,14 +10461,24 @@ function applyStaging(){
   paperUp.pos.set(0,portrait?1.16:1.08,portrait?1.3:.95);
   paperUp.rot=portrait?-.98:-.85;
   /* Reading pose, solved rather than tuned: park the sheet on the shot's
-     own axis, at the distance where an A4 covers ~80% of the frame
-     height, and roll it back by the camera's own downward tilt so it
-     ends up square to the lens. */
+     own axis, at the distance where an A4 covers ~80% of the TIGHTER of the
+     two frame axes, and roll it back by the camera's own downward tilt so it
+     ends up square to the lens.
+     Solving for the height alone is what cut the sheet in half on a phone. An
+     A4 is .707 wide for every 1 tall and a phone held upright is .462, so at
+     390x844 the page came out 513 px across a 390 px frame: 123 px of it, 62
+     a side, outside the frustum — the sidebar's labels and the end of every
+     line in the white column, cut off mid-word. Whichever axis is tighter is
+     the one that has to fit, so take the FURTHER of the two distances. On a
+     phone that is the width (335x474 at 390x844 — the whole page, and the
+     sheet still fills 86% of it); on anything wider than A4, which is every
+     desktop and a phone on its side, the height still wins and nothing moves. */
   {
     const fov=(portrait?66:52)*Math.PI/180,fill=portrait?.86:.8;
     const from=new THREE.Vector3().fromArray(SHOTS.gameplay.pos);
     const dir=new THREE.Vector3().fromArray(SHOTS.gameplay.look).sub(from).normalize();
-    const d=.877/fill/(2*Math.tan(fov/2));
+    const k=2*Math.tan(fov/2);
+    const d=Math.max(.877/fill/k,.62/(fill*camera.aspect)/k);
     paperRead.pos.copy(from).addScaledVector(dir,d);
     paperRead.rot=Math.asin(dir.y);
   }
