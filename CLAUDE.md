@@ -154,6 +154,39 @@ Note the software renderer runs at ~5 fps and `dt` is clamped to `.05`, so
   from it: bending hips and knees in place leaves a character hovering. That is
   what `a.dip` on the root is for.
 
+## The design pass (2026) — how the room is dressed now
+
+[`DIRECTION_ARTISTIQUE_2026.md`](DIRECTION_ARTISTIQUE_2026.md) is the brief. The
+mechanics that bite:
+
+- **The loader dresses the model by role, by object name**: `REMAT` (object →
+  material), `HIDE` (dropped at parse), `CAPTURE` (bounding box kept in
+  `CAFE.boxes`). Add a rule there, never in the OBJ.
+- **Rebuilt furniture is placed from `CAFE.boxes`, never from typed
+  coordinates.** That is the whole reason the design pass needed no route
+  audit: every seat, table and stool is the model's own footprint. Anything
+  NEW that stands on the floor is a station for the audit rules above — the
+  Strelitzia's leaves were measured against the dancer's spot and the guest's
+  ring before it shipped.
+- **`LatheGeometry` profiles run counter-clockwise in (r, y)** — out along the
+  bottom, up the side, in across the top — or the faces wind inward and the
+  object renders inside-out (the stool cushions did). `lathe()` also snaps the
+  axis normals, or domes shade as pinwheels.
+- **Never feed a `ShaderMaterial` to `PMREMGenerator.fromScene`.** The sky shader
+  came out as NaN: every material using that environment rendered black and
+  bloom smeared it into black blocks. The street dome is vertex-coloured.
+- **The environment map is the room's fill light**, not decoration. Any change
+  of lighting state (closing time) must rebuild it — `buildEnvironment(true)`.
+- **Light maps need `uv2` AND their own material instance.** A shared material
+  carrying a light map applies it to meshes with no `uv2` as one constant
+  sample (that is why the front wall does not share the left wall's limewash).
+- **Code that runs before `loadCafe`** (the plaque, the press frames) cannot use
+  `CAFE.mats`, `mtx` or `Batch` — temporal dead zone. `galleryFrame()` exists
+  for that.
+- **The fitted ACES holds the darks down** harder than the one-liner it
+  replaced: grade offsets that were harmless before clip walnut, bronze and
+  smoked oak to pure black (the night grade's exposure had to move).
+
 ## Conventions
 
 - **Commits** — conventional style with a scope, then an em-dash clause, in

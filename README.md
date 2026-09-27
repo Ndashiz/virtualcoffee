@@ -105,6 +105,7 @@ index.html          Everything: markup, CSS, the VC shell, the scene code
 ANATOMIE.md         Body measurements + 100 joint criteria — the cast's reference
 cafe.obj.txt        The café itself — real 3D model, ~95k tris (5.1 MB, ~980 KB gzipped)
 tex/*.png           13 baked label maps — trophy cabinet, diplomas, van (~376 KB)
+DIRECTION_ARTISTIQUE_2026.md  The 2026 design brief, space by space (French)
 person.obj          Male NPC body — base mesh cut into 15 rig segments (~550 KB)
 fonts.css           @font-face for the three self-hosted families
 fonts/*.woff2       Space Grotesk · Inter · Caveat (latin + latin-ext)
@@ -131,11 +132,13 @@ into **final world coordinates** (Simon's table at the origin, tabletop at
 y=.8025 — the height every scene anchor assumes), quantized and deduped, one
 `usemtl` per object. The scene has its own ~60-line parser: no `OBJLoader`
 exists in the r134 UMD build, and none is needed for a file this repo itself
-produces. Faces merge into one mesh per material (~55 draw calls); materials
-are assigned by the model's French `usemtl` names (`chene_sol`, `laiton`,
-`marbre`, …) and dressed with the same procedural canvas textures as before —
-the chalkboard still repaints through `drawMenu()`, closed side included. If
-the fetch fails, the room is gone but the table, Simon and the resume are all
+produces. Faces merge into one mesh per material (~55 draw calls). Since the
+2026 design pass the model's French `usemtl` names (`chene_sol`, `laiton`,
+`marbre`, …) are only the starting point: the loader re-assigns objects to
+the material they PLAY by name (`REMAT`), drops what the new furniture
+replaces (`HIDE`) and keeps the bounding box of everything it rebuilds
+(`CAPTURE` → `CAFE.boxes`) — see "The design pass" below. If the fetch
+fails, the room is gone but the table, Simon and the resume are all
 procedural: the conversation survives on a bare parquet.
 
 The map also carries what the room could never show before: a **front wall**
@@ -150,12 +153,12 @@ The map's three framed press clippings are **dropped** in the preprocessor
 with them: a café papered with invented headlines about its own owner reads as
 bragging. What hangs on that wall now is one small plaque — *Employee of the
 Month*, awarded to a man nobody in the room has ever met — painted by
-`drawEotm()`, and, back by popular demand under the sconces, four
+`drawEotm()`, and, back by popular demand, four
 frames of **The Daily Salfari** (`drawArticle()`): the building he rebuilt
 alone, the first triathlon, the one-man web-and-AI studio, and the unpaid
 syndic of his own co-ownership. The rule was never "no press" — it was
-"no invented press", and all four actually happened. The fourth hangs at the
-far end with a sconce built for it, the model having shipped only three.
+"no invented press", and all four actually happened. Each hangs in an oak
+gallery frame with an ivory mat under its own bronze picture light.
 Like the plaque they are registered readables: walk up and they open full
 size, article legible, ink illustration and all — and once one is open,
 **an arrow either side steps to the next story** without walking back to the
@@ -280,6 +283,57 @@ to `https://ndashiz.be` only, so the browser refuses the answer and the café
 stays open. You get a console CORS complaint and nothing else — which is exactly
 the production behaviour when the backend is down. That is the point, not a gap.
 To exercise the closed café locally, see "Trying the closed café locally" below.
+
+## The design pass (2026) — "l'Atelier"
+
+The room was rebuilt as ONE design language — Brussels warm minimalism — in
+place of five (bistro brass, diner rug, rustic beams, corporate trophy wall,
+a museum cash register). The full brief, space by space and in French, is
+[`DIRECTION_ARTISTIQUE_2026.md`](DIRECTION_ARTISTIQUE_2026.md). The system in
+one table:
+
+| Role | Material |
+|---|---|
+| walls, ceiling | limewash, warm white |
+| the stage (back wall behind the bar) | deep olive tadelakt — a face reads on a dark ground |
+| built-in joinery (bar front, cabinet, window bar, doors) | light oak; the bar front is real fluted geometry |
+| service tops | travertine |
+| floor | smoked-oak point de Hongrie |
+| everything you can move | walnut and blackened bronze, cognac leather seats |
+| metals | bronze for structure, stainless for the machine, brushed brass only where a hand goes |
+
+What it changed, and the mechanisms behind it:
+
+- **Nothing moved.** Chairs, tables, stools, lamp globes and the plant are
+  rebuilt from the model's own bounding boxes (`CAFE.boxes`, filled at parse by
+  `CAPTURE`), never from typed coordinates. Seat heights, centres, cups and
+  waiter stands are identical; measured, not assumed (seats .503, stools
+  .8051, tops .8025). Table feet are capped at the radius of the cast-iron
+  discs they replace.
+- **The loader re-dresses the model by role**: `REMAT` (object → material),
+  `HIDE` (dropped at parse), `CAPTURE` (boxes kept). `boxUV()` writes world-metre
+  UVs for every architectural material — the model's own were at random scales,
+  and the front wall had none.
+- **Light with a source**: opal globes over the bar and a big one over Simon's
+  table (the key spot hangs inside it), a cove along the olive wall, bronze
+  picture lights on the press frames, a glowing toe kick under the bar.
+- **Baked light**: `applyLightMaps()` paints the cove wash, the picture-light
+  pools, the daylight on the parquet and the ceiling halos into canvas light
+  maps (irradiance, on `uv2` in world metres). They follow the bar's hours
+  (`dimLightMaps()`).
+- **The environment is a model of the new room** (`buildEnvironment()`) and
+  feeds diffuse as well as specular — it is the bounce light; the street gets
+  its own sky environment (`streetEnvironment`), and there is a real sky dome.
+- **Post**: fitted ACES (Hill, with matrices) instead of the one-line
+  approximation, the `atelier` grade, and depth-only **SSAO** on "high".
+- **Removed**: the round rug, the ceiling fan, the neon tube, two poster prints,
+  the brass sconces, the cash register, the chalkboard (now a typeset menu
+  board, CLOSED side kept). **Added**: a slat raft over the tables, one large
+  canvas, a bird of paradise, a tablet till.
+
+Cost, scene pass: 771 draw calls against 758, 238k triangles against 215k on
+desktop; 489 / 214k against 476 / 189k on a phone, where the big textures and
+the light maps are painted at half size.
 
 ## The switch — "is the bar open?"
 
@@ -532,13 +586,16 @@ reuses the room rather than adding to it: the people are gone (walkers, barista,
 the sitter, the reader — and Simon, his coffee, his croissant and his sheet of
 paper), two of the three pendants are out and the third burns low over the
 counter, the key light and the daylight shafts are off, the window has gone
-night-blue and the fog is tighter. The chairs, tables, rug and plants stay exactly
+night-blue and the fog is tighter. The chairs, tables and plants stay exactly
 where they were — that is what makes it read as *closed* rather than as
-*unfinished*.
+*unfinished*. Since the design pass the room's bounce light is its environment
+map, so closing also swaps in a night one (`buildEnvironment(true)`), turns
+the baked light maps down to a night light and lights the street lamps; the
+drinks fridge stays lit, as fridges do.
 
-The chalkboard is the same slate, repainted: `drawMenu()` branches on
-`cafeClosed` and draws **CLOSED / FERMÉ** instead of *La Carte*. It is the board
-a real café flips at closing time, so the closed state costs no new asset.
+The menu board is the same board, repainted: `drawMenu()` branches on
+`cafeClosed` and draws **CLOSED** instead of the menu. It is the board a real
+café flips at closing time, so the closed state costs no new asset.
 
 Three rules held it together, and they are easy to break by accident:
 
@@ -548,7 +605,7 @@ Three rules held it together, and they are easy to break by accident:
   one — it *hides* the pill and force-opens the panel, which is the no-WebGL
   path, not this one.
 - **All closed copy lives in `DATA.en.closed` and `HOWTO.en.closed`**, beside
-  the open copy — `closeCafe()` repaints the sign, the prompt, the chalkboard
+  the open copy — `closeCafe()` repaints the sign, the prompt, the menu board
   and the how-to card from those objects.
 - **Reusing `#howto` as the closed card means undoing both of its hiding
   places.** The enter handler adds `.hide` *and* sets `display:none` on a 450 ms
@@ -593,7 +650,7 @@ deterministic (see below).
 
 ### Fonts must be loaded *before* the textures are baked
 
-The resume sheet and the chalkboard menu are `CanvasTexture`s drawn with
+The resume sheet and the menu board are `CanvasTexture`s drawn with
 `ctx.fillText`. A canvas draw does not wait for a webfont: it silently bakes
 whatever face is available and never repaints. `document.fonts.ready` is not
 enough either — it resolves when nothing is *pending*, and a face used only
@@ -719,10 +776,11 @@ CSS, animated by the same `playing` state. While a track is on air the
 three counter pendants trade their warm white for **nightclub gels** —
 three hue wheels a third of a turn apart, intensity riding the track's
 real level, the warm café points ducking to a third so the colour owns
-the room, and the three wall sconces over the diploma wall running the
-same wheel half a turn out of phase (their bulbs share one material,
-kept apart from the pendants' SPECIAL clones — tint one, touch nothing
-else) — and the crowd dances on spots spread so **no two dancers can
+the room, the opal globes themselves taking the gel, and the trophy
+cabinet's LED strips plus three wall washes over the press frames running
+the same wheel half a turn out of phase (the strips are the only meshes
+left on the shared bulb material, kept apart from the pendants' SPECIAL
+clones — tint one, touch nothing else) — and the crowd dances on spots spread so **no two dancers can
 ever touch**, looking at **you** three glances out of four. The HUD's way
 out is a labelled button — "⏏ Stop the music" — because a bare headset
 glyph made people guess.

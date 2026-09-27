@@ -143,13 +143,12 @@ a sa propre horloge interne (jamais deux animations synchrones).
   (saisir, porter, boire, reposer), la tasse suit sa main.
 - **Un lecteur, un tabouret plus loin** — à contre-jour de la fenêtre, tourne
   une page toutes les ~40 secondes.
-- **Un visiteur épisodique** — entre côté porte, vient lire l'ardoise devant la
-  vitrine, repart. Jamais de demi-tour sur place : il sort comme les gens
+- **Un visiteur épisodique** — entre côté porte, vient lire la carte devant le
+  bar, repart. Jamais de demi-tour sur place : il sort comme les gens
   sortent.
 - **Tout le monde regarde** — système de regard « les yeux mènent, la tête
   suit », clignement des paupières déclenché par les changements de fixation,
-  respiration permanente. Le ventilateur tourne, l'horloge murale est à
-  l'heure réelle.
+  respiration permanente. L'horloge murale est à l'heure réelle.
 - **Et surtout, on se regarde.** Simon avait des pupilles peintes droit devant
   qui ne bougeaient jamais : dès qu'il tournait la tête, son regard partait
   dans le vide — fuyant, sur la seule page où il doit vous regarder. Il vise
@@ -163,23 +162,22 @@ a sa propre horloge interne (jamais deux animations synchrones).
 cinq cuites dans la carte (trois sur le mur avant, deux repeintes au fond)
 racontaient des titres inventés — un café tapissé de manchettes sur son patron,
 ça se lit comme de la vantardise. La règle n'a jamais été « pas de presse »,
-c'était « pas de presse inventée » : sous les appliques du mur avant pendent
-désormais quatre unes du **Daily Salfari** (`drawArticle()`, même homonymie
+c'était « pas de presse inventée » : au mur avant pendent désormais,
+chacune sous sa lampe à tableau, quatre unes du **Daily Salfari** (`drawArticle()`, même homonymie
 douteuse que l'employé du mois) — l'immeuble retapé seul en deux ans
 (électricité, plomberie, maçonnerie), le premier triathlon après un an de
 préparation, le studio web + IA en indépendant complémentaire, et le mandat de
 syndic bénévole de sa propre copropriété (ACP Roodebeek, trois propriétaires,
-quatre lots : travaux, appels de provisions, normes légales). La quatrième
-pend au bout du mur avec une applique construite pour elle, le modèle n'en
-livrant que trois. Chacune avec son illustration à l'encre, lisible en zoom
+quatre lots : travaux, appels de provisions, normes légales). Chacune dans un
+cadre de chêne à passe-partout ivoire, avec son illustration à l'encre, lisible en zoom
 comme tout ce qui s'accroche à un mur — et **une flèche de chaque côté passe
 à l'article suivant** sans qu'il faille retourner au mur.
 Reste aussi le petit cadre : **« Employee of the Month — Tonio Salfari »**,
 décerné pour services rendus derrière un comptoir où personne ne l'a jamais vu.
-Peint en canvas comme l'ardoise (`drawEotm()`), repeint sur `VC.fontsReady`.
+Peint en canvas comme la carte (`drawEotm()`), repeint sur `VC.fontsReady`.
 
 **Deux télés, un seul flux : HENRY TV.** La petite au-dessus du bout du
-comptoir, entre le néon et l'ardoise — depuis la chaise, elle tombe juste
+comptoir, entre la toile et la carte — depuis la chaise, elle tombe juste
 par-dessus l'épaule de Simon ; la grande sur le pan vert nu à droite du frigo,
 sous l'étagère à bocaux, là où la salle sonnait creux. Son coupé, bug de chaîne
 en haut à gauche, présentateur qui articule, ticker qui défile, et **six sujets
@@ -216,12 +214,13 @@ l'image se lit comme recadrée. `polygonOffset` sur le cadre et 7 mm de recul
 pour la dalle — même correctif sur le cadre du mois.
 
 **Une porte de toilettes** sur le seul pan de mur-fenêtre sans fenêtre
-(z 2,35→3,94), avec chambranle, panneaux, béquille laiton et pictogramme. La
+(z 2,35→3,94) : vantail affleurant en chêne, cadre bronze fin, tirant
+bronze vertical et pictogramme sur un rond de bronze. La
 plante qui occupait ce coin a été déplacée le long du mur avant par le
 préprocesseur — une porte derrière un ficus n'est pas une porte.
 
 **Et il y a un jukebox — une silent disco.** Sur le mur avant, entre les
-unes du Daily Salfari et la plante : un meuble en bois à arche néon, repéré
+unes du Daily Salfari et la plante : un meuble en noyer et laiton brossé à arche lumineuse, repéré
 et cliqué comme la plaque ou les télés (même bulle, même tap), mais qui
 ouvre un lecteur au lieu d'une image. On choisit un morceau et il distribue
 des **casques sans fil** : votre personnage enfile le sien, cinq habitués
@@ -253,8 +252,9 @@ pause au lieu de geler ; le panneau porte le même disque en CSS, animé par
 le même état. Pendant qu'une piste joue, les trois suspensions du comptoir
 passent en **gélatines de boîte de nuit** — trois roues de teinte décalées
 d'un tiers de tour, l'intensité sur le niveau réel de la piste, la lumière
-chaude s'effaçant aux deux tiers, et les trois appliques du mur des
-diplômes sur la même roue un demi-tour plus loin — la foule danse sur des places écartées
+chaude s'effaçant aux deux tiers, les globes opalins prenant eux-mêmes la
+couleur, et les réglettes de l'armoire à trophées avec trois lavages
+muraux sur les unes, sur la même roue un demi-tour plus loin — la foule danse sur des places écartées
 pour que **deux danseurs ne puissent jamais se toucher**, et regarde **le
 visiteur** trois regards sur quatre. La sortie du HUD est un bouton en
 toutes lettres (« ⏏ Stop the music ») plutôt qu'un pictogramme à deviner.
@@ -288,15 +288,19 @@ l'étrange sur une page de recrutement).
   Santos » (désaturé, noirs bleutés levés) au grade **cleanDay** — « des
   couleurs nettes » : pente quasi neutre, noirs posés, saturation > 1,
   brouillard réduit de moitié, aberration/grain/bloom fortement baissés,
-  netteté relevée. La nuit du café fermé garde son grade « vinewoodNight ».
+  netteté relevée —, puis, avec la passe de design 2026, au grade
+  **atelier** : pente quasi neutre, contraste doux (1,07), saturation 0,97
+  (la palette terreuse porte déjà sa couleur), effets réduits à ce que fait
+  un bon objectif, sur une courbe ACES ajustée (Hill). La nuit du café
+  fermé garde son grade « vinewoodNight », réexposé pour cette courbe.
 - **Éclairage** : environnement IBL (les métaux réfléchissent enfin — la
   machine à café est en inox, pas en béton), contraste chaud/froid (fenêtre
-  froide, pratiques chaudes), ombres nettes, brouillard atmosphérique, néon.
+  froide, pratiques chaudes), ombres nettes, brouillard atmosphérique.
 - **Matière** : table en lames de bois vernies (clearcoat), briques au bon
   ratio avec crasse en bas de mur, normal maps dérivées automatiquement des
   textures procédurales, ombres de contact sous chaque objet.
 - **Caméra** : **fixe, en plan large** — reculée à 2,6 m de la table (fov 52)
-  pour que le café entier — comptoir, caisse, ardoise, bar de fenêtre — fasse
+  pour que le café entier — comptoir, caisse, carte, bar de fenêtre — fasse
   partie du plan, angle d'assise légèrement décentré, respiration
   imperceptible. Pas de plans de coupe (choix délibéré). Pendant qu'il parle :
   letterbox + sous-titres façon jeu vidéo. La feuille survolée vient à la
@@ -394,7 +398,8 @@ réessayer.
 **Le décor est un modèle, plus une reconstruction.** `cafe.obj.txt` (murs,
 devanture vitrée avec porte et enseignes, comptoir noyer + marbre, machine à
 laiton, caisse à touches, vitrine, frigo à sodas et sandwichs, cinq tables, bar
-de fenêtre, suspensions, plante, paillasson) est prétraité hors-ligne en
+de fenêtre, suspensions, plante, paillasson — habillés depuis autrement par la
+passe de design, §6 bis) est prétraité hors-ligne en
 **coordonnées monde définitives** : la table T1 devient celle de Simon (plateau
 élargi ×1,5 pour la feuille, chaise pivotée face caméra, plateau exactement à
 y = 0,8025 — la hauteur que tous les ancrages existants supposent) et carte
@@ -402,8 +407,11 @@ décalée hors de la tête de Simon. La scène le parse elle-même (~60 lignes �
 d'`OBJLoader` dans le build r134, pas besoin : le fichier est notre propre
 sortie) et fusionne les faces par matériau : ~55 draw calls pour tout le café.
 Les 72 `usemtl` français du modèle (`chene_sol`, `laiton`, `marbre`,
-`platre_vert`…) reçoivent les textures procédurales existantes — l'ardoise des
-prix est repeinte par `drawMenu()`, face CLOSED comprise, et les trois ampoules
+`platre_vert`…) ne sont plus qu'un point de départ depuis la passe de design :
+le chargeur réattribue chaque objet au matériau de son RÔLE (`REMAT`), écarte
+ce que le nouveau mobilier remplace (`HIDE`) et garde la boîte englobante de
+tout ce qu'il reconstruit (`CAPTURE` → `CAFE.boxes`) — la carte des prix est
+repeinte par `drawMenu()`, face CLOSED comprise, et les trois ampoules
 restent des meshes séparés pour que la fermeture puisse en éteindre deux. Si le
 fetch échoue : la salle disparaît mais table, Simon et feuille sont
 procéduraux — la conversation survit sur un parquet nu.
@@ -489,7 +497,7 @@ en miroir pour ses deux quads, le PNG du bandeau stocké tourné de 180°.
 Les PNG d'étiquettes se chargent avec **`flipY=false`**, et c'est tout le
 piège : l'exportateur écrit du glTF, où `v=0` est le HAUT de l'image, et il
 concilie ça avec three.js en retournant les pixels à l'écriture — les fichiers
-sont donc stockés à l'envers. Une texture canvas sur les mêmes UV (l'ardoise,
+sont donc stockés à l'envers. Une texture canvas sur les mêmes UV (la carte,
 l'enseigne de porte) sort à l'endroit parce que ses pixels n'ont jamais été
 retournés ; passer un PNG pré-retourné dans le même réglage par défaut le pose
 sur la tête. Couper `flipY` annule le retournement de l'exportateur au lieu de
@@ -503,9 +511,41 @@ GPC/DNT honorés — et interrupteur « bar fermé » pilotable depuis Jarvis), 
 la scène.
 
 **Le café peut fermer** : si l'interrupteur distant répond `{"open":false}`,
-la salle se vide, deux pendants s'éteignent, l'ardoise passe côté « CLOSED » —
+la salle se vide, deux globes s'éteignent, la carte passe côté « CLOSED », une
+lumière de nuit remplace celle du jour et les réverbères s'allument —
 et le CV texte reste servi, parce que le CV est le but de la page. Toute panne
 du ping laisse le café **ouvert**.
+
+## 6 bis. La passe de design 2026 — « l'Atelier »
+
+Le café parlait cinq langues à la fois (laiton de bistrot, tapis de diner,
+poutres rustiques, vitrine d'entreprise, caisse de musée) ; il n'en parle plus
+qu'une : le **minimalisme chaud bruxellois**. Le dossier complet, espace par
+espace, est [`DIRECTION_ARTISTIQUE_2026.md`](DIRECTION_ARTISTIQUE_2026.md).
+La règle : l'**architecture** est claire et minérale (chaux, chêne clair,
+travertin), **tout ce qui se déplace** est sombre et chaud (noyer, bronze noirci,
+cuir cognac), et **un seul mur** — le fond du bar, derrière Simon — est olive
+profond, parce qu'un visage se lit sur un fond sombre.
+
+- **Rien n'a bougé** : chaises, tables, tabourets, globes et plante sont
+  reconstruits sur les boîtes englobantes du modèle, jamais sur des
+  coordonnées tapées — assises 0,503, tabourets 0,8051, plateaux 0,8025, tous
+  mesurés dans la page. Aucune route à ré-auditer.
+- **Une lumière dont on voit la source** : globes opalins au-dessus du bar, un
+  grand au-dessus de la table de Simon (le spot est dedans), corniche
+  lumineuse sur le mur olive, lampe à tableau sur chaque une, socle du
+  comptoir rétroéclairé ; le reste est **cuit** dans des light maps peintes au
+  canvas.
+- **Le rendu** : environnement qui est une maquette de la nouvelle salle (il
+  fait la lumière de rebond), environnement propre pour la rue, dôme de ciel,
+  ACES ajusté (Hill), grade `atelier`, SSAO sur le profil « high ».
+- **Retirés** : le tapis rond, le ventilateur, le néon, les deux affiches, les
+  appliques laiton, la caisse enregistreuse, l'ardoise (devenue une carte
+  typographiée, côté CLOSED compris). **Ajoutés** : un radeau de lattes de
+  chêne, une grande toile, un strelitzia, une tablette de caisse.
+- **Coût** : 771 appels de rendu contre 758 et 238 k triangles contre 215 k sur
+  ordinateur ; 489 / 214 k contre 476 / 189 k sur téléphone, où les grandes
+  textures et les light maps sont peintes à demi-résolution.
 
 ## 7. Déploiement
 
@@ -526,7 +566,7 @@ npx serve -l 4321 .
 ## 8. État et suite
 
 **En prod** : tout ce qui précède — décor `cafe.obj.txt`, personnages capsule
-(les corps `person.obj` sont débranchés), grade `cleanDay`, entrée
+(les corps `person.obj` sont débranchés), grade `atelier`, entrée
 **pilotable aux flèches** avec caméra à la troisième personne et balise sur la
 chaise (ou au clic sur le sol ; l'entretien démarre à l'entrée dans l'anneau),
 plan large fixe une fois assis, mute mémorisé, et un vrai contact visuel entre
@@ -546,8 +586,6 @@ l'air : le décor coûte ~980 Ko sur le fil au lieu de 1,35 Mo, et les étiquett
 lourd. Prévoir tout de même dif en 768 px et ~12 k triangles.
 
 **Sur la table, non fait** :
-- `og.jpg` à re-rendre — l'aperçu LinkedIn/Slack montre encore l'ancien look
-  (d'autant plus vrai depuis le passage au modèle et au plan large) ;
 - l'ambiance sonore (murmure de salle, babil des conversations, sifflement du
   percolateur) — le code prévoit la dégradation silencieuse, il manque les
   boucles audio ;
