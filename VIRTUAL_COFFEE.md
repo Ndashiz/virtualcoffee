@@ -387,7 +387,7 @@ remplacées à l'arrivée du fichier (`realizeRig()`) ; si le téléchargement
   (`mapSimon()`), et sa voix ouvre une vraie bouche.
 - **Coût.** Un `MeshStandardMaterial` par personne (programme partagé) avec un
   `onBeforeCompile` pour la peinture, le micro-relief de la peau et des tissus
-  et le reflet des cheveux. LOD1 (~35 % des triangles) au-delà de 4,5 m, et
+  et le reflet des cheveux. LOD1 (~35 % des triangles) au-delà de 6 m, et
   partout sur les appareils tactiles sauf Simon. Appels de rendu 772 → 319
   (bureau), triangles 242 k → ~435 k dans la passe principale.
 

@@ -265,7 +265,7 @@ fetch leaves the old cast in place.
   back onto him every frame (`mapSimon()`), his voice opens a real mouth.
 - **Cost.** One `MeshStandardMaterial` per person (shared program) with an
   `onBeforeCompile` for the paint, fabric and skin micro-relief and a hair
-  sheen. LOD1 (~35 % of the triangles) beyond 4.5 m and everywhere on touch
+  sheen. LOD1 (~35 % of the triangles) beyond 6 m and everywhere on touch
   devices except Simon. Draw calls went 772 → 319 (desktop), triangles
   242 k → ~435 k in the main pass.
 

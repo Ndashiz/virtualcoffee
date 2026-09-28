@@ -19,7 +19,7 @@ def load(name):
                     skI=np.load(os.path.join(OUT, "skI.npy")), skW=np.load(os.path.join(OUT, "skW.npy")))
     return dict(np.load(os.path.join(OUT, "g_" + name + ".npz")))
 
-def decimate(d, ratio):
+def decimate(d, ratio, face_safe=False):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     P = d["pos"].astype(np.float64); F = d["tri"].astype(np.int64)
     me = bpy.data.meshes.new("m"); me.from_pydata(P.tolist(), [], F.tolist()); me.update()
@@ -35,10 +35,30 @@ def decimate(d, ratio):
         idx = np.where(part > 0)[0].tolist()
         if idx: pg.add(idx, 1.0, 'REPLACE')
     bpy.context.view_layer.objects.active = o; o.select_set(True)
-    m = o.modifiers.new("d", 'DECIMATE'); m.decimate_type = 'COLLAPSE'; m.ratio = ratio
-    m.use_symmetry = True; m.symmetry_axis = 'X'
-    bpy.ops.object.modifier_apply(modifier="d")
     import bmesh
+    if face_safe:
+        # The face is where a decimation shows: collapse moved the lip line and
+        # the lid rims, and the painted mouth and lash lines (laid out on the
+        # original surface) slid off them — every distant face looked shifted.
+        # So: eye rims and mouth kept exactly, the rest of the head halved,
+        # everything below the neck decimated hard.
+        EX, EY = .032, 1.646
+        keep = o.vertex_groups.new(name="__keep")
+        for v in o.data.vertices:
+            x, y, z = v.co
+            eye = abs(abs(x) - EX) < .024 and abs(y - EY) < .016 and z > .06
+            mouth = abs(x) < .038 and 1.55 < y < 1.605 and z > .085
+            nose = abs(x) < .022 and 1.595 < y < 1.66 and z > .10
+            hand = bones[int(d["skI"][v.index, 0])] in ("wristL", "wristR")   # fingers go to spikes otherwise
+            w = 1.0 if (eye or mouth or nose) else (.3 if (y > 1.47 and abs(x) < .13) else (.45 if hand else 0.0))
+            if w: keep.add([v.index], w, 'REPLACE')
+        m = o.modifiers.new("d", 'DECIMATE'); m.decimate_type = 'COLLAPSE'; m.ratio = ratio
+        m.vertex_group = "__keep"; m.invert_vertex_group = True; m.vertex_group_factor = 12.0
+        bpy.ops.object.modifier_apply(modifier="d")
+    else:
+        m = o.modifiers.new("d", 'DECIMATE'); m.decimate_type = 'COLLAPSE'; m.ratio = ratio
+        m.use_symmetry = True; m.symmetry_axis = 'X'
+        bpy.ops.object.modifier_apply(modifier="d")
     bm = bmesh.new(); bm.from_mesh(o.data); bmesh.ops.triangulate(bm, faces=bm.faces[:]); bm.to_mesh(o.data); bm.free()
     me = o.data
     P2 = np.array([v.co[:] for v in me.vertices], np.float32); F2 = np.array([p.vertices[:] for p in me.polygons], np.int64)
@@ -48,6 +68,7 @@ def decimate(d, ratio):
         for g in v.groups:
             n = names[g.group]
             if n == "__part": pw[v.index] = g.weight
+            elif n == "__keep": pass
             else: W[v.index, bones.index(n)] = g.weight
     I, Wt = G.top4(W)
     out = dict(pos=P2, tri=F2.astype(np.uint16), skI=I, skW=Wt)
@@ -60,7 +81,7 @@ res = {}
 for n in names:
     d = load(n)
     r = RATIO["body"] if n == "body" else RATIO["hair"] if n.startswith("hair") else RATIO.get(n, RATIO["default"])
-    res[n] = decimate(d, r)
+    res[n] = decimate(d, r, face_safe=(n == "body"))
     np.savez(os.path.join(OUT, "lod1_" + n + ".npz"), **res[n])
     log(n, len(d["tri"]), "->", len(res[n]["tri"]))
 # body mask: each LOD1 face takes the mask of the LOD0 face nearest its centre

@@ -4481,7 +4481,7 @@ if(USE_PERSON_MESH)fetch("person.obj").then(r=>{
    The capsules are still built first and only swapped out once the file
    has arrived: if it never does, nobody notices. */
 const USE_REAL_PEOPLE=true;
-const REAL_LOD_FAR=4.5;          /* metres from the camera to the lighter body */
+const REAL_LOD_FAR=6;            /* metres from the camera to the lighter body */
 const REAL={ready:false,hdr:null,meshes:null,bodyMask:null,bodyMask1:null};
 /* each joint's parent, to turn the file's absolute rest positions (root
    space) into the rig's local offsets */
