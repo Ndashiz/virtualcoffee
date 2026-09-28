@@ -1563,7 +1563,11 @@ scene.background=new THREE.Color(0xcfd9e1);
    at the treeline 40 m out — the street fades into the sky instead of the
    whole frame fading into blue-grey. */
 scene.fog=new THREE.FogExp2(0xd6dfe5,.012);
-const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,.1,25);
+/* far 450, not 25: at 25 the street and everything past it were simply
+   never drawn, and the sky filled the hole — the "white screen" of the
+   exterior pass (2026-09-28). Depth precision is set by NEAR, not far, so
+   the room loses nothing measurable. */
+const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,.1,450);
 const camBase=new THREE.Vector3(0,1.42,2.6);
 camera.position.copy(camBase);
 /* A WebGL probe passing does not guarantee a context: blocklisted drivers,
@@ -1727,12 +1731,19 @@ const upMat=new THREE.ShaderMaterial({
 const dofMat=new THREE.ShaderMaterial({
   uniforms:{tSrc:{value:null},tDepth:{value:null},uTexel:{value:new THREE.Vector2()},
     uFocus:{value:2.6},uRange:{value:1.4},uMaxCoC:{value:13},
-    cameraNear:{value:.1},cameraFar:{value:25}},
+    /* the street's depth of field (exterior pass, 2026-09-28): nothing in
+       the room moves, the far side of the glass softens with distance —
+       under a pixel at the parked cars, about three at the roofs. A real
+       lens focused on a table does exactly that, and it is most of what
+       tells the eye the street is FAR rather than painted on the glass. */
+    uBg:{value:new THREE.Vector3(10,60,.2)},
+    cameraNear:{value:.1},cameraFar:{value:450}},
   vertexShader:QUAD_VS,
   fragmentShader:`
     #include <packing>
     uniform sampler2D tSrc,tDepth;
     uniform vec2 uTexel; uniform float uFocus,uRange,uMaxCoC,cameraNear,cameraFar;
+    uniform vec3 uBg;
     varying vec2 vUv;
     float viewDist(vec2 uv){
       float d=texture2D(tDepth,uv).x;
@@ -1740,10 +1751,16 @@ const dofMat=new THREE.ShaderMaterial({
     }
     float coc(vec2 uv){
       float z=viewDist(uv);
-      return clamp((abs(z-uFocus)-uRange)/max(uRange,1e-3),0.0,1.0);
+      /* a range of 8 m or more is the "everything sharp" setting the walk
+         uses: it only ever meant "skip this pass", so it contributes nothing
+         now that the pass also carries the street's own softening */
+      float pull=uRange<8.?clamp((abs(z-uFocus)-uRange)/max(uRange,1e-3),0.0,1.0):0.;
+      return max(pull,uBg.z*smoothstep(uBg.x,uBg.y,z));
     }
     void main(){
       float c=coc(vUv);
+      /* most of the frame is the room, in focus: two taps, not twenty-five */
+      if(c<.004){gl_FragColor=vec4(texture2D(tSrc,vUv).rgb,c);return;}
       vec3 sum=texture2D(tSrc,vUv).rgb;
       float wsum=1.0;
       float r=c*uMaxCoC;
@@ -1754,7 +1771,7 @@ const dofMat=new THREE.ShaderMaterial({
           vec2 off=vec2(cos(a),sin(a))*rr*uTexel;
           float cs=coc(vUv+off);
           float w=step(c*.75,cs)*step(.011,c);
-          sum+=texture2D(tSrc,vUv+off).rgb*w;
+          sum+=min(texture2D(tSrc,vUv+off).rgb,vec3(3.))*w;
           wsum+=w;
         }
       }
@@ -3652,7 +3669,7 @@ function boxUV(geo,tile){
        gone — they take the treeline's foliage and its street light */
     [/^feuillage\./,"feuillu_2","verdure"]
   ];
-  const HIDE=/^(assise|latte_dossier|pied_chaise|barreau|montant|plateau_table|bord_table|fut_table|socle_table|assise_tabouret|fut_tabouret|socle_tabouret|repose_pied|abat_jour|abat_jour_applique|bras_applique|ampoule_applique|cadre_carte|carte_prix|comptoir_panneau|tapis_rond|pot|pot_col|caisse_(socle|corps|tiroir|tiroir_poignee|plaque_clavier|cloche)|touche_\d+_\d+|ecran_boitier|ecran_afficheur)\.|^feuillage\.[0-6]$/;
+  const HIDE=/^(assise|latte_dossier|pied_chaise|barreau|montant|plateau_table|bord_table|fut_table|socle_table|assise_tabouret|fut_tabouret|socle_tabouret|repose_pied|abat_jour|abat_jour_applique|bras_applique|ampoule_applique|cadre_carte|carte_prix|comptoir_panneau|tapis_rond|pot|pot_col|caisse_(socle|corps|tiroir|tiroir_poignee|plaque_clavier|cloche)|touche_\d+_\d+|ecran_boitier|ecran_afficheur)\.|^feuillage\.[0-6]$|^(sol_naturel|clairiere_sous_bois|etage_resineux|houppier|branche|touffe|glissiere_securite|poteau_glissiere|tronc|feuillage|chassis|caisse_haute|nez|pavillon|lunette|vitre_g|vitre_d|arriere|becquet|retroviseur)\.|^(capot|pare_brise)\.0$|^(phare|feu_arriere)\.[01]$|^(pneu|jante)\.[0-3]$/;
   const CAPTURE=/^(assise|latte_dossier|plateau_table|assise_tabouret|abat_jour|pot|caisse_socle|cadre_carte|comptoir_corps|comptoir_plateau|meuble_arriere)\./;
   /* texel size, in metres per tile, for every material mapped by boxUV */
   const BOXUV={chene_sol:2.4,platre:2.6,mur_avant_teinte:2.6,platre_vert:2.6,
@@ -5430,12 +5447,41 @@ buildEnvironment(false);
    the fog takes its horizon colour: the treeline and the far cars fade
    INTO the sky as they would, while inside the room (under 10 m) the
    density leaves the air clear. */
+/* sRGB hex -> the linear colour the HDR target expects. Every colour out
+   past the glass goes through this: the old sky's raw hex, read as linear,
+   was why it came out nearly white. */
+const srgbL=h=>new THREE.Color(h).convertSRGBToLinear();
+/* THE SKY, by view direction: a hazy Brussels blue over a bright horizon,
+   the sun's glow where winDir says it is, and a layer of fair-weather
+   cumulus drifting on a plane a kilometre up — flattened to nothing at the
+   horizon, where the haze takes over. Still a dome drawn first and behind
+   everything, so its radius does not matter. */
 const skyMat=new THREE.ShaderMaterial({
-  uniforms:{uTop:{value:new THREE.Color(0x7fa6c9)},uHor:{value:new THREE.Color(0xdbe4ea)},
-            uGnd:{value:new THREE.Color(0x9c9a92)}},
-  vertexShader:"varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
-  fragmentShader:"uniform vec3 uTop,uHor,uGnd;varying vec3 vP;void main(){float h=normalize(vP).y;"+
-    "vec3 c=h>0.?mix(uHor,uTop,pow(clamp(h,0.,1.),.55)):mix(uHor,uGnd,clamp(-h*4.,0.,1.));gl_FragColor=vec4(c,1.);}",
+  uniforms:{uTop:{value:srgbL(0x5b8cc6)},uHor:{value:srgbL(0xc9d5e1)},uGnd:{value:srgbL(0x6c6b67)},
+    uSun:{value:new THREE.Vector3(.45,.62,-.64).normalize()},uSunCol:{value:new THREE.Color(1,.9,.76)},
+    uCloudHi:{value:srgbL(0xf4f5f6)},uCloudLo:{value:srgbL(0x9ba7b5)},uCover:{value:.5},
+    uTime:{value:0},uNight:{value:0}},
+  vertexShader:"varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}",
+  fragmentShader:`uniform vec3 uTop,uHor,uGnd,uSun,uSunCol,uCloudHi,uCloudLo;uniform float uCover,uTime,uNight;
+    varying vec3 vW;
+    float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+    float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+      return mix(mix(h21(i),h21(i+vec2(1.,0.)),f.x),mix(h21(i+vec2(0.,1.)),h21(i+vec2(1.,1.)),f.x),f.y);}
+    float fbm(vec2 p){float a=.5,s=0.;for(int i=0;i<5;i++){s+=a*vn(p);p=p*2.07+vec2(17.1,9.3);a*=.5;}return s;}
+    void main(){
+      vec3 d=normalize(vW-cameraPosition);float h=d.y;
+      vec3 c=h>0.?mix(uHor,uTop,pow(clamp(h,0.,1.),.48)):mix(uHor,uGnd,clamp(-h*6.,0.,1.));
+      float sd=max(dot(d,uSun),0.);
+      c+=uSunCol*(pow(sd,10.)*.22+pow(sd,900.)*8.)*(1.-uNight);
+      if(h>.005){
+        vec2 cp=d.xz/(h+.06)*.9+vec2(uTime*.0035,uTime*.0012);
+        float n=fbm(cp*1.3);
+        float cov=smoothstep(uCover,uCover+.22,n),thick=smoothstep(uCover,uCover+.45,n);
+        vec3 cc=mix(uCloudHi,uCloudLo,thick*.75)+uSunCol*pow(sd,5.)*.25;
+        c=mix(c,cc*(1.-uNight*.85),cov*smoothstep(.005,.2,h));
+      }
+      gl_FragColor=vec4(c,1.);
+    }`,
   side:THREE.BackSide,depthWrite:false,depthTest:false,fog:false});
 const sky=new THREE.Mesh(new THREE.SphereGeometry(20,24,12),skyMat);
 sky.position.set(2,0,0);sky.renderOrder=-1000;sky.frustumCulled=false;
@@ -5464,12 +5510,25 @@ scene.add(sky);
   }
   const dm=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide});tmp.push(dm);
   es.add(new THREE.Mesh(dome,dm));
-  const gg=new THREE.PlaneGeometry(60,60),gm=new THREE.MeshBasicMaterial({color:0x5d5c58});
+  /* a ring of facades round the horizon: what a car's clear coat and a
+     shop window actually reflect in a street is the other side of it */
+  {
+    const R=rng(4711),bg=new THREE.BoxGeometry(1,1,1);bg.translate(0,.5,0);tmp.push(bg);
+    const FC=[0xb9ae9c,0x8c6454,0xd8d3c8,0x6f757b,0xa89f8f,0xcfc6b2,0x5c6066];
+    for(let i=0;i<40;i++){
+      const a=i/40*Math.PI*2+R()*.05,r=6.2+R()*1.2;
+      const bm=new THREE.MeshBasicMaterial({color:srgbL(FC[Math.floor(R()*FC.length)]).multiplyScalar(.75)});tmp.push(bm);
+      const b=new THREE.Mesh(bg,bm);
+      b.position.set(Math.cos(a)*r,-1.3,Math.sin(a)*r);b.rotation.y=-a;
+      b.scale.set(.6+R()*.5,1.6+R()*2.4,1.1+R()*.5);es.add(b);
+    }
+  }
+  const gg=new THREE.PlaneGeometry(60,60),gm=new THREE.MeshBasicMaterial({color:srgbL(0x4a4b4e)});
   const ground=new THREE.Mesh(gg,gm);tmp.push(gg,gm);
   ground.rotation.x=-Math.PI/2;ground.position.y=-1.3;es.add(ground);
   const sg=new THREE.SphereGeometry(.7,12,8),sm=new THREE.MeshBasicMaterial({color:0xfff2dc});
   sm.color.multiplyScalar(14);tmp.push(sg,sm);
-  const sun=new THREE.Mesh(sg,sm);sun.position.set(-3,6.5,4.5);es.add(sun);
+  const sun=new THREE.Mesh(sg,sm);sun.position.copy(skyMat.uniforms.uSun.value).multiplyScalar(9);es.add(sun);
   const pm=new THREE.PMREMGenerator(renderer);
   pm.compileEquirectangularShader();
   const rt=pm.fromScene(es,.03);pm.dispose();
@@ -5543,7 +5602,9 @@ const RAFT={x0:1.05,x1:6.35,z0:-2.55,z1:2.65,y:3.02};
    the rooftops. */
 const win=new THREE.Mesh(new THREE.PlaneGeometry(5.7,2.2),
   new THREE.MeshBasicMaterial({map:viewTex,fog:false}));
-win.rotation.y=Math.PI/2;win.position.set(-3.9,2,-.47);scene.add(win);
+win.rotation.y=Math.PI/2;win.position.set(-3.9,2,-.47);
+/* not added: THE STREET (below) is what the bay looks onto now. Kept as
+   an object only because closeCafe() still dims its material. */
 /* light shafts — daylight through the window, gone when the bar shuts */
 const shafts=[];
 if(!RM){
@@ -5559,6 +5620,1149 @@ if(!RM){
 /* The floating dust is GONE — Simon's call. 140 additive motes drifting
    through the room read as a dirty lens, not as sunlight. The shafts stay:
    they are daylight, and daylight without specks in it is a clean room. */
+/* ---------------- THE STREET ----------------
+   Simon, 2026-09-28: "retravaille entièrement la zone extérieure… un
+   véritable environnement en arrière-plan… supprime l'effet d'écran ou de
+   fond blanc". What made it a screen: the camera's far plane stopped at
+   25 m, so the street and everything past it was never drawn and the sky
+   dome — raw hex read as LINEAR, so nearly white — filled the hole; the
+   west view was a painted plate 65 cm behind the glass; and the east one
+   a car park in a forest clearing, which Brussels is not.
+   Both windows now look onto a real street, built here:
+     · west: pavement with bollards, a 30 km/h street with cars parked
+       both sides, plane trees, and a row of Brussels facades 24 m out —
+       BIG FOUR, NdaBank, a maison de maître, a boulangerie, HENRY's
+       offices — broken by a cross street for depth;
+     · east: the car park stays (the courier's whole route runs through
+       it) and the forest goes; across the street a second row of houses,
+       and two blocks that close the car park's sides.
+   One shader paints every facade (bays, sills, frames, glazing bars,
+   brick courses, grime, lit rooms at night) from eight numbers per
+   building, so forty buildings are one draw call and stay sharp at any
+   distance. Everything out here takes its own haze instead of the room's
+   fog: FogExp2 at the room's density turns anything past 60 m into the
+   same pale grey the old sky was — the white screen again, by another
+   route. The haze is the sky's own horizon, so a far roof dissolves into
+   the air behind it instead of into a wall of paint. */
+const STREET={haze:{value:srgbL(0xc2cedb)},hazeK:{value:1/460},
+  night:{value:0},time:{value:0},mats:[],movers:[],signs:null,
+  /* THE SUN, for the street only. The room is lit by its own fixtures and
+     by winDir, and has been tuned against them for a year; one more light
+     in the scene would re-light every table. So the sun is not a
+     THREE.Light: it is one extra RE_Direct() call injected into the
+     street's own materials — full PBR (diffuse, specular, the cars' clear
+     coat) and nothing indoors ever sees it. No shadows: a hazy Brussels
+     sun, strong enough to warm the tarmac and model the facades, soft
+     enough that nobody misses them. It stands south-east, so the row the
+     bay looks at — the view the whole visit is spent in front of — is the
+     sunlit one, and the sky's glow sits over the car park. */
+  sunDir:{value:skyMat.uniforms.uSun.value},
+  sunCol:{value:new THREE.Color(1,.9,.76).multiplyScalar(2.1)}};
+/* the street's shader additions, on any three material: world position,
+   the sun, the haze. Split out so a material with its own onBeforeCompile
+   (the flying man's) can take them too. */
+function streetInject(s,x){
+    s.uniforms.uHaze=STREET.haze;s.uniforms.uHazeK=STREET.hazeK;
+    s.uniforms.uNight=STREET.night;s.uniforms.uTime=STREET.time;
+    s.uniforms.uSunDir=STREET.sunDir;s.uniforms.uSunCol=STREET.sunCol;
+    if(x.uniforms)Object.assign(s.uniforms,x.uniforms);
+    s.vertexShader=s.vertexShader
+      .replace("#include <common>","#include <common>\nvarying vec3 vHW;uniform float uTime,uNight;\n"+(x.vHead||""))
+      .replace("#include <project_vertex>",(x.vPre||"")+"\n#include <project_vertex>\n"+
+        "vHW=(modelMatrix*vec4(transformed,1.)).xyz;\n"+(x.vPost||""));
+    s.fragmentShader=s.fragmentShader
+      .replace("#include <common>","#include <common>\nvarying vec3 vHW;uniform vec3 uHaze,uSunDir,uSunCol;uniform float uHazeK,uNight,uTime;\n"+(x.fHead||""))
+      .replace("#include <lights_fragment_begin>","#include <lights_fragment_begin>\n"+
+        "{IncidentLight sunL;sunL.direction=normalize((viewMatrix*vec4(uSunDir,0.)).xyz);"+
+        "sunL.color=uSunCol*(1.-uNight);sunL.visible=true;RE_Direct(sunL,geometry,material,reflectedLight);}")
+      /* at night the room's blue hemisphere and its window light would wash
+         the whole street moon-blue: out here they fade, and what is left
+         is what glows — windows, signs, lamps */
+      .replace("#include <lights_fragment_end>","#include <lights_fragment_end>\n"+
+        "{float nf=1.-.5*uNight;reflectedLight.directDiffuse*=nf;reflectedLight.directSpecular*=nf;reflectedLight.indirectDiffuse*=nf;}")
+      .replace("#include <fog_fragment>","#include <fog_fragment>\n"+
+        "gl_FragColor.rgb=mix(gl_FragColor.rgb,uHaze,1.-exp(-distance(vHW,cameraPosition)*uHazeK));");
+    if(x.frag)s.fragmentShader=x.frag(s.fragmentShader);
+}
+function streetMat(m,key,x){
+  x=x||{};
+  m.fog=false;
+  m.envMap=CAFE.streetEnv||null;
+  m.customProgramCacheKey=function(){return "street:"+key;};
+  m.onBeforeCompile=function(s){streetInject(s,x);};
+  STREET.mats.push(m);
+  return m;
+}
+/* a bag of triangles with whatever attributes the street needs */
+function GBag(){this.p=[];this.n=[];this.u=[];this.c=[];this.f=[];this.g=[];}
+GBag.prototype.quad=function(a,b,c,d,n,uv,col,f,g){
+  const V=[a,b,c,d],I=[0,1,2,0,2,3];
+  for(let k=0;k<6;k++){
+    const i=I[k],v=V[i];
+    this.p.push(v[0],v[1],v[2]);this.n.push(n[0],n[1],n[2]);
+    this.u.push(uv?uv[i*2]:0,uv?uv[i*2+1]:0);
+    if(col)this.c.push(col.r,col.g,col.b);
+    if(f)this.f.push(f[0],f[1],f[2],f[3]);
+    if(g)this.g.push(g[0],g[1],g[2],g[3]);
+  }
+};
+GBag.prototype.add=function(geo,m,col,f,g){
+  const t=geo.index?geo.toNonIndexed():geo.clone();
+  if(m)t.applyMatrix4(m);
+  const P=t.attributes.position,N=t.attributes.normal,U=t.attributes.uv;
+  for(let i=0;i<P.count;i++){
+    this.p.push(P.getX(i),P.getY(i),P.getZ(i));this.n.push(N.getX(i),N.getY(i),N.getZ(i));
+    this.u.push(U?U.getX(i):0,U?U.getY(i):0);
+    if(col)this.c.push(col.r,col.g,col.b);
+    if(f)this.f.push(f[0],f[1],f[2],f[3]);
+    if(g)this.g.push(g[0],g[1],g[2],g[3]);
+  }
+  t.dispose();
+};
+GBag.prototype.geo=function(){
+  const g=new THREE.BufferGeometry(),F=THREE.Float32BufferAttribute;
+  g.setAttribute("position",new F(this.p,3));g.setAttribute("normal",new F(this.n,3));
+  g.setAttribute("uv",new F(this.u,2));
+  if(this.c.length)g.setAttribute("color",new F(this.c,3));
+  if(this.f.length)g.setAttribute("aF",new F(this.f,4));
+  if(this.g.length)g.setAttribute("aG",new F(this.g,4));
+  g.computeBoundingSphere();return g;
+};
+/* an axis-aligned box, uv in metres on every face; `faces` skips some
+   (a bit per face: +x -x +z -z +y -y) */
+function gbBox(bag,x0,y0,z0,x1,y1,z1,col,faces,fFn){
+  const F=[
+    [[x1,y0,z1],[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[1,0,0],z1-z0,y1-y0],
+    [[x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0],[-1,0,0],z1-z0,y1-y0],
+    [[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],[0,0,1],x1-x0,y1-y0],
+    [[x1,y0,z0],[x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[0,0,-1],x1-x0,y1-y0],
+    [[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],[x0,y1,z0],[0,1,0],x1-x0,z1-z0],
+    [[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1],[0,-1,0],x1-x0,z1-z0]];
+  for(let i=0;i<6;i++){
+    if(faces!==undefined&&!(faces&(1<<i)))continue;
+    const q=F[i],w=q[5],h=q[6],fg=fFn?fFn(i,w,h):[null,null];
+    bag.quad(q[0],q[1],q[2],q[3],q[4],[0,0,w,0,w,h,0,h],col,fg[0],fg[1]);
+  }
+}
+
+/* ---- the facade painter ----
+   aF = (face width, ground floor height, floor height, bays)
+   aG = (seed, style, windowed?, shop?)   style: 0 brick, 1 render,
+   2 stone, 3 curtain wall. uv is the face in metres. */
+const FACADE_FS=`
+varying vec2 vFU;varying vec4 vFA,vFB;
+float fH(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float fN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+  return mix(mix(fH(i),fH(i+vec2(1.,0.)),f.x),mix(fH(i+vec2(0.,1.)),fH(i+vec2(1.,1.)),f.x),f.y);}
+float fIn(float x,float a,float b,float w){return clamp(min(x-a,b-x)/w+.5,0.,1.);}`;
+const FACADE_MAIN=`
+float fRough=.9,fMetal=0.,fGlass=0.;vec3 fEmit=vec3(0.);
+{
+  vec2 P=vFU;float W=vFA.x,GH=vFA.y,FH=vFA.z,NB=max(vFA.w,1.);
+  /* shop and floor count share a component: round it FIRST — a constant
+     varying comes back as 7.9999995 on some rows, and mod() of that turned
+     whole scanlines of a house into a shopfront */
+  float sw=floor(vFB.w+.5);
+  float seed=vFB.x,style=floor(vFB.y+.5),front=vFB.z,shop=mod(sw,2.),floors=floor(sw*.5+.25);
+  vec2 dw=fwidth(P);float aw=max(max(dw.x,dw.y),.0015);
+  float farF=smoothstep(.012,.05,aw);
+  vec3 wall=diffuseColor.rgb;
+  float grime=fN(vec2(P.x*.9+seed*13.,P.y*.11))*.6+fN(P*2.7+seed)*.4;
+  float ao=1.;
+  if(style<.5){
+    /* courses fade out per axis before they can alias: a wall seen edge-on
+       is fine across and sub-pixel along, and one shared width shimmered */
+    float cy=P.y/.075,row=floor(cy),cx=P.x/.225+.5*mod(row,2.);
+    float fy=smoothstep(.004,.014,dw.y),fx=smoothstep(.012,.04,dw.x);
+    float mort=max((1.-fIn(fract(cy),.13,1.,max(dw.y,.0015)/.075))*(1.-fy),
+                   (1.-fIn(fract(cx),.05,1.,max(dw.x,.0015)/.225))*(1.-fx)*(1.-fy));
+    mort+=.16*max(fy,fx);
+    float b=fH(vec2(floor(cx),row)+seed);
+    wall=mix(wall*mix(.8+.4*b,1.,max(fy,fx)),vec3(.30,.29,.27),mort);
+  }else if(style<1.5){
+    wall*=.9+.12*fN(P*1.1+seed)+.05*fN(P*7.+seed);
+  }else if(style<2.5){
+    float cy=P.y/.44,row=floor(cy),cx=P.x/1.1+.5*mod(row,2.);
+    float fy=smoothstep(.01,.03,dw.y),fx=smoothstep(.02,.06,dw.x);
+    float j=max((1.-fIn(fract(cy),.035,1.,max(dw.y,.0015)/.44))*(1.-fy),(1.-fIn(fract(cx),.014,1.,max(dw.x,.0015)/1.1))*(1.-fx));
+    wall*=(.9+.14*fH(vec2(floor(cx),row)+seed))*(1.-.3*(j+.06*max(fx,fy)));
+  }else{
+    wall*=.94+.06*fN(P*1.7+seed);
+  }
+  wall*=1.-.16*grime*smoothstep(3.,0.,P.y)-.07*grime;
+  vec3 col=wall;
+  if(front>.5){
+    if(style>2.5){
+      /* curtain wall: mullions every bay, a spandrel at each slab */
+      float bw=W/NB,bx=(fract(P.x/bw)-.5)*bw;
+      float fy=P.y<GH?P.y:mod(P.y-GH,FH);
+      float fl=P.y<GH?-1.:floor((P.y-GH)/FH);
+      float spand=P.y<GH?(1.-fIn(P.y,.35,GH-.5,aw)):1.-fIn(fy,.95,FH-.02,aw);
+      float mull=1.-fIn(bx,-bw*.5+.045,bw*.5-.045,aw);
+      float glass=(1.-spand)*(1.-mull);
+      float id=fH(vec2(floor(P.x/bw),fl)+seed*3.1);
+      vec3 inside=mix(vec3(.012,.017,.024),vec3(.03,.036,.042),id);
+      inside+=vec3(.035)*step(.82,id)*smoothstep(.4,1.6,fy);
+      col=mix(col*.55,inside,glass);
+      fGlass=glass;fRough=mix(.4,.07,glass);fMetal=mix(.6,0.,glass);
+      fEmit=vec3(1.,.82,.6)*.45*glass*uNight*step(.55,id);
+      if(P.y<GH)fEmit=vec3(1.,.86,.66)*(.06+.12*uNight)*glass*shop;
+    }else{
+      if(P.y<GH){
+        /* ground floor: plinth, then a shopfront or a door and windows */
+        float plinth=1.-step(.5,P.y);
+        col=mix(col,vec3(.16,.17,.18)*(.85+.3*fN(P*4.)),plinth);
+        if(shop>.5){
+          float gx=fIn(P.x,.5,W-.5,aw),gy=fIn(P.y,.5,GH-1.0,aw);
+          float fr=gx*gy*(1.-fIn(P.x,.58,W-.58,aw)*fIn(P.y,.58,GH-1.08,aw));
+          float gl=fIn(P.x,.58,W-.58,aw)*fIn(P.y,.58,GH-1.08,aw);
+          float bars=1.-fIn(abs(fract(P.x/1.6)-.5)*1.6,.035,1.,aw);
+          gl*=1.-bars*.9;
+          vec3 frameC=mix(vec3(.05,.06,.06),vec3(.20,.14,.09),step(.5,fH(vec2(seed,4.))));
+          col=mix(col,frameC,fr+bars*fIn(P.x,.58,W-.58,aw)*fIn(P.y,.58,GH-1.08,aw));
+          vec3 inside=vec3(.05,.042,.034)+vec3(.05,.04,.025)*fN(vec2(P.x*1.3,P.y*2.)+fract(seed*.013)*97.);
+          col=mix(col,inside,gl);
+          float fascia=fIn(P.y,GH-.95,GH-.12,aw)*fIn(P.x,.3,W-.3,aw);
+          vec3 fc=vec3(.03,.07,.05);
+          float k=fH(vec2(seed,9.));
+          fc=k<.25?vec3(.035,.06,.045):k<.5?vec3(.13,.03,.035):k<.75?vec3(.02,.03,.07):vec3(.03);
+          col=mix(col,fc,fascia);
+          fGlass=gl;fRough=mix(fRough,.1,gl);fRough=mix(fRough,.35,fascia);
+          fEmit=vec3(1.,.8,.56)*gl*(.035+.1*uNight)*smoothstep(.6,2.,P.y);
+        }else{
+          float dx=1.1,dw2=.62;
+          float door=fIn(abs(P.x-dx),-1.,dw2,aw)*fIn(P.y,.5,2.9,aw);
+          col=mix(col,vec3(.07,.05,.035),door);
+          float leaf=fIn(abs(P.x-dx),-1.,dw2-.08,aw)*fIn(P.y,.55,2.82,aw);
+          col=mix(col,vec3(.12,.075,.045),leaf*.7);
+          float bw=(W-2.3)/max(1.,NB-1.),bx=(fract((P.x-2.3)/bw)-.5)*bw;
+          float win=step(2.3,P.x)*fIn(bx,-.5,.5,aw)*fIn(P.y,1.1,3.2,aw);
+          col=mix(col,vec3(.04,.045,.05),win);fGlass=max(fGlass,win);fRough=mix(fRough,.05,win);
+        }
+      }else if(P.y>GH+floors*FH){
+        /* the attic band under the cornice */
+        col=mix(col,wall*1.1,.6);
+      }else{
+        /* upper floors: the Brussels bay — tall windows, stone sills,
+           a painted frame with a cross of glazing bars */
+        float fl=floor((P.y-GH)/FH),ly=P.y-GH-fl*FH;
+        float bw=W/NB,bi=floor(P.x/bw),bx=(fract(P.x/bw)-.5)*bw;
+        float ww=min(bw*.56,1.3),s0=.82,wh=min(FH*.62,2.15);
+        float inW=fIn(bx,-ww*.5,ww*.5,aw)*fIn(ly,s0,s0+wh,aw);
+        float frame=inW*(1.-fIn(bx,-ww*.5+.075,ww*.5-.075,aw)*fIn(ly,s0+.075,s0+wh-.075,aw));
+        float glaz=inW-frame;
+        float bars=max(1.-fIn(abs(bx),.022,9.,aw),1.-fIn(abs(ly-s0-wh*.72),.022,9.,aw));
+        float id=fH(vec2(bi,fl)+seed*5.3);
+        vec3 fc=style<.5?vec3(.78,.77,.73):style<1.5?vec3(.05,.055,.06):vec3(.24,.17,.10);
+        if(fH(vec2(seed,2.))<.3)fc=vec3(.80,.79,.75);
+        /* reveals: the opening is 20 cm deep, the sky lights it from above */
+        float rev=fIn(bx,-ww*.5-.02,ww*.5+.02,aw)*fIn(ly,s0-.02,s0+wh+.02,aw)-inW;
+        vec3 inside=mix(vec3(.02,.022,.026),vec3(.06,.05,.04),id);
+        float curtain=step(.55,id)*smoothstep(s0+wh*.3,s0+wh*.9,ly)*(.6+.4*fN(vec2(bx*9.,ly)));
+        inside=mix(inside,vec3(.35,.32,.27)*(.7+.3*id),curtain*.8);
+        float blind=step(.86,id)*mix(step(.5,fract(ly*14.)),.5,smoothstep(.02,.05,dw.y))*step(s0+wh*.5,ly);
+        inside=mix(inside,vec3(.28),blind*.7);
+        float g=glaz*(1.-bars*.9);
+        col=mix(col,inside,g);
+        col=mix(col,fc,frame+bars*glaz*.9);
+        col*=1.-.35*rev*smoothstep(s0+wh+.02,s0+wh-.25,ly)*(1.-inW);
+        float sill=fIn(bx,-ww*.5-.1,ww*.5+.1,aw)*fIn(ly,s0-.1,s0,aw);
+        float lint=style<.5||style>1.5?fIn(bx,-ww*.5-.12,ww*.5+.12,aw)*fIn(ly,s0+wh,s0+wh+.2,aw):0.;
+        col=mix(col,vec3(.62,.60,.56)*(.9+.2*fN(P*3.)),max(sill,lint*.85));
+        /* soot runs down from each sill */
+        col*=1.-.1*fIn(bx,-ww*.5,ww*.5,aw)*smoothstep(s0,s0-1.4,ly)*step(ly,s0-.1)*fN(vec2(bx*6.,ly*.6)+seed);
+        /* string course at each slab in stone and render */
+        if(style>.5)col=mix(col,wall*1.12,fIn(ly,0.,.16,aw)*.8);
+        /* a wrought-iron balcony on the first floor of every other house */
+        float bal=step(fH(vec2(seed,7.)),.5)*step(fl,.5)*fIn(bx,-ww*.5-.18,ww*.5+.18,aw)*fIn(ly,s0-.05,s0+1.0,aw);
+        float rails=max(1.-fIn(abs(fract(bx/.11)-.5)*.11,.009,1.,aw),1.-fIn(abs(ly-s0-.97),.02,9.,aw));
+        rails=mix(rails,.22,smoothstep(.006,.02,aw));
+        col=mix(col,vec3(.03,.03,.035),bal*rails*mix(1.,.45,farF));
+        fGlass=g;fRough=mix(fRough,.1,g);
+        fEmit=vec3(1.,.78,.52)*g*uNight*step(.62,fH(vec2(bi,fl)+seed*9.7))*(.25+.35*(1.-curtain));
+      }
+    }
+  }
+  diffuseColor.rgb=col;
+}`;
+function facadeMaterial(){
+  const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.9,envMapIntensity:1});
+  return streetMat(m,"facade",{
+    vHead:"attribute vec4 aF,aG;varying vec2 vFU;varying vec4 vFA,vFB;",
+    vPost:"vFU=uv;vFA=aF;vFB=aG;",
+    fHead:FACADE_FS,
+    frag:function(f){
+      return f.replace("#include <color_fragment>","#include <color_fragment>\n"+FACADE_MAIN)
+        .replace("#include <metalnessmap_fragment>","#include <metalnessmap_fragment>\nroughnessFactor=fRough;metalnessFactor=fMetal;")
+        .replace("#include <lights_physical_fragment>","#include <lights_physical_fragment>\nmaterial.specularColor=mix(material.specularColor,vec3(.09),fGlass);")
+        .replace("#include <emissivemap_fragment>","#include <emissivemap_fragment>\ntotalEmissiveRadiance+=fEmit;");
+    }});
+}
+
+/* ---- buildings ----
+   A building is a footprint, a height, and which of its faces are
+   facades (the rest are party walls and gables: plain brick or render,
+   which is exactly what a Brussels block shows above its lower
+   neighbours). */
+const FAC_BAG=new GBag(),ROOF_BAG=new GBag();
+const STYLE_COL=[[0x8b4b37,0x7a4232,0x93573f,0x6d3b2d,0x9a6048],
+                 [0xe9e4da,0xdcd3c1,0xe6d9b8,0xcfd3d4,0xd8c7ae,0xf0ece4],
+                 [0xcfc7b6,0xb9b3a7,0x8f949a],
+                 [0x3b3f45,0x8d949b,0x2c3036]];
+function building(o){
+  const R=rng(o.seed*7919+13);
+  const style=o.style,cols=STYLE_COL[style];
+  const col=srgbL(o.color!==undefined?o.color:cols[Math.floor(R()*cols.length)]);
+  const H=o.gh+o.floors*o.fh+(style===3?.6:.9);
+  const x0=o.x0,x1=o.x1,z0=o.z0,z1=o.z1;
+  const fr=o.fronts||{};      /* which faces are facades */
+  gbBox(FAC_BAG,x0,0,z0,x1,H,z1,col,15,function(i,w,h){
+    const key=["px","nx","pz","nz"][i];
+    const on=!!fr[key];
+    return [[w,o.gh,o.fh,on?Math.max(1,Math.round(w/(o.bay||2.3))):1],
+            [o.seed+i*.37,style,on?1:0,(on&&o.shop?1:0)+2*o.floors]];
+  });
+  /* the cornice: a real ledge, so the eaves throw a real line */
+  const cc=srgbL(style===0?0xd8d2c6:style===3?0x2a2d31:0xe4dfd4);
+  const cp=style===3?.12:.32,ch=style===3?.35:.45;
+  if(fr.px)gbBox(ROOF_BAG,x1,H-ch,z0,x1+cp,H,z1,cc,0b111101);
+  if(fr.nx)gbBox(ROOF_BAG,x0-cp,H-ch,z0,x0,H,z1,cc,0b111110);
+  if(fr.pz)gbBox(ROOF_BAG,x0,H-ch,z1,x1,H,z1+cp,cc,0b110111);
+  if(fr.nz)gbBox(ROOF_BAG,x0,H-ch,z0-cp,x1,H,z0,cc,0b111011);
+  /* roofs: slate or tile pitched along the street for the houses,
+     a plant room for the offices */
+  if(style===3||o.flat){
+    gbBox(ROOF_BAG,x0+1.5,H,z0+1.5,x1-1.5,H+2.2,z1-1.5,srgbL(0x5d6166),0b111111);
+    return H;
+  }
+  const rc=srgbL(R()<.7?0x3f444c:0x7c4633),alongZ=o.ridge!=="x";
+  const pitch=.7;
+  if(alongZ){
+    const xm=(x0+x1)/2,rh=Math.min((x1-x0)/2*pitch,4.5);
+    const a=[x1,H,z1],b=[x1,H,z0],c=[xm,H+rh,z0],d=[xm,H+rh,z1];
+    const e=[x0,H,z0],f=[x0,H,z1];
+    const n1=new THREE.Vector3(rh,(x1-x0)/2,0).normalize(),n2=new THREE.Vector3(-rh,(x1-x0)/2,0).normalize();
+    ROOF_BAG.quad(a,b,c,d,[n1.x,n1.y,0],null,rc);
+    ROOF_BAG.quad(e,f,d,c,[n2.x,n2.y,0],null,rc);
+    /* the gables carry the wall's own colour */
+    ROOF_BAG.quad(b,e,c,c,[0,0,-1],null,col);
+    ROOF_BAG.quad(f,a,d,d,[0,0,1],null,col);
+    /* a chimney stack or two */
+    for(let k=0;k<2;k++)if(R()<.7){
+      const cz=z0+.6+R()*(z1-z0-1.2),cx=xm+(R()-.5)*1.2;
+      gbBox(ROOF_BAG,cx-.35,H+rh-.8,cz-.25,cx+.35,H+rh+1.1,cz+.25,srgbL(0x7a4638),0b111111);
+    }
+  }else{
+    const zm=(z0+z1)/2,rh=Math.min((z1-z0)/2*pitch,4.5);
+    const a=[x0,H,z1],b=[x1,H,z1],c=[x1,H+rh,zm],d=[x0,H+rh,zm];
+    const e=[x1,H,z0],f=[x0,H,z0];
+    const n1=new THREE.Vector3(0,(z1-z0)/2,rh).normalize(),n2=new THREE.Vector3(0,(z1-z0)/2,-rh).normalize();
+    ROOF_BAG.quad(a,b,c,d,[0,n1.y,n1.z],null,rc);
+    ROOF_BAG.quad(e,f,d,c,[0,n2.y,n2.z],null,rc);
+    ROOF_BAG.quad(b,e,c,c,[1,0,0],null,col);
+    ROOF_BAG.quad(f,a,d,d,[-1,0,0],null,col);
+  }
+  return H;
+}
+/* A terrace along z: fronts on the plane x=X facing `dir` (+1 = +x).
+   `named` pins the buildings the story needs; the rest is drawn from a
+   seeded hand of Brussels widths and heights. */
+const SIGNS=[];                    /* [x,y,z,w,h,rotY,slot] */
+function terraceZ(X,dir,za,zb,named,seed,depth){
+  const R=rng(seed);let z=za;
+  const list=named.slice().sort(function(a,b){return a.z0-b.z0;});
+  function put(z0,z1,o){
+    const d=o.depth||depth;
+    const x0=dir>0?X-d:X,x1=dir>0?X:X+d;
+    const b=Object.assign({x0:x0,x1:x1,z0:z0,z1:z1,seed:Math.floor(R()*1e5)},o);
+    b.fronts=Object.assign(dir>0?{px:1}:{nx:1},o.fronts||{});
+    const H=building(b);
+    if(o.sign!==undefined){
+      const w=Math.min(z1-z0-1.4,o.signW||5.2),y=b.gh-.53;
+      SIGNS.push([dir>0?X+.06:X-.06,y,(z0+z1)/2,w,.62,dir>0?Math.PI/2:-Math.PI/2,o.sign]);
+    }
+    return H;
+  }
+  for(const n of list){
+    while(z<n.z0-.5){
+      const w=Math.min(n.z0-z,5.6+R()*3.4);
+      const z1=n.z0-z-w<4.5?n.z0:z+w;
+      put(z,z1,randomHouse(R));z=z1;
+    }
+    if(n.gap){z=n.z1;continue;}
+    put(n.z0,n.z1,n);z=n.z1;
+  }
+  while(z<zb){const w=5.6+R()*3.4;put(z,z+w,randomHouse(R));z+=w;}
+}
+function randomHouse(R){
+  const s=R()<.45?0:R()<.8?1:2;
+  const floors=2+Math.floor(R()*3.2);
+  return {style:s,floors:floors,gh:3.7+R()*.6,fh:3.05+R()*.35,
+    bay:2.1+R()*.6,shop:R()<.4};
+}
+
+/* ---- ground ---- */
+function paintSlabs(x,w,h){
+  const R=rng(4242);
+  x.fillStyle="#8d8c88";x.fillRect(0,0,w,h);
+  const n=4,s=w/n;
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+    const v=Math.floor(128+R()*26-13);
+    x.fillStyle="rgb("+v+","+(v-1)+","+(v-4)+")";
+    x.fillRect(i*s+2,j*s+2,s-4,s-4);
+    for(let k=0;k<160;k++){
+      const d=R()*40-20;x.fillStyle="rgba("+(d>0?255:0)+","+(d>0?255:0)+","+(d>0?250:0)+","+(Math.abs(d)/400)+")";
+      x.fillRect(i*s+2+R()*(s-4),j*s+2+R()*(s-4),1+R()*2,1+R()*2);
+    }
+  }
+  for(let k=0;k<6;k++){           /* chewing gum and old rain */
+    const g=x.createRadialGradient(0,0,0,0,0,20+R()*50);
+    g.addColorStop(0,"rgba(40,38,34,.16)");g.addColorStop(1,"rgba(40,38,34,0)");
+    x.save();x.translate(R()*w,R()*h);x.fillStyle=g;x.fillRect(-80,-80,160,160);x.restore();
+  }
+}
+function paintTarmac(x,w,h){
+  const R=rng(777);
+  x.fillStyle="#3c3d3f";x.fillRect(0,0,w,h);
+  for(let i=0;i<14000;i++){
+    const v=R();x.fillStyle=v<.5?"rgba(20,20,22,.35)":"rgba(160,158,152,"+(.08+R()*.2)+")";
+    x.fillRect(R()*w,R()*h,1+R()*1.6,1+R()*1.6);
+  }
+  for(let k=0;k<10;k++){
+    const g=x.createRadialGradient(0,0,0,0,0,30+R()*90);
+    const dark=R()<.6;
+    g.addColorStop(0,dark?"rgba(15,15,16,.22)":"rgba(120,118,112,.12)");g.addColorStop(1,"rgba(0,0,0,0)");
+    x.save();x.translate(R()*w,R()*h);x.scale(1,.4+R());x.fillStyle=g;x.fillRect(-140,-140,280,280);x.restore();
+  }
+}
+function repTex(w,h,fn,rep){
+  const t=ctex(w,h,fn);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;
+}
+const slabTex=repTex(512,512,paintSlabs),tarmacTex=repTex(512,512,paintTarmac);
+function groundMat(tex,tile,col,rough){
+  const m=new THREE.MeshStandardMaterial({map:tex,color:col||0xffffff,roughness:rough||.92,envMapIntensity:1});
+  m.userData.tile=tile;
+  return streetMat(m,"ground");
+}
+const GROUND={slab:new GBag(),tar:new GBag(),kerb:new GBag(),paint:new GBag(),base:new GBag()};
+function flat(bag,x0,z0,x1,z1,y,tile){
+  const t=tile||1;
+  bag.quad([x0,y,z1],[x1,y,z1],[x1,y,z0],[x0,y,z0],[0,1,0],
+    [x0/t,z1/t,x1/t,z1/t,x1/t,z0/t,x0/t,z0/t]);
+}
+
+/* ---- trees: London planes, the Brussels street tree ---- */
+function paintLeaves(x,w,h){
+  const R=rng(31337);
+  x.clearRect(0,0,w,h);
+  const greens=[[38,62,24],[50,78,28],[30,50,20],[62,88,34],[45,70,26]];
+  for(let i=0;i<520;i++){
+    const a=R()*Math.PI*2,r=Math.pow(R(),.6)*w*.46;
+    const cx=w/2+Math.cos(a)*r,cy=h/2+Math.sin(a)*r*.92;
+    const s=5+R()*8,g=greens[Math.floor(R()*greens.length)];
+    const shade=.75+R()*.4-(r/(w*.46))*.15;
+    x.fillStyle="rgb("+Math.floor(g[0]*shade)+","+Math.floor(g[1]*shade)+","+Math.floor(g[2]*shade)+")";
+    x.save();x.translate(cx,cy);x.rotate(R()*Math.PI*2);
+    x.beginPath();
+    for(let k=0;k<5;k++){           /* five lobes: a plane leaf, roughly */
+      const la=k/5*Math.PI*2,lr=s*(k%2?0.75:1);
+      x.lineTo(Math.cos(la)*lr,Math.sin(la)*lr);
+      x.lineTo(Math.cos(la+.63)*s*.45,Math.sin(la+.63)*s*.45);
+    }
+    x.closePath();x.fill();x.restore();
+  }
+}
+const leafTex=ctex(256,256,paintLeaves);
+const BARK_BAG=new GBag(),LEAF_BAG=new GBag();
+function limbGeo(p0,p1,r0,r1,seg){
+  const dx=p1[0]-p0[0],dy=p1[1]-p0[1],dz=p1[2]-p0[2],len=Math.hypot(dx,dy,dz);
+  const g=new THREE.CylinderGeometry(r1,r0,len,seg,1,true);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),
+    new THREE.Vector3(dx,dy,dz).normalize()));
+  g.translate((p0[0]+p1[0])/2,(p0[1]+p1[1])/2,(p0[2]+p1[2])/2);
+  const U=g.attributes.uv;for(let i=0;i<U.count;i++)U.setY(i,U.getY(i)*len/1.2);
+  return g;
+}
+function planeTree(px,pz,h,seed,trunkH,opt){
+  opt=opt||{};
+  const R=rng(seed);
+  const tip=[];
+  function limb(p0,dir,len,r0,depth){
+    const p1=[p0[0]+dir.x*len,p0[1]+dir.y*len,p0[2]+dir.z*len],r1=r0*.62;
+    BARK_BAG.add(limbGeo(p0,p1,r0,r1,depth>1?5:depth>0?4:3));
+    if(depth<=0||len<.7){tip.push(p1);return;}
+    const n=depth>1?3:2;
+    for(let i=0;i<n;i++){
+      const d=dir.clone();
+      const ax=new THREE.Vector3(R()-.5,0,R()-.5).normalize();
+      d.applyAxisAngle(ax,.35+R()*.45);d.y=Math.max(d.y,.15);d.normalize();
+      limb(p1,d,len*(.62+R()*.2),r1,depth-1);
+    }
+    if(depth<3)tip.push(p1);
+  }
+  const th=trunkH||2.8+R()*.8,r0=opt.r||.1+h*.012;
+  const lean=new THREE.Vector3((R()-.5)*.08,1,(R()-.5)*.08).normalize();
+  const top=[px+lean.x*th,th,pz+lean.z*th];
+  BARK_BAG.add(limbGeo([px,0,pz],top,r0*1.25,r0,8));
+  const n=3+Math.floor(R()*2);
+  for(let i=0;i<n;i++){
+    const a=i/n*Math.PI*2+R()*.8;
+    const d=new THREE.Vector3(Math.cos(a)*.55,.85,Math.sin(a)*.55).normalize();
+    limb(top,d,(h-th)*.42,r0*.8,3);
+  }
+  /* the crown: leaf cards clustered on the tips, each with a normal that
+     points out of the crown, so the whole thing shades like a volume */
+  const c=new THREE.Vector3(px,th+(h-th)*.55,pz);
+  const q=new THREE.Quaternion(),e=new THREE.Euler(),m=new THREE.Matrix4(),s=new THREE.Vector3();
+  const card=new THREE.PlaneGeometry(1,1);
+  tip.forEach(function(t){
+    const k=2+Math.floor(R()*3);
+    for(let i=0;i<k;i++){
+      const p=new THREE.Vector3(t[0]+(R()-.5)*1.4,t[1]+(R()-.5)*1.1,t[2]+(R()-.5)*1.4);
+      const sz=(1.1+R()*1.1)*(opt.leaf||1);
+      if(opt.minX!==undefined&&p.x-sz*.75<opt.minX)continue;
+      if(opt.maxX!==undefined&&p.x+sz*.75>opt.maxX)continue;
+      if(opt.minY!==undefined&&p.y-sz*.75<opt.minY)continue;
+      e.set(R()*Math.PI,R()*Math.PI,R()*Math.PI);q.setFromEuler(e);
+      m.compose(p,q,s.set(sz,sz,sz));
+      const nrm=p.clone().sub(c).normalize();
+      const g=card.clone().applyMatrix4(m);
+      const N=g.attributes.normal;
+      for(let j=0;j<N.count;j++)N.setXYZ(j,nrm.x,nrm.y,nrm.z);
+      /* sway weight rides in the colour's red: tips move, the core does not */
+      const sw=Math.min(1,p.distanceTo(c)/(h*.4));
+      LEAF_BAG.add(g,null,{r:sw,g:R(),b:0});
+      g.dispose();
+    }
+  });
+  card.dispose();
+}
+
+/* ---- cars ----
+   Lofted bodies: a side silhouette, a plan, a tumblehome, sampled into
+   rings of one fixed topology so glass, pillars and paint fall on exact
+   rows and stations. Paint is clear-coated, the glass is tinted and
+   reflective (no interior needed behind it), the wheels have tyres,
+   rims and wells. Every parked car is merged by material into one mesh
+   each: the whole street is a handful of draw calls. */
+const CAR_TYPES={
+  /* L,W, wheel radius, wheelbase, front axle from the nose, sill, belt,
+     roof, and the top line as (fraction of length from the rear, height) */
+  hatch:{L:4.28,W:1.79,wr:.315,wb:2.62,fa:.86,sill:.21,belt:.94,
+    top:[[0,.66],[.012,.92],[.05,1.10],[.13,1.40],[.2,1.46],[.53,1.47],[.585,1.40],[.72,.99],[.82,.93],[.93,.86],[.985,.74],[1,.60]],
+    glass:[.09,.2,.585,.715],pillarB:.43},
+  sedan:{L:4.72,W:1.83,wr:.33,wb:2.85,fa:.84,sill:.2,belt:.93,
+    top:[[0,.70],[.012,.95],[.06,1.0],[.17,1.03],[.28,1.36],[.34,1.43],[.58,1.44],[.63,1.37],[.75,.98],[.85,.91],[.94,.85],[.985,.72],[1,.58]],
+    glass:[.2,.335,.63,.745],pillarB:.47},
+  suv:{L:4.66,W:1.89,wr:.365,wb:2.79,fa:.88,sill:.29,belt:1.08,
+    top:[[0,.82],[.012,1.1],[.04,1.3],[.1,1.6],[.16,1.66],[.58,1.67],[.64,1.58],[.745,1.14],[.84,1.07],[.94,1.0],[.985,.88],[1,.72]],
+    glass:[.06,.15,.64,.742],pillarB:.42}
+};
+function carSpline(pts,f){
+  if(f<=pts[0][0])return pts[0][1];
+  for(let i=1;i<pts.length;i++){
+    if(f<=pts[i][0]){
+      const a=pts[i-1],b=pts[i],t=(f-a[0])/(b[0]-a[0]);
+      const p0=pts[Math.max(0,i-2)][1],p3=pts[Math.min(pts.length-1,i+1)][1];
+      /* Catmull-Rom on heights: the roofline stays round, not faceted */
+      const t2=t*t,t3=t2*t;
+      return .5*((2*a[1])+(-p0+b[1])*t+(2*p0-5*a[1]+4*b[1]-p3)*t2+(-p0+3*a[1]-3*b[1]+p3)*t3);
+    }
+  }
+  return pts[pts.length-1][1];
+}
+/* one car body: returns {pos, nrm, idx per part} in car space
+   (x forward, y up, z left), origin on the ground at mid-length */
+const CAR_RING=[  /* [segment, t] — the fixed topology of a half section */
+  ["bot",0],["bot",.5],["bot",1],["side",0],["side",.2],["side",.45],["side",.7],["side",.9],["side",1],
+  ["belt",0],["belt",1],["gh",0],["gh",.33],["gh",.66],["gh",1],["edge",0],["edge",.5],["edge",1],
+  ["roof",0],["roof",.35],["roof",.7],["roof",1]];
+function carBody(T){
+  const L=T.L,W2=T.W/2,st=[];
+  const nS=34;
+  for(let i=0;i<=nS;i++)st.push(i/nS);
+  const g=T.glass;[g[0],g[1],g[2],g[3],T.pillarB-.012,T.pillarB+.012,.02,.985].forEach(function(v){st.push(v);});
+  const xr=(T.L-T.fa-T.wb)/L,xf=(T.L-T.fa)/L;   /* axle fractions */
+  [xr,xf].forEach(function(a){for(let k=-4;k<=4;k++)st.push(a+k*(T.wr*1.1)/L/4);});
+  const S=Array.from(new Set(st.map(function(v){return Math.round(Math.min(1,Math.max(0,v))*1e4)/1e4;}))).sort(function(a,b){return a-b;});
+  const pos=[],zone=[];            /* zone per vertex: part name */
+  const ringN=CAR_RING.length*2-1; /* both halves, shared bottom centre */
+  S.forEach(function(f){
+    const x=f*L-L/2;
+    /* plan: rounded ends */
+    const e=Math.min(f/.06,(1-f)/.05,1);
+    const plan=Math.sqrt(Math.max(0,1-Math.pow(1-e,2)))*.12+.88;
+    const w=W2*plan;
+    const top=carSpline(T.top,f);
+    let bot=T.sill;
+    [xr,xf].forEach(function(a){
+      const dx=Math.abs(f-a)*L,R=T.wr*1.12;
+      if(dx<R)bot=Math.max(bot,T.wr+Math.sqrt(R*R-dx*dx)*.92);
+    });
+    /* ends: the bumpers tuck under */
+    bot+=Math.pow(Math.max(0,1-e),2)*.14;
+    const belt=Math.min(T.belt+(1-f)*.04,top-.015);
+    const hasGH=top>belt+.06;
+    const wRoof=w-.2-(hasGH?0:0),wBelt=w*.985;
+    function pt(seg,t){
+      switch(seg){
+        case "bot":return [w*.82*t,bot];
+        case "side":{
+          const y=bot+.05+(belt-bot-.05)*t;
+          const bulge=1-.05*Math.pow((t-.55)/.55,2);
+          const tuck=t<.2?(1-(.2-t)*.35):1;
+          return [w*bulge*tuck,y];
+        }
+        case "belt":return [wBelt-.015*t,belt+.02*t];
+        case "gh":{
+          if(!hasGH){const y=belt+.02+(top-belt-.02)*t*.5;return [wBelt-.03-.1*t,Math.min(y,top)];}
+          const y=belt+.02+(top-.05-belt-.02)*t;
+          return [wBelt-.03+(wRoof-(wBelt-.03))*t,y];
+        }
+        case "edge":{
+          if(!hasGH){const y=belt+.02+(top-belt-.02)*(.5+.5*t);return [wBelt-.13-.08*t,Math.min(y,top)];}
+          return [wRoof-.07*t,top-.05+.045*t];
+        }
+        case "roof":{
+          const w0=hasGH?wRoof-.07:wBelt-.21;
+          return [w0*(1-t),top+.012*t];
+        }
+      }
+    }
+    /* right half (z<0) from the top centre down, then the left half up */
+    const half=CAR_RING.map(function(r){return pt(r[0],r[1]);});
+    const zoneOf=function(k){
+      const seg=CAR_RING[k][0];
+      const inGl=(f>g[0]&&f<g[1])||(f>g[2]&&f<g[3]);
+      if(seg==="roof"&&inGl&&hasGH)return "glass";
+      if(seg==="gh"&&hasGH&&f>g[0]-.01&&f<g[3]+.01&&CAR_RING[k][1]>0&&CAR_RING[k][1]<1){
+        if(Math.abs(f-T.pillarB)<.012)return "trim";
+        if((f>g[1]&&f<g[2])||(f>g[0]+.03&&f<g[3]-.03))return "glass";
+      }
+      if(seg==="belt")return f>g[0]-.02&&f<g[3]+.02&&hasGH?"trim":"paint";
+      if(seg==="bot"||(seg==="side"&&CAR_RING[k][1]<.25))return "lower";
+      return "paint";
+    };
+    for(let k=half.length-1;k>=0;k--){const p=half[k];pos.push(x,p[1],-p[0]);zone.push(zoneOf(k));}
+    for(let k=1;k<half.length;k++){const p=half[k];pos.push(x,p[1],p[0]);zone.push(zoneOf(k));}
+  });
+  const ring=CAR_RING.length*2-1,nst=S.length;
+  const parts={paint:[],glass:[],trim:[],lower:[]};
+  function pick(a,b,c,d){
+    /* a quad takes glass if its upper-left corner is glass, which keeps the
+       windows' edges on the station and row lines */
+    const z=[zone[a],zone[b],zone[c],zone[d]];
+    if(z.indexOf("glass")>=0&&z.filter(function(v){return v==="glass";}).length>=2)return "glass";
+    if(z.indexOf("trim")>=0)return "trim";
+    if(z.filter(function(v){return v==="lower";}).length>=3)return "lower";
+    return "paint";
+  }
+  for(let i=0;i<nst-1;i++)for(let k=0;k<ring-1;k++){
+    const a=i*ring+k,b=(i+1)*ring+k,c=(i+1)*ring+k+1,d=i*ring+k+1;
+    parts[pick(a,b,c,d)].push(a,c,d,a,b,c);
+  }
+  /* end caps: fans to each end ring's centroid */
+  [0,nst-1].forEach(function(i){
+    let cx=0,cy=0,cz=0;
+    for(let k=0;k<ring;k++){cx+=pos[(i*ring+k)*3];cy+=pos[(i*ring+k)*3+1];cz+=pos[(i*ring+k)*3+2];}
+    const ci=pos.length/3;pos.push(cx/ring,cy/ring,cz/ring);zone.push("paint");
+    for(let k=0;k<ring-1;k++){
+      const a=i*ring+k,b=i*ring+k+1;
+      if(i===0)parts.paint.push(ci,a,b);else parts.paint.push(ci,b,a);
+    }
+  });
+  return {pos:pos,parts:parts};
+}
+const CAR_PART_BAGS={paint:new GBag(),glass:new GBag(),trim:new GBag(),lower:new GBag(),
+  tyre:new GBag(),rim:new GBag(),lamp:new GBag(),tail:new GBag(),plate:new GBag(),shadow:new GBag()};
+const CAR_CACHE={};
+function carGeos(type){
+  if(CAR_CACHE[type])return CAR_CACHE[type];
+  const T=CAR_TYPES[type],b=carBody(T),out={};
+  Object.keys(b.parts).forEach(function(k){
+    const g=new THREE.BufferGeometry();
+    g.setAttribute("position",new THREE.Float32BufferAttribute(b.pos,3));
+    g.setIndex(b.parts[k]);
+    /* normals from the WHOLE body, so glass and paint meet without a crease */
+    out[k]=g;
+  });
+  const all=new THREE.BufferGeometry();
+  all.setAttribute("position",new THREE.Float32BufferAttribute(b.pos,3));
+  all.setIndex([].concat(b.parts.paint,b.parts.glass,b.parts.trim,b.parts.lower));
+  all.computeVertexNormals();
+  Object.keys(out).forEach(function(k){out[k].setAttribute("normal",all.attributes.normal);});
+  /* wheels: a tyre with a rounded shoulder, a five-spoke rim, a dark well */
+  const tp=[];
+  const rw=T.wr,tw=.2;
+  for(let i=0;i<=8;i++){
+    const a=i/8*Math.PI;
+    tp.push(new THREE.Vector2(rw*.64+Math.sin(a)*rw*.36,(-Math.cos(a))*tw*.5));
+  }
+  const tyre=new THREE.LatheGeometry(tp,16);tyre.rotateX(Math.PI/2);
+  const rim=new THREE.CylinderGeometry(rw*.63,rw*.63,.03,14);rim.rotateX(Math.PI/2);
+  const spokes=[];
+  for(let k=0;k<5;k++){
+    const s=new THREE.BoxGeometry(.045,rw*1.18,.028);s.rotateZ(k/5*Math.PI*2);spokes.push(s);
+  }
+  const hub=new THREE.CylinderGeometry(.05,.06,.05,8);hub.rotateX(Math.PI/2);
+  const disc=new THREE.CylinderGeometry(rw*.5,rw*.5,.02,10,1,true);disc.rotateX(Math.PI/2);
+  out.wheel={tyre:tyre,rim:rim,spokes:spokes,hub:hub,disc:disc,T:T};
+  CAR_CACHE[type]=out;
+  return out;
+}
+function carPlateTex(){
+  const c=document.createElement("canvas");c.width=256;c.height=128;
+  const x=c.getContext("2d");
+  const R=rng(99);
+  for(let i=0;i<8;i++){
+    const ox=(i%2)*128,oy=Math.floor(i/2)*32;
+    x.fillStyle="#f4f4f2";x.fillRect(ox,oy,128,32);
+    x.fillStyle="#1f3a93";x.fillRect(ox,oy,11,32);
+    x.fillStyle="#b3121b";x.font="bold 20px 'Space Grotesk',sans-serif";x.textAlign="center";x.textBaseline="middle";
+    const L="ABCDEFGHJKLMNPRSTVWXYZ";
+    const s=(1+Math.floor(R()*2))+"-"+L[Math.floor(R()*22)]+L[Math.floor(R()*22)]+L[Math.floor(R()*22)]+"-"+(100+Math.floor(R()*899));
+    x.fillText(s,ox+70,oy+17);
+  }
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=ANISO;
+  return t;
+}
+const CAR_PAINTS=[ /* colour, metal, rough */
+  [0x232426,.6,.3],[0xc9cbcd,.6,.28],[0x6d7178,.65,.28],[0xecebe7,0,.26],[0x2b4a73,.6,.28],
+  [0x8f231e,.45,.3],[0x55655c,.55,.3],[0xa5a9ae,.6,.28],[0x4c5a69,.6,.28],[0xbdb5a3,.5,.3]];
+function placeCar(type,x,z,yaw,paint,seed,y){
+  const G=carGeos(type),T=G.wheel.T;
+  const m=new THREE.Matrix4().compose(new THREE.Vector3(x,y||0,z),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(0,yaw,0)),new THREE.Vector3(1,1,1));
+  const P=CAR_PAINTS[paint%CAR_PAINTS.length];
+  const col=srgbL(P[0]);
+  CAR_PART_BAGS.paint.add(G.paint,m,col,[P[1],P[2],0,0]);
+  /* car-space position rides along for the seams (see the paint shader) */
+  {const n=G.paint.index.count,A=CAR_PART_BAGS.paint.f,PA=G.paint.attributes.position,I=G.paint.index;
+   for(let k=0;k<n;k++){const v=I.getX(k),o=A.length-(n-k)*4;A[o+2]=PA.getX(v)/T.L+.5-T.pillarB;A[o+3]=PA.getY(v)-T.belt;}}
+  CAR_PART_BAGS.glass.add(G.glass,m);
+  CAR_PART_BAGS.trim.add(G.trim,m);
+  CAR_PART_BAGS.lower.add(G.lower,m);
+  const W2=T.W/2,xr=T.L/2-T.fa-T.wb,xf=T.L/2-T.fa;
+  const R=rng(seed||1);
+  /* the arches are cut through the whole body: a dark well behind each
+     axle keeps the far side from showing through */
+  [xr,xf].forEach(function(a){
+    const well=new THREE.BoxGeometry(T.wr*2.1,T.wr*1.05,T.W-.52);
+    CAR_PART_BAGS.lower.add(well,m.clone().multiply(mtx(a,T.wr*1.5,0)));well.dispose();
+  });
+  [[xr,1],[xr,-1],[xf,1],[xf,-1]].forEach(function(w){
+    const steer=w[0]===xf?(R()-.5)*.25:0;
+    const wm=m.clone().multiply(new THREE.Matrix4().compose(
+      new THREE.Vector3(w[0],T.wr,w[1]*(W2-.14)),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0,steer,0)),new THREE.Vector3(1,1,1)));
+    const side=new THREE.Matrix4().makeTranslation(0,0,w[1]*.06);
+    CAR_PART_BAGS.tyre.add(G.wheel.tyre,wm);
+    const rm=wm.clone().multiply(side);
+    CAR_PART_BAGS.rim.add(G.wheel.rim,rm.clone().multiply(new THREE.Matrix4().makeTranslation(0,0,-w[1]*.02)));
+    G.wheel.spokes.forEach(function(s){CAR_PART_BAGS.rim.add(s,rm);});
+    CAR_PART_BAGS.rim.add(G.wheel.hub,rm);
+    CAR_PART_BAGS.lower.add(G.wheel.disc,wm.clone().multiply(new THREE.Matrix4().makeTranslation(0,0,-w[1]*.02)));
+  });
+  /* lamps: headlights at the nose corners, tail lights wrapping the rear */
+  const ends=[[T.L/2-.07,1],[-T.L/2+.06,-1]];
+  const topF=carSpline(T.top,.965),topR=carSpline(T.top,.03);
+  const hl=new THREE.SphereGeometry(1,10,6);
+  /* grille and lower intake on the nose, a diffuser under the tail */
+  const nose=T.L/2+.004;
+  const gr=new THREE.PlaneGeometry(T.W-.9,.13);gr.rotateY(Math.PI/2);
+  CAR_PART_BAGS.trim.add(gr,m.clone().multiply(mtx(nose,topF-.2,0)));
+  const gi=new THREE.PlaneGeometry(T.W-.7,.1);gi.rotateY(Math.PI/2);
+  CAR_PART_BAGS.trim.add(gi,m.clone().multiply(mtx(nose,T.sill+.2,0)));
+  const df=new THREE.PlaneGeometry(T.W-.5,.12);df.rotateY(-Math.PI/2);
+  CAR_PART_BAGS.trim.add(df,m.clone().multiply(mtx(-nose,T.sill+.2,0)));
+  gr.dispose();gi.dispose();df.dispose();
+  for(const s of[-1,1]){
+    CAR_PART_BAGS.lamp.add(hl,m.clone().multiply(mtx(ends[0][0]-.04,topF-.09,s*(W2-.3),0,s*.35,0,.07,.04,.25)));
+    CAR_PART_BAGS.tail.add(hl,m.clone().multiply(mtx(ends[1][0],Math.min(topR,T.belt)-.05,s*(W2-.22),0,0,0,.06,.05,.24)));
+    /* mirrors */
+    const mf=(T.glass[3]-.01)*T.L-T.L/2;
+    CAR_PART_BAGS.paint.add(hl,m.clone().multiply(mtx(mf,T.belt+.07,s*(W2+.03),0,0,0,.08,.065,.1)),col,[P[1],P[2],0,0]);
+  }
+  hl.dispose();
+  /* plates: Belgian, front and back */
+  const slot=Math.floor(R()*8),u0=(slot%2)*.5,v1=1-Math.floor(slot/2)*.25,v0=v1-.25;
+  const pw=.52,ph=.12;
+  [[T.L/2+.004,1,.36],[-T.L/2-.004,-1,.5]].forEach(function(p){
+    const cx=p[0],y=Math.max(T.sill+.12,p[2]);
+    const pm=m.clone().multiply(mtx(cx,y,0,0,p[1]>0?Math.PI/2:-Math.PI/2,0));
+    const g=new THREE.PlaneGeometry(pw,ph);
+    const U=g.attributes.uv;
+    U.setXY(0,u0,v1);U.setXY(1,u0+.5,v1);U.setXY(2,u0,v0);U.setXY(3,u0+.5,v0);
+    CAR_PART_BAGS.plate.add(g,pm);g.dispose();
+  });
+  /* the contact shadow: soft, and darkest under the tyres */
+  const sh=new THREE.PlaneGeometry(T.L+.5,T.W+.45);sh.rotateX(-Math.PI/2);sh.translate(0,.012,0);
+  CAR_PART_BAGS.shadow.add(sh,m);sh.dispose();
+}
+const carShadowTex=ctex(256,128,function(x,w,h){
+  x.clearRect(0,0,w,h);
+  const g=x.createRadialGradient(w/2,h/2,10,w/2,h/2,w*.5);
+  g.addColorStop(0,"rgba(0,0,0,.78)");g.addColorStop(.55,"rgba(0,0,0,.55)");g.addColorStop(1,"rgba(0,0,0,0)");
+  x.save();x.scale(1,h/w);x.fillStyle=g;x.fillRect(0,0,w,w);x.restore();
+  x.fillStyle="rgba(0,0,0,.35)";
+  [[.2,.18],[.2,.82],[.8,.18],[.8,.82]].forEach(function(p){
+    const r=x.createRadialGradient(p[0]*w,p[1]*h,2,p[0]*w,p[1]*h,26);
+    r.addColorStop(0,"rgba(0,0,0,.6)");r.addColorStop(1,"rgba(0,0,0,0)");x.fillStyle=r;x.fillRect(0,0,w,h);
+  });
+});
+
+/* ---- build it ---- */
+(function buildStreet(){
+  /* WEST: the row across the street from the bay window */
+  terraceZ(-24,1,-150,150,[
+    {z0:-40.5,z1:-27,style:3,floors:8,gh:5,fh:3.6,bay:1.6,shop:1,sign:2,signW:4.6,color:0x9ea5ad,flat:1,depth:18,fronts:{pz:1}},
+    {z0:-27,z1:-16,gap:1},
+    {z0:-16,z1:-4,style:2,floors:5,gh:4.6,fh:3.45,bay:2.9,shop:1,sign:0,color:0xd6cfbf,fronts:{nz:1},depth:18},
+    {z0:-4,z1:3.3,style:1,floors:4,gh:4.0,fh:3.35,bay:2.4,shop:0,color:0xefebe3},
+    {z0:3.3,z1:9.8,style:0,floors:3,gh:4.1,fh:3.2,bay:2.15,shop:1,sign:3,color:0x8a4a36},
+    {z0:9.8,z1:24.4,style:3,floors:7,gh:5.2,fh:3.6,bay:1.62,shop:1,sign:1,signW:5.6,color:0x34383e,flat:1,depth:18},
+    {z0:24.4,z1:31.2,style:1,floors:4,gh:3.9,fh:3.3,bay:2.25,shop:1,sign:6,color:0xe8dcbc},
+    {z0:31.2,z1:37.6,style:0,floors:3,gh:3.9,fh:3.15,bay:2.1,shop:0,color:0x7c4535}
+  ],11,13);
+  /* the cross street behind the gap: both sides lined, receding */
+  (function cross(){
+    const R=rng(505);let x=-42;
+    while(x>-150){
+      const w=6+R()*3.5;
+      for(const side of[-1,1]){
+        const h=randomHouse(R);
+        const z0=side<0?-27-12:-16,z1=side<0?-27:-16+12;
+        building(Object.assign(h,{x0:x-w,x1:x,z0:z0,z1:z1,seed:Math.floor(R()*1e5),ridge:"x",
+          fronts:side<0?{pz:1}:{nz:1}}));
+      }
+      x-=w;
+    }
+    /* the corner buildings' flanks become facades onto it */
+  })();
+  /* EAST: across the street from the car park */
+  terraceZ(36.8,-1,-150,150,[
+    {z0:-14,z1:-6,style:3,floors:6,gh:4.4,fh:3.3,bay:1.5,shop:0,color:0x8d949b,flat:1},
+    {z0:-6,z1:1,style:0,floors:3,gh:4.0,fh:3.2,bay:2.2,shop:1,sign:4,color:0x8b4b37},
+    {z0:1,z1:8,style:1,floors:4,gh:4.0,fh:3.3,bay:2.3,shop:0,color:0xf0ece4},
+    {z0:8,z1:16,style:2,floors:4,gh:4.3,fh:3.3,bay:2.6,shop:1,sign:5,color:0xbdb6a8,fronts:{pz:1}},
+    {z0:16,z1:27,gap:1},
+    {z0:27,z1:34,style:1,floors:4,gh:3.9,fh:3.25,bay:2.3,shop:1,sign:7,color:0xe3d6bd,fronts:{nz:1}}
+  ],23,13);
+  /* the car park's flanks */
+  building({x0:7.1,x1:22.9,z0:-27,z1:-10.6,style:0,floors:4,gh:3.8,fh:3.1,bay:2.3,seed:71,
+    fronts:{pz:1,px:1},ridge:"x"});
+  building({x0:7.1,x1:22.9,z0:9.7,z1:27,style:1,floors:5,gh:3.9,fh:3.15,bay:2.4,seed:83,color:0xe7e1d4,
+    fronts:{nz:1,px:1},ridge:"x"});
+  /* the ends of the streets: at 150 m a street does not stop at a horizon
+     line, it bends or meets a square — close each vista on a building */
+  [[-40,-162,2,-150],[-40,150,2,162],[20,-162,50,-150],[20,150,50,162],[-162,-40,-150,0]].forEach(function(b,i){
+    building({x0:b[0],x1:b[2],z0:b[1],z1:b[3],style:i%2?1:2,floors:5,gh:4.2,fh:3.3,bay:2.4,seed:700+i,
+      fronts:b[1]<0&&b[0]>-100?{pz:1}:b[1]>0?{nz:1}:{px:1},shop:1});
+  });
+  /* the café's neighbours: the same terrace, through the block */
+  (function(){
+    const R=rng(61);
+    [[-150,-4.92],[3.97,150]].forEach(function(r){
+      let z=r[0];
+      while(z<r[1]-.5){
+        const w=Math.min(r[1]-z,5.5+R()*3.5),h=randomHouse(R);
+        building(Object.assign(h,{x0:-3.38,x1:7.09,z0:z,z1:z+w,seed:Math.floor(R()*1e5),
+          fronts:{nx:1,px:1},shop:(Math.abs(z)<30)?R()<.6:h.shop}));
+        z+=w;
+      }
+    });
+  })();
+  /* the skyline past the rows: seen over the roofs from close to the
+     glass, and down the cross street */
+  const R=rng(2024);
+  [[-150,-60,-120,-32,96,0x2f3339,1],[-128,38,-102,62,64,0x8d8a82,0],[-215,-150,-185,-118,112,0x9aa3ab,2],
+   [-95,-80,-75,-58,38,0xa9a293],[-88,70,-66,96,44,0x6e737a],[-70,-130,-48,-104,30,0xb8b0a0],
+   [150,-70,178,-40,78,0x5c6169],[120,60,146,90,52,0xa7a196],[-60,150,-30,178,34,0x8a857c]].forEach(function(t,i){
+    const fl=Math.floor((t[4]-5)/3.6);
+    building({x0:t[0],x1:t[2],z0:t[1],z1:t[3],style:t[4]>50?3:(i%2?2:1),floors:fl,gh:5,fh:3.6,bay:1.6,
+      seed:900+i,color:t[5],flat:1,fronts:{px:1,nx:1,pz:1,nz:1}});
+    if(t[6]!==undefined){
+      const cx=(t[0]+t[2])/2,cz=(t[1]+t[3])/2,top=5+fl*3.6-1.6;
+      SIGNS.push([t[2]+.1,top,cz,(t[3]-t[1])*.7,(t[3]-t[1])*.16,Math.PI/2,t[6],1]);
+      SIGNS.push([cx,top,t[3]+.1,(t[2]-t[0])*.7,(t[2]-t[0])*.16,0,t[6],1]);
+    }
+  });
+
+  /* GROUND. Heights: the model's own pavement tops out at .17 and its
+     roads at .04-.06; ours sit alongside, never on top. */
+  const G=GROUND;
+  /* west: pavement, kerb, street, kerb, pavement */
+  flat(G.slab,-7.62,-150,-3.38,150,.15,1.2);
+  gbBox(G.kerb,-7.8,0,-150,-7.62,.15,150,null,0b010011);
+  flat(G.tar,-19.4,-150,-7.8,150,.0,4);
+  gbBox(G.kerb,-19.58,0,-150,-19.4,.15,-27,null,0b011011);
+  gbBox(G.kerb,-19.58,0,-16,-19.4,.15,150,null,0b010111);
+  flat(G.slab,-24,-150,-19.58,-27,.15,1.2);flat(G.slab,-24,-16,-19.58,150,.15,1.2);
+  flat(G.tar,-150,-24.8,-19.58,-18.2,.0,4);flat(G.tar,-24,-27,-19.58,-24.8,.0,4);flat(G.tar,-24,-18.2,-19.58,-16,.0,4);
+  flat(G.slab,-150,-27,-24,-24.8,.15,1.2);flat(G.slab,-150,-18.2,-24,-16,.15,1.2);
+  /* east: the model stops at the far verge (x 34.84); a pavement to the houses */
+  flat(G.slab,34.84,-150,36.8,16,.12,1.2);flat(G.slab,34.84,27,36.8,150,.12,1.2);
+  flat(G.tar,33.15,18,160,25,.0,4);flat(G.tar,33.15,16,36.8,18,.0,4);flat(G.tar,33.15,25,36.8,27,.0,4);
+  flat(G.slab,36.8,16,160,18,.12,1.2);flat(G.slab,36.8,25,160,27,.12,1.2);
+  /* the gaps the forest used to fill: the car park's ends, the road's ends */
+  flat(G.slab,7.09,-10.6,9.84,-8.05,.17,1.2);flat(G.slab,7.09,7.12,9.84,9.7,.17,1.2);
+  flat(G.tar,9.84,-10.6,24.67,-10.17,.06,4);flat(G.tar,9.84,9.24,24.67,9.7,.06,4);
+  flat(G.tar,24.67,-150,33.15,-79.9,.04,4);flat(G.tar,24.67,79,33.15,150,.04,4);
+  flat(G.base,-600,-600,600,600,-.05,4);
+  /* markings: the west street's centre line and parking lanes */
+  for(let z=-150;z<150;z+=8)flat(G.paint,-13.66,z,-13.54,z+3,.006,1);
+  flat(G.paint,-9.96,-150,-9.86,150,.006,1);flat(G.paint,-17.34,-150,-17.24,150,.006,1);
+  /* bays along the parking lanes */
+  for(let z=-150;z<150;z+=5.6){flat(G.paint,-9.96,z,-7.8,z+.1,.006,1);flat(G.paint,-19.4,z,-17.24,z+.1,.006,1);}
+  /* the zebra at the corner, where the cross street meets */
+  for(let k=0;k<7;k++)flat(G.paint,-18.9+k*1.6,-29.3,-18.9+k*1.6+.5,-26.6,.007,1);
+
+  /* TREES. The two in the model's pavement pits keep their trunks exactly
+     where the courier's route was audited against them. */
+  planeTree(8.465,-8.095,6.8,11,2.4,{r:.13,minX:7.45,minY:2.3,leaf:.8});
+  planeTree(8.465,2.71,7.2,12,2.4,{r:.13,minX:7.45,minY:2.3,leaf:.8});
+  const TREE_Z=QUALITY.mobile?60:120;
+  for(let z=-120,i=0;z<=120;z+=9.5,i++){
+    if(Math.abs(z)>TREE_Z)continue;
+    if(z>-30&&z<-14)continue;
+    planeTree(-21.0+(i%2)*.15,z+((i*37)%5)*.2,11+((i*53)%7)*.6,100+i);
+  }
+  for(let z=-120,i=0;z<=120;z+=11,i++){
+    if(Math.abs(z)>TREE_Z)continue;
+    if(z>14&&z<29)continue;
+    planeTree(35.8,z,10+((i*29)%6)*.7,300+i);
+  }
+  /* two young ones on the café's own pavement, clear of the window's middle */
+  planeTree(-6.9,-7.2,7.5,501,2.6,{maxX:-3.7});planeTree(-6.9,6.4,7.8,502,2.6,{maxX:-3.7});
+
+  /* CARS. The model's lone box-car is dropped (HIDE); its bay gets a real
+     one, and so do two empty bays — never the one in front of the door,
+     which is the courier's lane. */
+  const C=[
+    ["hatch",13.95,-3.01,0,6],["suv",13.75,-5.57,0,2],["sedan",13.65,7.16,0,1],
+    /* west, café side: nose to -z (the kerb on their right) */
+    ["sedan",-8.72,-9.4,-Math.PI/2,0],["hatch",-8.72,-13.9,-Math.PI/2,3],["suv",-8.72,6.8,-Math.PI/2,4],
+    ["hatch",-8.72,12.6,-Math.PI/2,7],["sedan",-8.72,20.4,-Math.PI/2,8],
+    /* west, far side: nose to +z */
+    ["hatch",-18.45,-12.2,Math.PI/2,5],["sedan",-18.45,-6.9,Math.PI/2,1],["suv",-18.45,4.8,Math.PI/2,9],
+    ["hatch",-18.45,10.2,Math.PI/2,2],["sedan",-18.45,15.9,Math.PI/2,6],["hatch",-18.45,26.1,Math.PI/2,0],
+    ["sedan",-18.45,-36.5,Math.PI/2,3],
+    /* east, along the far kerb */
+    ["hatch",32.2,-15.5,-Math.PI/2,4],["sedan",32.2,-9.8,-Math.PI/2,7],["suv",32.2,4.5,-Math.PI/2,1],
+    ["hatch",32.2,10.4,-Math.PI/2,9]];
+  C.forEach(function(c,i){
+    /* on a phone the far kerbs go without: 60 % of the street's triangles
+       are cars, and those are the ones seen smallest */
+    if(QUALITY.mobile&&(c[1]>24.67||Math.abs(c[2])>16))return;
+    const y=c[1]>9.8&&c[1]<24.67?.06:c[1]>24.67?.04:0;
+    placeCar(c[0],c[1],c[2],c[3]+(i%3-1)*.012,c[4],i+1,y);
+  });
+
+  /* THE VANS. Their boxes are the model's (the courier's whole round is
+     timed against those doors), so they keep their bodies and gain what a
+     real box van has and a box does not: a step bumper under the doors
+     (it stops at x 11.30 — the courier stands at 10.95 at most), plates,
+     mud flaps, a dark chassis between the wheels instead of daylight, a
+     rubbing strip down each flank, rails along the roof edges, and the
+     cab's big mirrors. */
+  const VW=new GBag();
+  [[.96,3.19],[3.49,5.73]].forEach(function(v,i){
+    const z0=v[0],z1=v[1],zm=(z0+z1)/2;
+    gbBox(CAR_PART_BAGS.trim,11.30,.36,z0+.04,11.47,.53,z1-.04);
+    gbBox(CAR_PART_BAGS.lower,11.7,.26,z0+.2,17.3,.5,z1-.2);
+    for(const z of[z0+.02,z1-.02]){
+      gbBox(CAR_PART_BAGS.trim,11.52,.9,z-.012,15.48,.98,z+.012,null,0b111111);
+      gbBox(CAR_PART_BAGS.trim,11.93,.1,z-.008,11.97,.46,z+.008,null,0b111111);
+      gbBox(CAR_PART_BAGS.trim,15.86,.1,z-.008,15.9,.42,z+.008,null,0b111111);
+      /* the mirror: an arm off the door pillar and a tall black head */
+      const side=z<zm?-1:1;
+      gbBox(CAR_PART_BAGS.trim,16.62,1.62,Math.min(z,z+side*.22),16.68,1.66,Math.max(z,z+side*.22),null,0b111111);
+      gbBox(CAR_PART_BAGS.trim,16.56,1.5,z+side*.2-.035,16.66,1.86,z+side*.2+.035,null,0b111111);
+    }
+    VW.add(new THREE.CylinderGeometry(.03,.03,4.04,8,1,true),mtx(13.5,2.69,z0+.01,0,0,Math.PI/2));
+    VW.add(new THREE.CylinderGeometry(.03,.03,4.04,8,1,true),mtx(13.5,2.69,z1-.01,0,0,Math.PI/2));
+    VW.add(new THREE.CylinderGeometry(.03,.03,z1-z0,8,1,true),mtx(11.5,2.69,zm,Math.PI/2,0,0));
+    const pg=new THREE.PlaneGeometry(.52,.11);pg.rotateY(-Math.PI/2);
+    const slot=(i*3+1)%8,u0=(slot%2)*.5,v1=1-Math.floor(slot/2)*.25,v0=v1-.25;
+    const U=pg.attributes.uv;U.setXY(0,u0,v1);U.setXY(1,u0+.5,v1);U.setXY(2,u0,v0);U.setXY(3,u0+.5,v0);
+    CAR_PART_BAGS.plate.add(pg,mtx(11.295,.445,zm));
+    const pf=new THREE.PlaneGeometry(.52,.11);pf.rotateY(Math.PI/2);
+    {const F=pf.attributes.uv;F.setXY(0,u0,v1);F.setXY(1,u0+.5,v1);F.setXY(2,u0,v0);F.setXY(3,u0+.5,v0);}
+    CAR_PART_BAGS.plate.add(pf,mtx(17.71,.58,zm));pg.dispose();pf.dispose();
+  });
+  if(CAFE.mats.van_blanc){const vw=new THREE.Mesh(VW.geo(),CAFE.mats.van_blanc);vw.userData.outside=true;scene.add(vw);}
+
+  /* LAMPS and BOLLARDS */
+  const LAMP=new GBag();
+  function lamp(x,z,dir){
+    LAMP.add(rodGeo([x,0,z],[x,5.6,z],.085,.06,8));
+    LAMP.add(rodGeo([x,5.5,z],[x+dir*.9,5.75,z],.035,.03,6));
+    LAMP.add(new THREE.CylinderGeometry(.07,.24,.26,10),mtx(x+dir*1.0,5.62,z));
+  }
+  for(let z=-120;z<=120;z+=19){lamp(-7.35,z+4,-1);lamp(-19.85,z-5,1);lamp(36.3,z+2,-1);}
+  for(let z=-26;z<=26;z+=1.55){
+    if(z>-8.3&&z<-6.1||z>5.3&&z<7.5)continue;
+    LAMP.add(new THREE.CylinderGeometry(.055,.065,.78,8),mtx(-7.42,.54,z));
+    LAMP.add(new THREE.SphereGeometry(.058,8,5,0,Math.PI*2,0,Math.PI/2),mtx(-7.42,.93,z));
+  }
+  /* the 30 zone sign by the corner, and a blue P */
+  LAMP.add(rodGeo([-19.9,0,-15.2],[-19.9,2.9,-15.2],.03,.03,6));
+  LAMP.add(rodGeo([-7.45,0,-11.6],[-7.45,2.6,-11.6],.03,.03,6));
+  const lampMat=streetMat(new THREE.MeshStandardMaterial({color:srgbL(0x2e3336),roughness:.5,metalness:.6,envMapIntensity:1}),"lamp");
+  const lampMesh=new THREE.Mesh(LAMP.geo(),lampMat);scene.add(lampMesh);
+  STREET.lampMat=lampMat;
+  const signBoard=ctex(256,128,function(x,w,h){
+    x.clearRect(0,0,w,h);
+    x.fillStyle="#fff";x.beginPath();x.arc(64,64,60,0,Math.PI*2);x.fill();
+    x.strokeStyle="#c8102e";x.lineWidth=13;x.beginPath();x.arc(64,64,52,0,Math.PI*2);x.stroke();
+    x.fillStyle="#111";x.font="bold 52px 'Space Grotesk',sans-serif";x.textAlign="center";x.textBaseline="middle";x.fillText("30",64,68);
+    x.fillStyle="#1f4e9c";x.fillRect(136,8,112,112);x.fillStyle="#fff";x.font="bold 88px 'Space Grotesk',sans-serif";x.fillText("P",192,68);
+  });
+  const sm=streetMat(new THREE.MeshStandardMaterial({map:signBoard,transparent:true,alphaTest:.5,roughness:.45,side:THREE.DoubleSide,envMapIntensity:1}),"roadsign");
+  const s30=new THREE.PlaneGeometry(.6,.6);s30.attributes.uv.array.set([0,1,.5,1,0,0,.5,0]);
+  const s30m=new THREE.Mesh(s30,sm);s30m.position.set(-19.9,2.6,-15.2);s30m.rotation.y=Math.PI/2;scene.add(s30m);
+  const sP=new THREE.PlaneGeometry(.5,.5);sP.attributes.uv.array.set([.53,.94,.97,.94,.53,.06,.97,.06]);
+  const sPm=new THREE.Mesh(sP,sm);sPm.position.set(-7.45,2.35,-11.6);sPm.rotation.y=Math.PI/2;scene.add(sPm);
+
+  /* MESHES */
+  const facMat=facadeMaterial();
+  const fac=new THREE.Mesh(FAC_BAG.geo(),facMat);fac.name="street:facades";scene.add(fac);
+  const roofMat=streetMat(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85,envMapIntensity:1}),"roof");
+  scene.add(new THREE.Mesh(ROOF_BAG.geo(),roofMat));
+  const slabMat=groundMat(slabTex,1.2,0xffffff,.9),tarMat=groundMat(tarmacTex,4,0xffffff,.93);
+  scene.add(new THREE.Mesh(G.slab.geo(),slabMat));
+  scene.add(new THREE.Mesh(G.tar.geo(),tarMat));
+  scene.add(new THREE.Mesh(G.base.geo(),groundMat(tarmacTex,4,srgbL(0x9a9a9a),.95)));
+  scene.add(new THREE.Mesh(G.kerb.geo(),streetMat(new THREE.MeshStandardMaterial({color:srgbL(0x75787b),roughness:.8,envMapIntensity:1}),"kerb")));
+  const paintMat=streetMat(new THREE.MeshStandardMaterial({color:srgbL(0xdedbd2),roughness:.7,envMapIntensity:1,
+    polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),"paint");
+  scene.add(new THREE.Mesh(G.paint.geo(),paintMat));
+
+  const barkTex=ctex(256,256,function(x,w,h){
+    /* a plane sheds its bark in plates: grey-olive, with buff and
+       sage patches where it has come away — soft-edged, low contrast */
+    const R=rng(8);x.fillStyle="#5f5d50";x.fillRect(0,0,w,h);
+    for(let i=0;i<420;i++){
+      const c=["#86836d","#5e5c4d","#958f74","#a39c80","#77765f","#6a6d58"][Math.floor(R()*6)];
+      x.globalAlpha=.35+R()*.35;x.fillStyle=c;
+      const px=R()*w,py=R()*h,rx=4+R()*12,ry=5+R()*16,ro=R()*3;
+      wrap9(w,h,function(ox,oy){x.beginPath();x.ellipse(px+ox,py+oy,rx,ry,ro,0,Math.PI*2);x.fill();});
+    }
+    x.globalAlpha=1;
+    for(let i=0;i<900;i++){x.fillStyle="rgba(30,28,22,"+(R()*.18)+")";x.fillRect(R()*w,R()*h,1+R()*2,2+R()*5);}
+  });
+  barkTex.wrapS=barkTex.wrapT=THREE.RepeatWrapping;
+  const barkMat=streetMat(new THREE.MeshStandardMaterial({map:barkTex,roughness:.88,envMapIntensity:1}),"bark");
+  scene.add(new THREE.Mesh(BARK_BAG.geo(),barkMat));
+  const leafMat=streetMat(new THREE.MeshStandardMaterial({map:leafTex,alphaTest:.42,side:THREE.DoubleSide,
+    roughness:.95,envMapIntensity:1.0,vertexColors:false}),"leaf",{
+    vHead:"attribute vec3 color;varying float vTint;",
+    vPost:"vTint=color.g;",
+    fHead:"varying float vTint;",
+    vPre:RM?"":"{vec3 wp=(modelMatrix*vec4(transformed,1.)).xyz;float sw=color.r;"+
+      "transformed+=vec3(sin(uTime*1.3+wp.x*.35+wp.z*.2),sin(uTime*1.7+wp.z*.4)*.4,cos(uTime*1.1+wp.x*.25))*.045*sw;}",
+    frag:function(f){
+      /* light through the leaves: the shadowed side still glows green */
+      return f.replace("#include <color_fragment>","#include <color_fragment>\n"+
+        "diffuseColor.rgb*=mix(vec3(.85,.9,.8),vec3(1.12,1.08,.95),vTint);")
+        .replace("#include <lights_physical_fragment>","#include <lights_physical_fragment>\nmaterial.specularColor*=.25;")
+        .replace("#include <emissivemap_fragment>","#include <emissivemap_fragment>\n"+
+        "totalEmissiveRadiance+=diffuseColor.rgb*vec3(.04,.06,.02)*(1.-uNight);");
+    }});
+  const leaves=new THREE.Mesh(LEAF_BAG.geo(),leafMat);scene.add(leaves);
+
+  /* cars */
+  const env=CAFE.streetEnv;
+  const paint=new THREE.MeshPhysicalMaterial({vertexColors:true,metalness:.55,roughness:.32,
+    clearcoat:1,clearcoatRoughness:.05,envMapIntensity:1.15});
+  streetMat(paint,"carpaint",{
+    vHead:"attribute vec4 aF;varying vec4 vPaint;",vPost:"vPaint=aF;",
+    fHead:"varying vec4 vPaint;",
+    frag:function(f){return f.replace("#include <metalnessmap_fragment>",
+      "#include <metalnessmap_fragment>\nmetalnessFactor=vPaint.x;roughnessFactor=vPaint.y;")
+      /* the shut lines of the doors and the handles: a 4 mm dark gap is
+         most of what tells a painted blob it is a car */
+      .replace("#include <color_fragment>","#include <color_fragment>\n"+
+        "{float fx=vPaint.z,fy=vPaint.w;float aw=max(fwidth(fx),1e-4);"+
+        "float band=step(-.6,fy)*step(fy,-.015);"+
+        "float s=0.;for(int i=0;i<3;i++){float c=i==0?-.25:i==1?0.:.24;s=max(s,1.-smoothstep(.0,aw*1.2+.0009,abs(fx-c)));}"+
+        "float hnd=0.;for(int i=0;i<2;i++){float c=i==0?.045:-.205;hnd=max(hnd,step(abs(fx-c),.022)*step(abs(fy+.08),.011));}"+
+        "diffuseColor.rgb*=1.-.8*max(s*band,hnd);}");}});
+  const glass=new THREE.MeshPhysicalMaterial({color:srgbL(0x0c0f13),metalness:0,roughness:.04,
+    reflectivity:1,envMapIntensity:1.4});
+  streetMat(glass,"carglass");
+  const trim=streetMat(new THREE.MeshStandardMaterial({color:srgbL(0x121315),roughness:.5,envMapIntensity:1}),"cartrim");
+  const lower=streetMat(new THREE.MeshStandardMaterial({color:srgbL(0x1b1c1e),roughness:.7,envMapIntensity:.8}),"carlower");
+  const tyre=streetMat(new THREE.MeshStandardMaterial({color:srgbL(0x1a1a1b),roughness:.88,envMapIntensity:.6,side:THREE.DoubleSide}),"tyre");
+  const rim=streetMat(new THREE.MeshStandardMaterial({color:srgbL(0xb4b8bd),metalness:.9,roughness:.28,envMapIntensity:1.2}),"rim");
+  const lampM=streetMat(new THREE.MeshStandardMaterial({color:srgbL(0xc9d1d6),metalness:.9,roughness:.12,
+    emissive:0xfff1d6,emissiveIntensity:0,envMapIntensity:1.3}),"carlamp");
+  const tailM=streetMat(new THREE.MeshStandardMaterial({color:srgbL(0x7a0c0c),metalness:.2,roughness:.18,
+    emissive:0xff2a1a,emissiveIntensity:0,envMapIntensity:1.2}),"cartail");
+  const plateM=streetMat(new THREE.MeshStandardMaterial({map:carPlateTex(),roughness:.5,envMapIntensity:.9}),"plate");
+  const shadowM=new THREE.MeshBasicMaterial({map:carShadowTex,transparent:true,depthWrite:false,color:0x000000,opacity:.82});
+  const B=CAR_PART_BAGS;
+  [[B.paint,paint],[B.glass,glass],[B.trim,trim],[B.lower,lower],[B.tyre,tyre],[B.rim,rim],
+   [B.lamp,lampM],[B.tail,tailM],[B.plate,plateM]].forEach(function(p){
+    if(!p[0].p.length)return;
+    const mesh=new THREE.Mesh(p[0].geo(),p[1]);mesh.name="street:car";scene.add(mesh);
+  });
+  const shadows=new THREE.Mesh(B.shadow.geo(),shadowM);shadows.renderOrder=1;scene.add(shadows);
+  STREET.carLamps=[lampM,tailM];
+
+  /* SIGNS — one canvas, eight shopfronts' worth */
+  const signTex=ctex(1024,512,drawSigns);
+  VC.fontsReady.then(function(){drawSigns(signTex.userData.canvas.getContext("2d"),1024,512);signTex.needsUpdate=true;});
+  const SB=new GBag();
+  SIGNS.forEach(function(s){
+    const g=new THREE.PlaneGeometry(s[3],s[4]);
+    const slot=s[6],u0=(slot%2)*.5,v1=1-Math.floor(slot/2)*.25,v0=v1-.25;
+    const U=g.attributes.uv;
+    U.setXY(0,u0,v1);U.setXY(1,u0+.5,v1);U.setXY(2,u0,v0);U.setXY(3,u0+.5,v0);
+    SB.add(g,mtx(s[0],s[1],s[2],0,s[5],0));g.dispose();
+  });
+  const signMat=streetMat(new THREE.MeshStandardMaterial({map:signTex,roughness:.4,metalness:.1,
+    emissive:0xffffff,emissiveMap:signTex,emissiveIntensity:.12,envMapIntensity:1}),"signs");
+  scene.add(new THREE.Mesh(SB.geo(),signMat));
+  STREET.signMat=signMat;
+  /* the pharmacy's green cross, sticking out over the pavement */
+  const cross=new THREE.Group();
+  const cm=streetMat(new THREE.MeshStandardMaterial({color:0x0b5f2c,emissive:0x19c45a,emissiveIntensity:.9,roughness:.4}),"cross");
+  cross.add(new THREE.Mesh(new THREE.BoxGeometry(.12,.6,.2),cm));
+  cross.add(new THREE.Mesh(new THREE.BoxGeometry(.12,.2,.6),cm));
+  cross.position.set(36.1,4.6,-2.5);scene.add(cross);
+  STREET.cross=cm;
+
+  /* the model's own street (the car park, the vans, the lamps) takes the
+     same sun and the same haze, or it would sit in a different day */
+  CAFE.outside.forEach(function(k){const m=CAFE.mats&&CAFE.mats[k];if(m)streetMat(m,"obj:"+k);});
+  /* the street is outside: nothing here may stop the camera */
+  scene.traverse(function(o){if(o.isMesh&&o.material&&STREET.mats.indexOf(o.material)>=0)o.userData.outside=true;});
+  shadows.userData.outside=true;
+})();
+function drawSigns(x,w,h){
+  x.clearRect(0,0,w,h);
+  const sw=w/2,sh=h/4;
+  const S=[
+    ["#1f1b16","NdaBank","PRIVATE WEALTH","#d7b16a","#d7b16a","'Space Grotesk'"],
+    ["#b3121b","HENRY","INVESTMENT BANK","#ffffff","#ffd9d9","'Space Grotesk'"],
+    ["#15191c","BIG FOUR","AUDIT · TAX · ADVISORY","#f2f2f2","#9fb0bd","'Space Grotesk'"],
+    ["#1d3a2c","Boulangerie","PÂTISSERIE · BAKKERIJ","#efe3c8","#caa87c","'Inter'"],
+    ["#0e7a3b","PHARMACIE","APOTHEEK","#ffffff","#d6f5e1","'Inter'"],
+    ["#5a1a1f","Brasserie","DU COIN · SINDS 1931","#f0e2c6","#d8b890","'Inter'"],
+    ["#1d2a44","Librairie","BOEKHANDEL · PRESSE","#f3f1ea","#b9c6dd","'Inter'"],
+    ["#e8e0cc","Friterie","FRITUUR · MAISON","#3a2a1a","#8a5a2a","'Inter'"]];
+  S.forEach(function(s,i){
+    const ox=(i%2)*sw,oy=Math.floor(i/2)*sh;
+    x.fillStyle=s[0];x.fillRect(ox,oy,sw,sh);
+    x.strokeStyle="rgba(255,255,255,.12)";x.lineWidth=3;x.strokeRect(ox+6,oy+6,sw-12,sh-12);
+    x.textAlign="center";x.textBaseline="alphabetic";
+    x.fillStyle=s[3];x.font="600 58px "+s[5]+",sans-serif";x.fillText(s[1],ox+sw/2,oy+76);
+    x.fillStyle=s[4];x.font="500 19px "+s[5]+",sans-serif";
+    const t=s[2].split("").join(String.fromCharCode(8202));
+    x.fillText(t,ox+sw/2,oy+108);
+  });
+}
 
 /* ONE CANVAS, over the standing trio: where the neon and the arc print used
    to argue, a single large abstract in the room's own colours — terracotta,
@@ -5638,7 +6842,13 @@ const PICTURE_GLOW=new THREE.MeshBasicMaterial({color:0xffdcaa});
    price list), in a bronze frame: warm ivory Inter on a deep olive-black,
    prices in Space Grotesk champagne, dotted leaders — a printed menu, not
    a chalk one. Caveat survives in one place only: the owner's handwritten
-   sign-off on the closed side, which is the one line that IS handwriting. */
+   sign-off on the closed side, which is the one line that IS handwriting.
+   Then it grew again (Simon, 2026-09-28: "agrandis considérablement le
+   menu"): 2.75 x 1.12 m, the width from just right of his head to the
+   clock, the height from the machine's top (2.0) to 10 cm under the soffit
+   (3.22) — the most a menu can take on this wall without standing behind
+   the face the shot is about. Three columns now, and its own picture light,
+   so it is lit like the rest of the room instead of glowing by itself. */
 let menuTex;
 const MENU_INK="#ece4d6",MENU_DIM="rgba(236,228,214,.42)",MENU_GOLD="#caa87c",MENU_BG="#23261f";
 /* canvas letter-spacing is not in every engine this page supports: space
@@ -5650,41 +6860,52 @@ function spaced(x,txt,cx,y,track){
   [...txt].forEach(function(ch,i){x.fillText(ch,px,y);px+=ws[i]+track;});
   x.textAlign=al;
 }
+const MENU_W=2048,MENU_H=832;
 function drawCarte(x){
-  x.fillStyle=MENU_GOLD;x.font="600 17px 'Space Grotesk',sans-serif";
-  spaced(x,"VIRTUAL COFFEE",512,54,7);
-  x.fillStyle=MENU_INK;x.font="500 40px 'Space Grotesk',sans-serif";
-  x.textAlign="center";x.fillText("The Menu",512,104);
-  x.strokeStyle="rgba(202,168,124,.55)";x.lineWidth=1.5;
-  x.beginPath();x.moveTo(300,92);x.lineTo(410,92);x.moveTo(614,92);x.lineTo(724,92);x.stroke();
+  x.fillStyle=MENU_GOLD;x.font="600 30px 'Space Grotesk',sans-serif";
+  spaced(x,"VIRTUAL COFFEE",1024,96,13);
+  x.fillStyle=MENU_INK;x.font="500 88px 'Space Grotesk',sans-serif";
+  x.textAlign="center";x.fillText("The Menu",1024,196);
+  x.strokeStyle="rgba(202,168,124,.55)";x.lineWidth=2.5;
+  x.beginPath();x.moveTo(610,168);x.lineTo(820,168);x.moveTo(1228,168);x.lineTo(1438,168);x.stroke();
   /* English like the rest of the UI (v1.45.0); the prices keep their
      Belgian comma — the café is still in Brussels. */
-  const L=[["The Salfari cappuccino","3,8 €"],
-           ["The morning-after ristretto","2,5 €"],
-           ["The 6 pm decaf","2,0 €"],
-           ["The syndic's lungo","2,8 €"]];
-  const R=[["The pre-daily espresso","2,2 €"],
-           ["The “could've been an email” latte","4,5 €"],
-           ["The sprint-review flat white","4,0 €"],
-           ["The express-onboarding mocha","4,2 €"]];
-  function col(items,x0,x1){
-    items.forEach(function(it,k){
-      const y=172+k*56;
-      x.font="500 23px 'Inter',sans-serif";x.fillStyle=MENU_INK;x.textAlign="left";
-      x.fillText(it[0],x0,y);
-      const nameEnd=x0+x.measureText(it[0]).width;
-      x.font="600 23px 'Space Grotesk',sans-serif";x.fillStyle=MENU_GOLD;x.textAlign="right";
-      x.fillText(it[1],x1,y);
+  const COLS=[
+    ["Coffee",[["The pre-daily espresso","2,2 €"],["The morning-after ristretto","2,5 €"],
+      ["The syndic's lungo","2,8 €"],["The 6 pm decaf","2,0 €"],["The Salfari cappuccino","3,8 €"]]],
+    ["Signatures",[["The sprint-review flat white","4,0 €"],["The express-onboarding mocha","4,2 €"],
+      ["The “could've been an email” latte","4,5 €"],["The backlog-grooming chai","3,6 €"],
+      ["The retro hot chocolate","3,9 €"]]],
+    ["Bakery & more",[["Croissant, no scope creep","2,2 €"],["Pain au chocolat","2,4 €"],
+      ["Speculoos, always in scope","0,0 €"],["Fresh orange juice","4,0 €"],["Brussels waffle","3,5 €"]]]];
+  const X0=[96,720,1344],CW=608;
+  COLS.forEach(function(col,ci){
+    const x0=X0[ci],x1=x0+CW-48;
+    x.textAlign="left";x.fillStyle=MENU_GOLD;x.font="600 26px 'Space Grotesk',sans-serif";
+    spaced(x,col[0].toUpperCase(),x0+(x1-x0)/2,286,6);
+    col[1].forEach(function(it,k){
+      const y=372+k*74;
+      x.font="600 32px 'Space Grotesk',sans-serif";
       const priceStart=x1-x.measureText(it[1]).width;
+      /* the long jokes step down a size rather than run into the price */
+      let fs=32;x.font="500 32px 'Inter',sans-serif";
+      const w=x.measureText(it[0]).width,room=priceStart-x0-40;
+      if(w>room){fs=Math.floor(32*room/w);x.font="500 "+fs+"px 'Inter',sans-serif";}
+      x.fillStyle=MENU_INK;x.textAlign="left";x.fillText(it[0],x0,y);
+      const nameEnd=x0+x.measureText(it[0]).width;
+      x.font="600 32px 'Space Grotesk',sans-serif";x.fillStyle=MENU_GOLD;x.textAlign="right";
+      x.fillText(it[1],x1,y);
       x.fillStyle=MENU_DIM;
-      for(let d=nameEnd+12;d<priceStart-10;d+=9)x.fillRect(d,y-4,2,2);
+      for(let d=nameEnd+16;d<priceStart-14;d+=13)x.fillRect(d,y-6,3,3);
     });
-  }
-  col(L,64,470);col(R,554,960);
-  x.fillStyle="rgba(202,168,124,.35)";x.fillRect(512,150,1,196);
+    if(ci)x.fillStyle="rgba(202,168,124,.3)",x.fillRect(x0-40,270,1.5,420);
+  });
+  x.font="400 26px 'Inter',sans-serif";x.fillStyle=MENU_DIM;x.textAlign="center";
+  x.fillText("Oat, almond or soy +0,40 €  ·  Decaf on request  ·  Ask Simon about the syndic",1024,770);
 }
 function drawClosedBoard(x){
   const b=DATA[lang].closed.board;
+  x.save();x.translate(0,(MENU_H-800)/2);x.scale(2,2);
   x.fillStyle=MENU_GOLD;x.font="600 17px 'Space Grotesk',sans-serif";
   spaced(x,"VIRTUAL COFFEE",512,54,7);
   x.fillStyle=MENU_INK;x.font="600 96px 'Space Grotesk',sans-serif";
@@ -5695,13 +6916,14 @@ function drawClosedBoard(x){
   b.lines.forEach(function(l,k){x.fillText(l,512,240+k*38);});
   x.font="600 34px 'Caveat',cursive";x.fillStyle=MENU_GOLD;
   x.fillText(b.hand,512,372);
+  x.restore();
 }
 function drawMenu(){
-  const c=menuTex?menuTex.image:Object.assign(document.createElement("canvas"),{width:1024,height:400});
+  const c=menuTex?menuTex.image:Object.assign(document.createElement("canvas"),{width:MENU_W,height:MENU_H});
   const x=c.getContext("2d");
-  x.fillStyle=MENU_BG;x.fillRect(0,0,1024,400);
-  speckle(x,1024,400,1400,.03);
-  x.strokeStyle="rgba(202,168,124,.4)";x.lineWidth=2;x.strokeRect(22,22,980,356);
+  x.fillStyle=MENU_BG;x.fillRect(0,0,MENU_W,MENU_H);
+  speckle(x,MENU_W,MENU_H,5200,.03);
+  x.strokeStyle="rgba(202,168,124,.4)";x.lineWidth=3;x.strokeRect(40,40,MENU_W-80,MENU_H-80);
   x.textBaseline="alphabetic";
   if(cafeClosed)drawClosedBoard(x);else drawCarte(x);
   if(!menuTex){menuTex=new THREE.CanvasTexture(c);menuTex.encoding=THREE.sRGBEncoding;menuTex.anisotropy=ANISO;}
@@ -5712,18 +6934,30 @@ drawMenu();          /* and again on VC.fontsReady, with the resume (see below) 
    above it and holding a little of its own light so it reads at any hour */
 const menuBoard=new THREE.Group();
 {
-  const W=1.84,H=.72,T=.018,D=.03;
+  const W=2.75,H=1.12,T=.024,D=.035;
   const board=new THREE.Mesh(new THREE.PlaneGeometry(W,H),
     new THREE.MeshStandardMaterial({map:menuTex,roughness:.72,envMapIntensity:.35,
-      emissive:0xffffff,emissiveMap:menuTex,emissiveIntensity:.14}));
+      emissive:0xffffff,emissiveMap:menuTex,emissiveIntensity:.07}));
   board.position.z=D-.004;menuBoard.add(board);
   const fb=new Batch();
   fb.add(CAFE.mats.bronze,new THREE.BoxGeometry(W+2*T,T,D),mtx(0,H/2+T/2,D/2));
   fb.add(CAFE.mats.bronze,new THREE.BoxGeometry(W+2*T,T,D),mtx(0,-H/2-T/2,D/2));
   fb.add(CAFE.mats.bronze,new THREE.BoxGeometry(T,H,D),mtx(W/2+T/2,0,D/2));
   fb.add(CAFE.mats.bronze,new THREE.BoxGeometry(T,H,D),mtx(-W/2-T/2,0,D/2));
+  /* the picture light: a bronze bar on a short arm, its warm pool falling
+     down the board (brightest at the header, as a real one does) */
+  fb.add(CAFE.mats.bronze,new THREE.BoxGeometry(.9,.03,.05),mtx(0,H/2+.05,.2));
+  fb.add(CAFE.mats.bronze,new THREE.BoxGeometry(.018,.018,.17),mtx(-.3,H/2+.04,.12));
+  fb.add(CAFE.mats.bronze,new THREE.BoxGeometry(.018,.018,.17),mtx(.3,H/2+.04,.12));
   fb.build(menuBoard);
-  menuBoard.position.set(1.3,2.83,-4.748);
+  const glow=new THREE.Mesh(new THREE.PlaneGeometry(.86,.018),
+    new THREE.MeshBasicMaterial({color:0xffe2b8}));
+  glow.rotation.x=Math.PI/2;glow.position.set(0,H/2+.034,.2);menuBoard.add(glow);
+  const pl=new THREE.SpotLight(0xffd9a8,1.1,3.2,1.05,.85,1.4);
+  pl.position.set(0,H/2+.03,.22);pl.target.position.set(0,-H*.15,0);
+  menuBoard.add(pl);menuBoard.add(pl.target);
+  menuBoard.userData.light=pl;
+  menuBoard.position.set(1.575,2.56,-4.748);
   scene.add(menuBoard);
 }
 
@@ -5793,22 +7027,28 @@ const menuBoard=new THREE.Group();
 }
 
 /* ---------------- SKY TRAFFIC ----------------
-   The city behind the glass is a painting, and it stays a painting until
-   something crosses it. A plane every half-minute is the cheapest weather
-   there is: you catch it at the edge of your eye while Simon talks, and the
-   window stops being wallpaper.
-   Once in a while what crosses is not a plane. Small, far, gone in seven
-   seconds — you are never quite sure you saw it, which is the whole joke.
-   Both fly BETWEEN the painted plate (x=-3.9) and the wall (x=-3.25), so
-   the bay masks them in and out on its own: no fades, the wall does it.
-   Unlit basic materials — out there the light belongs to the plate, and
-   nothing beyond the glass should answer the pendants. */
-const SKY_LANE=-3.72;
+   A plane every half-minute is the cheapest weather there is, and once in
+   a while what crosses is not a plane.
+   Both used to fly in the 65 cm between the painted plate and the wall:
+   a 40 cm airliner and a 42 cm man, unlit, which from the room read as
+   exactly what they were — models on a stick. The street is real now
+   (THE STREET), so they live in it at their real size:
+     · the airliner is 36 m of wingspan 330 m out and 110 m up, hazed by
+       the same air as the roofs — you catch it over the rooftops when you
+       stand at the glass;
+     · the man is a man (Simon, 2026-09-28: "proportions humaines
+       réalistes… qu'il passe réellement derrière le café"): the café's own
+       real-person pipeline, 1.88 m, a painted suit on the real body, a
+       cloth cape, lit by the street's sun and sky and hazed like it. He
+       flies the west street at three to four metres — low enough for the
+       bay to frame him, far enough to pass BEHIND the young plane trees on
+       our pavement — pulls up over the middle of the street, hangs there
+       looking in, and goes. His shadow crosses the tarmac under him. */
 const skyPlane=new THREE.Group();
 {
-  const body=new THREE.MeshBasicMaterial({color:0xdfe4ea});
-  const wing=new THREE.MeshBasicMaterial({color:0xc2cad4});
-  const dark=new THREE.MeshBasicMaterial({color:0x8b97a5});
+  const body=streetMat(new THREE.MeshBasicMaterial({color:srgbL(0xd9dee4)}),"plane");
+  const wing=streetMat(new THREE.MeshBasicMaterial({color:srgbL(0xb9c1ca)}),"plane2");
+  const dark=streetMat(new THREE.MeshBasicMaterial({color:srgbL(0x7d8794)}),"plane3");
   /* banked a touch. Crossing your line of sight dead level, an airliner is
      a stick — a quarter turn of roll is what puts the wings on screen. */
   const bank=new THREE.Group();bank.rotation.z=.44;skyPlane.add(bank);
@@ -5826,117 +7066,205 @@ const skyPlane=new THREE.Group();
     const eng=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.05,8),dark);
     eng.rotation.x=Math.PI/2;eng.position.set(s*.115,-.015,.012);bank.add(eng);
   }
+  skyPlane.scale.setScalar(90);
 }
 skyPlane.visible=false;scene.add(skyPlane);
-const skyHero=new THREE.Group();
-{
-  /* v2 of the flying man: proportions off a comic panel instead of a
-     capsule doodle — chest wider than hips, trunks and boots in red, a
-     belt, legs together with the toes trailing, and a cape that hangs
-     from the shoulders rather than floating near them. Still under a
-     hundred triangles: he is read through glass at four metres. */
-  const suit=new THREE.MeshBasicMaterial({color:0x2f5fc4});
-  const red=new THREE.MeshBasicMaterial({color:0xb22a26});
-  const skin=new THREE.MeshBasicMaterial({color:0xe0ab80});
-  const hair=new THREE.MeshBasicMaterial({color:0x14100e});
-  const gold=new THREE.MeshBasicMaterial({color:0xd8a72c});
-  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.021,.015,.11,10),suit);
-  torso.rotation.x=Math.PI/2;skyHero.add(torso);
-  const chest=new THREE.Mesh(new THREE.SphereGeometry(.023,10,8),suit);
-  chest.scale.set(1.2,.85,1);chest.position.z=.045;skyHero.add(chest);
-  const trunks=new THREE.Mesh(new THREE.CylinderGeometry(.016,.0155,.032,10),red);
-  trunks.rotation.x=Math.PI/2;trunks.position.z=-.064;skyHero.add(trunks);
-  const belt=new THREE.Mesh(new THREE.CylinderGeometry(.0168,.0168,.008,10),gold);
-  belt.rotation.x=Math.PI/2;belt.position.z=-.047;skyHero.add(belt);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.019,10,8),skin);
-  head.position.z=.086;skyHero.add(head);
-  const cap=new THREE.Mesh(new THREE.SphereGeometry(.0198,10,8),hair);
-  cap.scale.set(1,.85,.8);cap.position.set(0,.005,.082);skyHero.add(cap);
-  /* the lead fist, and the other arm swept back along the body */
-  const armF=new THREE.Mesh(new THREE.CylinderGeometry(.0062,.0075,.095,8),suit);
-  armF.rotation.x=Math.PI/2;armF.position.set(-.019,.007,.135);skyHero.add(armF);
-  const fist=new THREE.Mesh(new THREE.SphereGeometry(.0098,8,8),skin);
-  fist.position.set(-.019,.007,.187);skyHero.add(fist);
-  const armB=new THREE.Mesh(new THREE.CylinderGeometry(.0058,.007,.075,8),suit);
-  armB.rotation.x=Math.PI/2;armB.position.set(.023,-.004,.02);skyHero.add(armB);
-  const fistB=new THREE.Mesh(new THREE.SphereGeometry(.0088,8,8),skin);
-  fistB.position.set(.023,-.004,-.02);skyHero.add(fistB);
-  for(const s of[-1,1]){
-    const leg=new THREE.Mesh(new THREE.CylinderGeometry(.0085,.0058,.115,8),suit);
-    leg.rotation.x=Math.PI/2;leg.position.set(s*.009,-.002,-.126);skyHero.add(leg);
-    const boot=new THREE.Mesh(new THREE.CylinderGeometry(.0074,.0042,.046,8),red);
-    boot.rotation.x=Math.PI/2;boot.position.set(s*.009,-.002,-.198);skyHero.add(boot);
-  }
-  /* the cape faces the room, not the sky: a plane in the travel axis
-     would be edge-on from in here, one pixel of red and no cape at all */
-  const cloak=new THREE.Mesh(new THREE.PlaneGeometry(.26,.125),
-    new THREE.MeshBasicMaterial({color:0x9e211e,side:THREE.DoubleSide}));
-  cloak.rotation.y=Math.PI/2;cloak.position.set(0,-.006,-.085);
-  skyHero.add(cloak);skyHero.userData.cape=cloak;
-}
+
+/* ---- the man ---- */
+const skyHero=new THREE.Group();             /* yaw + position */
+/* where he stops: mid-street, x -12.6, and z -12.5 because that is where
+   the MAIN shot (SHOTS.gameplay, the seat across from Simon) sees through
+   the bay — its frame reaches the street between z -18 and -9 */
+const HERO={rig:null,pivot:null,cape:null,capeU:null,shadow:null,head:null,
+  x:-12.6,hz:-12.5,hy:2.85};
 skyHero.visible=false;scene.add(skyHero);
-/* one crossing at a time, and an empty sky most of the time */
-const SKY={obj:null,t:0,dur:0,z0:0,z1:0,y:0,bob:1,hz:-.47,look:0,
-  next:8+Math.random()*9};
+function heroMarkTex(){
+  /* the chest shield: a yellow diamond, a red border, a red S — drawn, not
+     traced from anyone's artwork */
+  return ctex(128,128,function(x,w,h){
+    x.clearRect(0,0,w,h);
+    const sh=function(s){x.beginPath();x.moveTo(w*.5,h*(.94-s));x.lineTo(w*(.02+s),h*(.4));
+      x.lineTo(w*(.2+s*.6),h*(.1+s*.6));x.lineTo(w*(.8-s*.6),h*(.1+s*.6));x.lineTo(w*(.98-s),h*.4);x.closePath();};
+    x.fillStyle="#b3221e";sh(0);x.fill();
+    x.fillStyle="#e9b531";sh(.07);x.fill();
+    x.fillStyle="#b3221e";x.font="900 76px 'Space Grotesk',sans-serif";x.textAlign="center";x.textBaseline="middle";
+    x.save();x.translate(w*.5,h*.47);x.scale(1.25,.9);x.fillText("S",0,0);x.restore();
+  });
+}
+function heroSuit(g){
+  /* the suit IS the body: every vertex of it outside the hands and the head
+     turns cloth (kind 1), and the shader paints it — blue to the collar and
+     the wrists, red trunks cut high on the hip, a gold belt, red boots to
+     mid-shin — per PIXEL, from the rest position. Painted per vertex, the
+     belt came out as a ragged band of yellow flames and the cuffs as a
+     smear of skin into blue. The vertex colour stays skin everywhere, so
+     the one boundary left (skin/suit, on kind) interpolates cleanly. */
+  const C=g.attributes.color.array,K=g.attributes.kind.array,B=g.attributes.base.array,
+    SI=g.attributes.skinIndex.array,bn=REAL.hdr.bones;
+  const WL=bn.indexOf("wristL"),WR=bn.indexOf("wristR");
+  const rgb=function(h){const c=new THREE.Color(lin(h));return [c.r*255|0,c.g*255|0,c.b*255|0];};
+  const RED=rgb(0xa31f1c);
+  for(let i=0;i<K.length;i++){
+    const k=K[i];if(k===6)continue;
+    const x=B[i*3],y=B[i*3+1];let c;
+    if(k===0){
+      const b=SI[i*4];
+      if(b===WL||b===WR||y>1.56)continue;          /* hands and head stay skin */
+      K[i]=1;continue;
+    }else c=RED;                                   /* the shoes are the boots */
+    C[i*3]=c[0];C[i*3+1]=c[1];C[i*3+2]=c[2];
+  }
+  g.attributes.color.needsUpdate=g.attributes.kind.needsUpdate=true;
+}
+function buildHero(){
+  if(HERO.rig||!REAL.ready)return;
+  const rig=buildPerson({shirt:0x1f4c9c,pants:0x1f4c9c,skin:0xdcae92,hair:0x0e0b0a});
+  rig.id="hero";
+  rig.outfit={top:null,outer:null,bottom:null,shoes:"shoes",hair:"short",beard:.05,
+    shoe:[0xa31f1c,0x4a0d0c],gloves:false,apronC:0,goatee:false,skin:0xdcae92,hairC:0x0e0b0a};
+  rig.traits={fem:0,heavy:-.1,up:1.03,face:{nose:1.03}};
+  realizeRig(rig);
+  if(!rig.real)return;
+  heroSuit(rig.body.geometry);if(rig.bodyLo)heroSuit(rig.bodyLo.geometry);
+  /* his material: the real-person shader, the shield on the chest, and
+     the street's own haze and sun — he is outside, lit like the facades */
+  const m=rig.body.material,mark=heroMarkTex(),real=m.onBeforeCompile;
+  VC.fontsReady.then(function(){const t=heroMarkTex();mark.image=t.image;mark.needsUpdate=true;});
+  m.onBeforeCompile=function(s){
+    real.call(this,s);
+    s.uniforms.heroMark={value:mark};
+    const L=function(h){const c=new THREE.Color(lin(h));return "vec3("+c.r.toFixed(4)+","+c.g.toFixed(4)+","+c.b.toFixed(4)+")";};
+    s.fragmentShader=s.fragmentShader.replace("#include <color_fragment>","#include <color_fragment>\n"+
+      "if(vKind>.5&&vKind<1.5){float y=vRest.y,ax=abs(vRest.x);vec3 c="+L(0x1f4c9c)+";"+
+      "if(y<.47)c="+L(0xa31f1c)+";"+
+      "else if(y<.985&&y>.84+.085*smoothstep(.06,.15,ax))c="+L(0xa31f1c)+";"+
+      "if(y>.976&&y<1.024)c="+L(0xd9a52b)+";"+
+      "diffuseColor.rgb=c*(.93+.07*vnoise(vRest*260.));}");
+    s.fragmentShader="uniform sampler2D heroMark;\n"+s.fragmentShader.replace("#include <roughnessmap_fragment>",
+      "{vec2 eu=vec2((vRest.x+.115)/.23,(vRest.y-1.19)/.23);"+
+      "if(vKind>.5&&vKind<1.5&&vRest.z>.03&&vRestN.z>.2&&eu.x>0.&&eu.x<1.&&eu.y>0.&&eu.y<1.){"+
+      "vec4 e=texture2D(heroMark,eu);diffuseColor.rgb=mix(diffuseColor.rgb,e.rgb,e.a);}}\n"+
+      "#include <roughnessmap_fragment>");
+    streetInject(s,{});
+  };
+  m.customProgramCacheKey=function(){return "hero";};
+  m.fog=false;m.envMap=CAFE.streetEnv;m.envMapIntensity=.7;m.needsUpdate=true;
+  /* the cape: cloth from the shoulders to mid-calf, flaring toward the hem,
+     wrapped a little round the back; it streams, ripples and flaps in the
+     vertex shader, harder the faster he goes */
+  const cg=new THREE.PlaneGeometry(1,1,6,16),P=cg.attributes.position;
+  for(let i=0;i<P.count;i++){
+    const u=P.getX(i),t=.5-P.getY(i),w=.5+.46*Math.pow(t,.8);
+    P.setXYZ(i,u*w,-t*1.14,-.07*Math.cos(u*Math.PI)*(1-t*.6));
+  }
+  cg.computeVertexNormals();
+  const cm=new THREE.MeshStandardMaterial({color:lin(0x8e1b19),roughness:.74,side:THREE.DoubleSide,envMapIntensity:.7});
+  HERO.capeU={lift:{value:1},flap:{value:9}};
+  streetMat(cm,"cape",{
+    uniforms:HERO.capeU,vHead:"uniform float lift,flap;",
+    vPre:"{float t=clamp(-position.y/1.14,0.,1.);"+
+      "transformed.z-=lift*t*t*.5;"+
+      "transformed.z+=sin(t*7.-uTime*flap+position.x*2.5)*.075*t*(.35+lift*.8);"+
+      "transformed.x+=sin(t*4.3-uTime*flap*.7)*.035*t*(.3+lift);}"});
+  cm.envMap=CAFE.streetEnv;
+  const cape=new THREE.Mesh(cg,cm);cape.castShadow=false;
+  cape.position.set(0,.28,-.165);
+  rig.J.chest.add(cape);
+  /* he pitches about his pelvis, not his feet */
+  const pivot=new THREE.Group();pivot.add(rig.root);rig.root.position.y=-.9;
+  skyHero.add(pivot);
+  /* a soft shadow on the street under him, fading with height */
+  const sh=new THREE.Mesh(new THREE.PlaneGeometry(1.5,.9),new THREE.MeshBasicMaterial({map:carShadowTex,
+    transparent:true,depthWrite:false,color:0x000000,opacity:.3}));
+  sh.rotation.x=-Math.PI/2;sh.renderOrder=1;scene.add(sh);sh.visible=false;
+  HERO.rig=rig;HERO.pivot=pivot;HERO.cape=cape;HERO.shadow=sh;HERO.head=rig.J.head;
+  rig.root.traverse(function(o){o.userData.outside=true;});
+}
+/* the two poses, and the blend between them (0 = flying, 1 = hovering) */
+function heroPose(k,t){
+  const J=HERO.rig.J,f=1-k;
+  /* flying: the right fist out ahead, the left arm back along the body, legs
+     together with one knee soft, the head craned back to see where he goes */
+  J.shoulderR.rotation.set(-2.9*f-.12*k,0,.1*f+.28*k);
+  J.elbowR.rotation.set(-.08*f-.35*k,0,0);
+  J.shoulderL.rotation.set(.12*f-.12*k,0,-.12*f-.28*k);
+  J.elbowL.rotation.set(-.15*f-.35*k,0,0);
+  J.hipR.rotation.set(.02*f-.05*k,0,.02);J.hipL.rotation.set(-.04*f+.12*k,0,-.02);
+  J.kneeR.rotation.set(.05*f+.08*k,0,0);J.kneeL.rotation.set(.38*f+.28*k,0,0);
+  J.ankleR.rotation.set(.55*f+.3*k,0,0);J.ankleL.rotation.set(.6*f+.35*k,0,0);
+  J.spine.rotation.set(-.1*f,0,0);J.chest.rotation.set(-.08*f+.02*k,0,0);
+  J.neck.rotation.set(-.45*f+.05*k,0,0);J.head.rotation.set(-.35*f+.08*k+Math.sin(t*.9)*.03*k,0,0);
+}
+const SKY={obj:null,t:0,dur:0,z0:0,z1:0,y:0,bob:1,look:0,next:8+Math.random()*9,dir:1};
+function heroFly(dt){
+  const o=skyHero,t=SKY.t,IN=3.2,LOOK=2.8,OUT=2.3;
+  const P=HERO.pivot,dir=SKY.dir,travelYaw=dir>0?0:Math.PI,faceYaw=Math.PI/2;
+  let pitch,yaw,k,speed;
+  if(t<IN){
+    const u=t/IN,e=1-Math.pow(1-u,3);
+    o.position.set(HERO.x,SKY.y+(HERO.hy-SKY.y)*e,SKY.z0+(HERO.hz-SKY.z0)*e);
+    k=smooth01(.62,1,u);speed=3*Math.pow(1-u,2);
+    /* the pull-up: he flares upright into the stop, turning to the glass */
+    pitch=Math.PI/2*(1-k)-.25*Math.sin(Math.PI*k);
+    yaw=travelYaw+(faceYaw-travelYaw)*k*(dir>0?1:1);
+    P.rotation.z=Math.sin(u*Math.PI)*.12*dir*(1-k);
+  }else if(t<IN+LOOK){
+    SKY.look=1;
+    const lt=t-IN;
+    o.position.set(HERO.x,HERO.hy+Math.sin(lt*1.9)*.05,HERO.hz);
+    k=1;speed=0;pitch=Math.sin(lt*1.3)*.03;yaw=faceYaw;P.rotation.z=0;
+  }else if(t<IN+LOOK+OUT){
+    SKY.look=0;
+    const u=(t-IN-LOOK)/OUT,e=u*u*u;
+    o.position.set(HERO.x,HERO.hy+(SKY.y+1.2-HERO.hy)*e,HERO.hz+(SKY.z1-HERO.hz)*e);
+    k=1-smooth01(0,.35,u);speed=3*u*u;
+    pitch=Math.PI/2*(1-k);
+    yaw=faceYaw+(travelYaw-faceYaw)*(1-k);
+    P.rotation.z=-Math.sin(u*Math.PI)*.1*dir;
+  }else{
+    o.visible=false;SKY.obj=null;SKY.look=0;SKY.next=jit(26,.4);
+    HERO.shadow.visible=false;
+    return;
+  }
+  /* travelYaw points his +z along the street; facing the glass is +x */
+  o.rotation.y=yaw;P.rotation.x=pitch;
+  heroPose(k,t);
+  HERO.capeU.lift.value=Math.min(1,.12+speed*.5+(1-k)*.5);
+  HERO.capeU.flap.value=3+Math.min(1,speed)*8;
+  const sh=HERO.shadow;sh.visible=true;
+  sh.position.set(o.position.x,.012,o.position.z);
+  sh.rotation.z=o.rotation.y+(k<.5?Math.PI/2:0);
+  sh.material.opacity=.32*Math.max(0,1-(o.position.y-1)/5);
+}
 function updateSkyTraffic(dt){
   if(RM)return;                            /* reduced motion: nothing flies */
+  if(!HERO.rig&&REAL.ready)buildHero();
   if(SKY.obj){
     SKY.t+=dt;
-    const o=SKY.obj;
-    if(o===skyHero){
-      /* the hero has an itinerary now (Simon's brief): sweep in, pull up
-         at the bay, hang there long enough to be caught looking in, then
-         leave the way he was going — faster, point made. The look phase
-         raises SKY.look, and the gaze lottery lets the window bar catch
-         him at it. */
-      const IN=2.2,LOOK=2.6,OUT=1.8,t=SKY.t;
-      const travelYaw=SKY.z1>SKY.z0?0:Math.PI;
-      if(t<IN){
-        const u=t/IN,e=1-Math.pow(1-u,3);
-        o.position.z=SKY.z0+(SKY.hz-SKY.z0)*e;
-        o.position.y=SKY.y+(1.85-SKY.y)*e;
-        o.rotation.y=travelYaw;
-        o.userData.cape.rotation.x=Math.sin(t*7.5)*.22;
-      }else if(t<IN+LOOK){
-        SKY.look=1;
-        o.position.z=SKY.hz;
-        o.position.y=1.85+Math.sin(t*2.1)*.028;
-        /* the quarter-turn: nose to the glass, and the room behind it */
-        o.rotation.y=angleDamp(o.rotation.y,Math.PI/2,.10,dt);
-        o.userData.cape.rotation.x=Math.sin(t*3.1)*.10;
-      }else if(t<IN+LOOK+OUT){
-        SKY.look=0;
-        const u=(t-IN-LOOK)/OUT,e=u*u*u;
-        o.position.z=SKY.hz+(SKY.z1-SKY.hz)*e;
-        o.position.y=1.85+(SKY.y-1.85)*e*.5;
-        o.rotation.y=angleDamp(o.rotation.y,travelYaw,.16,dt);
-        o.userData.cape.rotation.x=Math.sin(t*7.5)*.22*Math.min(1,u*3);
-      }else{
-        o.visible=false;SKY.obj=null;SKY.look=0;SKY.next=jit(26,.4);
-      }
-      return;
-    }
-    const k=SKY.t/SKY.dur;
-    if(k>=1){SKY.obj.visible=false;SKY.obj=null;SKY.next=jit(26,.4);return;}
+    if(SKY.obj===skyHero){heroFly(dt);return;}
+    const o=SKY.obj,k=SKY.t/SKY.dur;
+    if(k>=1){o.visible=false;SKY.obj=null;SKY.next=jit(26,.4);return;}
     o.position.z=SKY.z0+(SKY.z1-SKY.z0)*k;
-    o.position.y=SKY.y+Math.sin(k*Math.PI*SKY.bob)*.055;
+    o.position.y=SKY.y+Math.sin(k*Math.PI)*6;
     return;
   }
   SKY.next-=dt;
   if(SKY.next>0)return;
-  const hero=Math.random()<.25;            /* three planes for every cape */
-  const o=hero?skyHero:skyPlane;
-  const east=Math.random()<.5;             /* which way it crosses the bay */
-  o.position.x=SKY_LANE;
-  o.rotation.y=east?0:Math.PI;
-  SKY.z0=east?-5.4:4.8;SKY.z1=east?4.8:-5.4;
-  /* under 2.20: the bay's top rail (fenetre_cadre_haut) starts at 2.40 and
-     a banked wing reaches .09 above the hub, so anything higher clips into
-     the frame instead of crossing the sky */
-  SKY.y=hero?1.86+Math.random()*.2:2.02+Math.random()*.16;
-  SKY.dur=hero?jit(7.5,.18):jit(13,.18);
-  SKY.bob=hero?3:1;
-  SKY.t=0;o.position.y=SKY.y;o.position.z=SKY.z0;o.visible=true;SKY.obj=o;
+  /* two planes for every cape, once he exists (people.bin is async) */
+  const hero=!!HERO.rig&&Math.random()<.34;
+  const east=Math.random()<.5;
+  SKY.dir=east?1:-1;SKY.t=0;
+  if(hero){
+    SKY.z0=east?-58:52;SKY.z1=east?60:-62;SKY.y=3.3+Math.random()*.9;
+    skyHero.position.set(HERO.x,SKY.y,SKY.z0);skyHero.visible=true;SKY.obj=skyHero;
+    heroFly(0);
+    return;
+  }
+  const o=skyPlane;
+  o.position.x=-330;o.rotation.y=east?0:Math.PI;
+  SKY.z0=east?-240:240;SKY.z1=-SKY.z0;
+  SKY.y=100+Math.random()*25;SKY.dur=jit(9,.15);
+  o.position.set(-330,SKY.y,SKY.z0);o.visible=true;SKY.obj=o;
 }
 
 /* ---------------- THE TELEVISION ----------------
@@ -6928,7 +8256,7 @@ function pickGazeTarget(a){
      what regulars actually watch */
   if(a!==courier&&courier.inShop)c.push({w:3,obj:courier.rig.J.head});
   /* and a man hovering at the glass outranks everything */
-  if(SKY.look)c.push({w:6,obj:skyHero});
+  if(SKY.look)c.push({w:6,obj:HERO.head||skyHero});
   if(a.prop)c.push({w:2,obj:a.prop});
   /* the random sweep is deliberately the weakest pull: at weight 1 the
      whole room read as evasive, everyone forever checking the corners */
@@ -11842,6 +13170,13 @@ function closeCafe(){
   skyMat.uniforms.uGnd.value.setHex(0x0a0a0c);
   CAFE.mats.phare.emissiveIntensity=1.6;       /* the street lamps come on */
   CAFE.outside.forEach(function(k){const m=CAFE.mats[k];if(m)m.envMapIntensity=.06;});
+  /* the street goes to night with it: no sun, a dark blue air, a third of
+     the windows lit, the shop signs and the lamps on */
+  STREET.night.value=1;skyMat.uniforms.uNight.value=1;
+  STREET.haze.value.copy(srgbL(0x0a0e16));STREET.hazeK.value=1/150;
+  STREET.mats.forEach(function(m){if(m.envMapIntensity!==undefined)m.envMapIntensity=Math.min(m.envMapIntensity,.08);});
+  if(STREET.signMat)STREET.signMat.emissiveIntensity=1.1;
+  if(STREET.carLamps)STREET.carLamps[1].emissiveIntensity=0;
   applyGrade("vinewoodNight");
 
   closeTalk();                                 /* nobody left to ask */
@@ -12729,7 +14064,7 @@ function animate(){
   updateCamera(dt,t);
 
   /* ---- post pipeline: scene -> HDR -> bloom -> DOF -> composite -> FXAA ---- */
-  if(!RM)compMat.uniforms.uTime.value=t;
+  if(!RM){compMat.uniforms.uTime.value=t;STREET.time.value=t;skyMat.uniforms.uTime.value=t;}
   renderer.setRenderTarget(RT_HDR);
   renderer.clear();
   renderer.render(scene,camera);
@@ -12742,7 +14077,7 @@ function animate(){
      and skipping it left the one instrument for auditing blur showing a
      flat white screen. */
   if(QUALITY.dof&&RT_HDR.depthTexture&&
-     (dofMat.uniforms.uRange.value<8||compMat.uniforms.uDebug.value===4)){
+     (dofMat.uniforms.uRange.value<8||compMat.uniforms.uDebug.value===4||dofMat.uniforms.uBg.value.z>0)){
     dofMat.uniforms.tSrc.value=RT_HDR.texture;
     dofMat.uniforms.tDepth.value=RT_HDR.depthTexture;
     dofMat.uniforms.cameraNear.value=camera.near;

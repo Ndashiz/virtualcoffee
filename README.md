@@ -147,7 +147,9 @@ procedural: the conversation survives on a bare parquet.
 The map also carries what the room could never show before: a **front wall**
 with Simon's trophy cabinet (PSPO, PSM I, Dynamics 365, Azure, the Solvay
 diploma, Le Wagon), and a **real outside** — a parking lot with a van and a
-car, and a treeline — visible through the storefront. The trophy labels ship as
+car, and a treeline — visible through the storefront (since 2026-09-28 the
+treeline and the car are gone and both windows look onto a real street: see
+"The street"). The trophy labels ship as
 baked PNG under `tex/` because they carry awarded titles and vendor marks;
 everything else stays procedural.
 
@@ -325,6 +327,83 @@ to `https://ndashiz.be` only, so the browser refuses the answer and the café
 stays open. You get a console CORS complaint and nothing else — which is exactly
 the production behaviour when the backend is down. That is the point, not a gap.
 To exercise the closed café locally, see "Trying the closed café locally" below.
+
+## The street (2026-09-28)
+
+Simon's brief: the outside had to stop reading as a screen. It did because
+of three things, and all three are gone:
+
+- **the far plane was 25 m.** The street and everything past it were never
+  drawn; the sky dome filled the hole — and its colours were raw hex read as
+  linear, so nearly white. `camera.far` is now 450 (depth precision is set by
+  `near`, so the room loses nothing), and the sky (`skyMat`) is a proper
+  linear gradient with the sun's glow and a drifting layer of fair-weather
+  cumulus, flattened into the haze at the horizon;
+- **the west bay looked at a painted plate** 65 cm behind the glass. It now
+  looks across a real 30 km/h street — pavement with bollards and two young
+  plane trees, cars parked both sides, a zebra, road signs — at a row of
+  Brussels facades 24 m out: **BIG FOUR**, **NdaBank Private Wealth**, a white
+  maison de maître, a boulangerie, **HENRY Investment Bank**, broken by a cross
+  street for depth, with the skyline's towers beyond;
+- **the car park sat in a forest clearing.** The forest, the guard rail and the
+  grass are dropped at load (`HIDE`); across the street stands a second row of
+  houses (a pharmacie with its green cross, a brasserie…), and two blocks
+  close the car park's sides.
+
+How it is built (`/* ---------------- THE STREET` in `index.html`):
+
+- **One shader paints every facade** (`FACADE_MAIN`): bays, stone sills and
+  lintels, painted frames with glazing bars, curtains and blinds, brick
+  courses or stone joints that fade out per axis before they can alias, soot
+  under the sills, grime at the foot, shopfronts with a painted fascia, curtain
+  walls for the offices, a third of the windows lit at night — all from eight
+  numbers per building (`aF`, `aG`). Forty-odd buildings are one draw call.
+  Cornices, roofs and chimneys are real geometry; the shop signs are one
+  canvas (`drawSigns()`).
+- **The street's own sun and haze.** The room is lit by its own fixtures and
+  has been tuned against them for a year, so the sun is not a `THREE.Light`:
+  `streetInject()` adds one `RE_Direct()` call to every material out there
+  (the facades, the tarmac, the cars' clear coat, the trees, the model's own
+  car park and vans) — nothing indoors ever sees it. The same injection
+  replaces the room's `FogExp2` with a haze the colour of the sky's horizon,
+  so a far roof dissolves into air instead of into a grey wall.
+- **Cars are lofted, not boxed** (`carBody()`): a side silhouette, a plan and
+  a tumblehome sampled into rings of one fixed topology, so glass, pillars and
+  paint fall on exact rows. Clear-coated paint, tinted reflective glass,
+  tyres, five-spoke rims, flush lamps, a grille, door shut lines and handles,
+  Belgian plates, a soft contact shadow. Nineteen cars, merged by material.
+- **Trees are London planes**: branching limbs with a mottled bark, crowns of
+  leaf cards whose normals point out of the crown so they shade like a
+  volume, swaying in the vertex shader (still under reduced motion).
+- **Depth of field is a lens now, not a switch**: the DOF pass also softens
+  the far side of the glass with distance (`uBg` — under a pixel at the
+  parked cars, about three at the roofs), with an early-out so the room, in
+  focus, costs two taps a pixel.
+- The vans keep the model's boxes — the courier's whole round is timed
+  against those doors — and gain a step bumper (stopping at x 11.30; the
+  courier stands at 10.95 at most), plates, mud flaps, a chassis, rubbing
+  strips, roof rails and the cab's mirrors.
+
+**The menu grew** with it: 2.75 x 1.12 m, from just right of Simon's head to
+the clock and from the machine's top to 10 cm under the soffit, three columns,
+long items stepping down a size rather than running into their price, and a
+bronze picture light of its own — lit like the room instead of glowing.
+
+**The flying man is a man.** He was a 42 cm figure of primitives flying in the
+gap between the plate and the wall. He is now built by the real-person
+pipeline — 1.88 m, the suit painted per pixel on the real body (blue to the
+collar and the wrists, red trunks cut high on the hip, a gold belt, red boots,
+the shield), a cloth cape that streams and ripples harder the faster he goes,
+lit by the street's sun and hazed like it. He flies the west street at three
+to four metres, passes behind the young trees on our pavement, pulls up over
+the middle of the street at z -12.5 — exactly where the main shot sees
+through the bay — hangs there looking in while the window bar looks back, and
+goes. His shadow crosses the tarmac under him. The airliner is 36 m of
+wingspan 330 m out and 110 m up: you catch it over the roofs from the glass.
+
+Cost, measured on the main pass: +13 draw calls, +31 % triangles on desktop
+(707 k), +19 % on a phone (505 k, where the far kerbs lose their parked cars
+and the trees stop at 60 m).
 
 ## The design pass (2026) — "l'Atelier"
 

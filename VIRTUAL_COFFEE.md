@@ -595,6 +595,57 @@ profond, parce qu'un visage se lit sur un fond sombre.
   ordinateur ; 489 / 214 k contre 476 / 189 k sur téléphone, où les grandes
   textures et les light maps sont peintes à demi-résolution.
 
+## 6 ter. La rue (2026-09-28)
+
+Le dehors lisait comme un écran, pour trois raisons, toutes supprimées :
+
+- **le plan lointain de la caméra était à 25 m** : la rue et tout ce qui
+  suivait n'étaient jamais dessinés, et le ciel (des hex bruts lus comme
+  linéaires, donc presque blancs) bouchait le trou. `camera.far` passe à 450 ;
+  le ciel est un vrai dégradé linéaire, avec le halo du soleil et une couche
+  de cumulus qui dérive et se fond dans la brume à l'horizon ;
+- **la baie ouest donnait sur une plaque peinte** à 65 cm de la vitre. Elle
+  donne maintenant sur une vraie rue à 30 km/h — trottoir, potelets, deux
+  jeunes platanes, voitures garées des deux côtés, passage piéton, panneaux —
+  et, à 24 m, une rangée de façades bruxelloises : **BIG FOUR**, **NdaBank
+  Private Wealth**, une maison de maître blanche, une boulangerie, **HENRY
+  Investment Bank**, coupée par une rue transversale, les tours au-delà ;
+- **le parking était dans une clairière.** Forêt, glissière et herbe sont
+  retirées au chargement (`HIDE`) ; en face, une seconde rangée de maisons
+  (une pharmacie et sa croix verte, une brasserie…), et deux îlots ferment
+  les côtés du parking.
+
+Comment c'est fait (bloc `THE STREET` d'`index.html`) : **un seul shader
+peint toutes les façades** (travées, appuis, châssis et petits bois, rideaux,
+briques ou joints de pierre qui s'effacent par axe avant d'aliaser, suie,
+vitrines, murs-rideaux, fenêtres allumées la nuit) à partir de huit nombres
+par bâtiment — une quarantaine de bâtiments en un seul appel de rendu ; la
+rue a **son propre soleil et sa propre brume**, injectés dans ses matériaux
+(`streetInject()`) plutôt qu'une lumière de scène qui aurait rééclairé la
+salle ; les **voitures sont lissées** à partir d'une silhouette, d'un plan et
+d'un « tumblehome » (vernis, vitres teintées, jantes, joints de portes,
+plaques belges, ombre de contact) ; les arbres sont des **platanes** à
+l'écorce marbrée ; la **profondeur de champ** adoucit ce qui est loin derrière
+la vitre ; les camionnettes gardent les caisses du modèle (le livreur est
+calé sur leurs portes) et gagnent pare-chocs marchepied, plaques, bavettes,
+châssis, baguettes, rails de toit et rétroviseurs.
+
+**Le menu** est agrandi (2,75 × 1,12 m, de la tête de Simon à l'horloge, de
+la machine à 10 cm sous le soffite), en trois colonnes, avec sa propre
+applique : il est éclairé comme la salle au lieu de briller tout seul.
+
+**L'homme volant est un homme** : construit par la chaîne des vrais
+personnages, 1,88 m, la combinaison peinte au pixel sur le vrai corps, une
+cape en tissu qui flotte d'autant plus qu'il va vite, éclairé par le soleil de
+la rue. Il survole la rue ouest à trois ou quatre mètres, passe derrière les
+jeunes platanes du trottoir, s'arrête au milieu de la rue là où le plan
+principal voit à travers la baie, regarde dedans pendant que le comptoir le
+regarde, et repart ; son ombre traverse la chaussée. L'avion est un vrai
+avion, 330 m plus loin et 110 m plus haut.
+
+Coût mesuré : +13 appels de rendu, +31 % de triangles sur ordinateur, +19 %
+sur téléphone (les trottoirs lointains y perdent leurs voitures).
+
 ## 7. Déploiement
 
 ```

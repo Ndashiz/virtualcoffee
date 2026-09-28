@@ -225,6 +225,33 @@ mesh not in the repo — see `people/README.md`).
   `rShoulder` back onto the real rig, and puts `simonHead` on the real head
   every frame because every glance in the room is aimed at it.
 
+## The street (THE STREET block) — what bites
+
+- **`camera.far` is 450**, not 25. Anything that assumed 25 (a shadow box, a
+  CoC, a clip) must read `camera.far`. The DOF pass now always runs on "high"
+  because it carries the street's distance softening (`dofMat.uBg`); a
+  `uRange` of 8 m or more contributes NOTHING by design (it only ever meant
+  "skip the pass").
+- **Every material outside goes through `streetMat()` / `streetInject()`**:
+  it gets the street's sun (an injected `RE_Direct`, NOT a scene light — one
+  more light re-lights the whole room), the street's haze instead of the
+  room's fog, and the night fade. A new outdoor material that skips it will
+  sit in a different day. Give each variant its own `customProgramCacheKey`
+  key, or three reuses the wrong program.
+- **Varyings that pack integers must be rounded before `mod()`**: a constant
+  varying comes back as 7.9999995 on some rows. `aG.w` (shop + 2×floors) did
+  exactly that and turned whole scanlines of a house into a shopfront.
+- **Facade detail fades per axis** (`dw.x`, `dw.y`), never on one shared
+  width: a wall seen edge-on is fine across and sub-pixel along.
+- **The courier's route still owns the car park.** The pavement trees keep
+  the model's trunk positions (the z 2.7 squeeze is audited against them),
+  the bay in front of the door (z -1.68..0.74) stays empty, and nothing new
+  stands behind the vans' doors past x 11.30. Any new outdoor object near
+  x 7-18, z 0-3 needs the route audit.
+- **The flying man** is realized lazily (`buildHero()` once `REAL.ready`) and
+  stops at `HERO.hz` = -12.5 because that is where SHOTS.gameplay sees the
+  street through the bay; move the shot, move the stop.
+
 ## Conventions
 
 - **Commits** — conventional style with a scope, then an em-dash clause, in
