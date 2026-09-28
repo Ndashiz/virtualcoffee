@@ -332,7 +332,10 @@ index.html          Tout : markup, CSS, shell VC, ping, scène 3D (~3 400 lignes
 cafe.obj.txt        Le café lui-même — vrai modèle 3D, ~95 k triangles
                     (5,1 Mo bruts, ~980 Ko sur le fil)
 tex/*.png           13 étiquettes cuites — armoire à trophées, diplômes, van (376 Ko)
-person.obj          Corps des PNJ masculins — base mesh en 15 segments (547 Ko)
+people.bin          Les corps du cast, vêtements et cheveux compris — un maillage
+                    skinné par personne, deux niveaux de détail (~1,1 Mo)
+people/             Le pipeline Blender hors ligne qui écrit people.bin
+person.obj          Corps segmentés retirés (USE_PERSON_MESH=false, jamais chargés)
 three.min.js        three.js r134, vendorisé
 fonts/*.woff2       Space Grotesk · Inter · Caveat, auto-hébergées
 audio/en/*.mp3      La voix de Simon, une piste par clip (15 clés, cf. README)
@@ -343,6 +346,50 @@ preprocess_music.py Un mini-DAW numpy + afconvert (AAC 128k) — la partition de
                     trois pistes d'origine qu'elles remplacent (vivantes dans git)
 og.jpg              Carte de partage 1200×630
 ```
+
+**Les personnages sont de vrais corps (2026-09).** Tout le monde dans la salle —
+le cast, les figurants, l'invité et Simon — est désormais **un seul corps
+continu et skinné** et non plus un empilement de capsules. `people.bin` porte la
+FinalBaseMesh re-posée dans la pose de repos du rig et pondérée par chaleur
+**sur les noms d'articulations du rig lui-même** : un `THREE.Skeleton` se lie
+directement aux `THREE.Group` que `buildPerson()` fabrique déjà. Toutes les
+couches de comportement, `applyPose()` et ses `LIMITS`, les assises et les
+accessoires pilotent les mêmes articulations : rien de la façon dont les gens
+bougent n'a été réécrit. Les capsules sont toujours construites d'abord et
+remplacées à l'arrivée du fichier (`realizeRig()`) ; si le téléchargement
+échoue, l'ancien cast reste en place.
+
+- **Habillés, pas peints.** T-shirt, chemise, pull, blazer, pantalon,
+  chaussures et tablier de bistrot sont des coques taillées dans le corps hors
+  ligne : ourlets tirés au cordeau, tissu qui tombe de la poitrine et des
+  omoplates au lieu de coller dessous, manches qui s'effilent. Les faces du
+  corps couvertes par un vêtement sont retirées au chargement, et corps +
+  vêtements + cheveux fusionnent en **un seul appel de rendu par personne**
+  (une trentaine pour une capsule).
+- **Visages.** Les yeux de la tête de base sont ouverts ; de vrais globes
+  tournent dans les orbites, sous des paupières supérieures posées sur l'iris
+  qui suivent un regard vers le bas. Sourcils, cils, lèvres, barbe et barbe
+  naissante, duvet de la ligne d'implantation et rides sont peints, personne
+  par personne, sur un canevas projeté autour de la tête. Huit coupes de
+  cheveux, chacune une coque qui s'amincit jusqu'à rien à la ligne
+  d'implantation.
+- **Qui ils sont.** `fem` et `heavy` sont des champs de déplacement appliqués
+  au corps, aux vêtements, aux cheveux et aux articulations à la fois (épaules,
+  taille, hanches, poitrine, mâchoire, arcade, nez, lèvres ; ventre et
+  membres). La taille raccourcit le haut du corps et ne passe **jamais** par
+  `root.scale` (voir CLAUDE.md). La fiche du cast — qui porte quoi, quelle
+  coupe, quelle barbe — c'est `REAL_TOPS` / `REAL_HAIR` / `REAL_BEARD` /
+  `REAL_TRAITS`.
+- **Simon** est lui aussi un vrai corps, assis à sa table, les mains posées
+  par une petite résolution d'IK, en blazer marine avec les lunettes rondes
+  écaille, la moustache et le petit bouc de la photo. Les anciennes poignées
+  de tête, d'yeux et de bouche sont relues sur lui à chaque image
+  (`mapSimon()`), et sa voix ouvre une vraie bouche.
+- **Coût.** Un `MeshStandardMaterial` par personne (programme partagé) avec un
+  `onBeforeCompile` pour la peinture, le micro-relief de la peau et des tissus
+  et le reflet des cheveux. LOD1 (~35 % des triangles) au-delà de 4,5 m, et
+  partout sur les appareils tactiles sauf Simon. Appels de rendu 772 → 319
+  (bureau), triangles 242 k → ~435 k dans la passe principale.
 
 **Le cast capsule a eu sa passe d'anatomie** (2026-08-22) : des **mains à
 cinq doigts** (paume, quatre doigts, un pouce — géométries partagées par les
@@ -385,7 +432,8 @@ trotteuse comprise, au lieu d'être figée à l'heure du chargement.
 **Les corps `person.obj` sont RETIRÉS** (`USE_PERSON_MESH=false` dans la
 scène) : à côté du cast capsule, les corps segmentés faisaient mannequins en
 loques — « ils ne ressemblent à rien » (Simon, 2026-08-12). Les capsules sont
-redevenues le look, cohérentes avec Simon qui a toujours été sur mesure. Tout
+restées le look jusqu'aux vrais corps continus décrits plus haut (elles restent
+le repli si `people.bin` ne se charge pas). Tout
 le pipeline de swap reste dans le fichier et l'asset dans le repo pour un
 futur mesh mieux découpé : FinalBaseMesh décimée à ~10 k triangles, découpée
 hors-ligne en quinze segments exportés **dans le repère local de
@@ -565,8 +613,9 @@ npx serve -l 4321 .
 
 ## 8. État et suite
 
-**En prod** : tout ce qui précède — décor `cafe.obj.txt`, personnages capsule
-(les corps `person.obj` sont débranchés), grade `atelier`, entrée
+**En prod** : tout ce qui précède — décor `cafe.obj.txt`, personnages en vrais
+corps skinnés (`people.bin` ; capsules en repli, `person.obj` débranché),
+grade `atelier`, entrée
 **pilotable aux flèches** avec caméra à la troisième personne et balise sur la
 chaise (ou au clic sur le sol ; l'entretien démarre à l'entrée dans l'anneau),
 plan large fixe une fois assis, mute mémorisé, et un vrai contact visuel entre
@@ -589,8 +638,8 @@ lourd. Prévoir tout de même dif en 768 px et ~12 k triangles.
 - l'ambiance sonore (murmure de salle, babil des conversations, sifflement du
   percolateur) — le code prévoit la dégradation silencieuse, il manque les
   boucles audio ;
-- une passe de silhouette sur Simon (jonctions des coudes) — et, un jour, le
-  même traitement base-mesh pour lui et pour un corps féminin (la buveuse) ;
+- les cheveux longs (la lectrice) tombent encore comme une capuche, et les
+  coupes restent des coques pleines : des mèches à bord alpha feraient mieux ;
 - **la fenêtre côté rue est faite** (parking, van, lisière d'arbres derrière la
   devanture), **la fenêtre du mur gauche non** : elle garde le dégradé de ville
   peint. La carte livrait bien une forêt de ce côté-là, élaguée à la demande —

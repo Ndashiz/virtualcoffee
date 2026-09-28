@@ -4467,6 +4467,830 @@ if(USE_PERSON_MESH)fetch("person.obj").then(r=>{
   console.warn("[vc] person.obj failed — capsule people it is:",err);
 });
 
+/* ---------------- REAL PEOPLE ----------------
+   The third attempt at bodies, and the first that is ONE skin. person.obj
+   cut the base mesh into fifteen rigid pieces and every joint showed its
+   seam — the "ragged mannequins" Simon retired. people.bin carries the same
+   FinalBaseMesh as a single continuous surface, re-posed offline to the
+   rig's rest (arms hanging, feet at hip width) and heat-weighted to the
+   rig's OWN joint names, so it is skinned straight onto the THREE.Group
+   joints buildPerson already makes: a Skeleton only reads matrixWorld, and
+   any Object3D has one. Every layer that turns a joint — walk, sit, gaze,
+   gestures, the typing pose, applyPose and its LIMITS — drives the new body
+   unchanged. Built by .work/characters/blender (pp_body, pp_rig, export).
+   The capsules are still built first and only swapped out once the file
+   has arrived: if it never does, nobody notices. */
+const USE_REAL_PEOPLE=true;
+const REAL_LOD_FAR=4.5;          /* metres from the camera to the lighter body */
+const REAL={ready:false,hdr:null,meshes:null,bodyMask:null,bodyMask1:null};
+/* each joint's parent, to turn the file's absolute rest positions (root
+   space) into the rig's local offsets */
+const REAL_PARENT={spine:"pelvis",chest:"spine",neck:"chest",head:"neck",
+  hipL:"pelvis",kneeL:"hipL",ankleL:"kneeL",hipR:"pelvis",kneeR:"hipR",ankleR:"kneeR",
+  shoulderL:"chest",elbowL:"shoulderL",wristL:"elbowL",
+  shoulderR:"chest",elbowR:"shoulderR",wristR:"elbowR"};
+/* Who wears what. The café's own colours (opts.shirt / pants / skin) stay
+   the palette; only the cut is new, picked per character off the cast
+   sheet (.work/characters/design/PLAN.md, section C). The extras roll
+   theirs in reskin(). Shoes are [upper, sole]. */
+const REAL_TOPS={standA:"sweater",standB:"shirt",standC:"shirt",barista:"tee",
+  worker:"shirt",drinker:"sweater",reader:"sweater",waiter:"shirt",courier:"tee",simon:"shirt"};
+const REAL_SHOES=[[0x2b2019,0x17120f],[0x18181b,0x0f0f11],[0x4a3526,0x21190f],[0x2f3542,0xd9d5cc]];
+const REAL_HAIR={standA:"short",standB:"bun",standC:"short",barista:"pony",worker:"short",
+  drinker:"bob",reader:"long",waiter:"fade",courier:"buzz",simon:"curly"};
+/* stubble, 0..1, on the faces that have it (1 = a trimmed beard) */
+const REAL_BEARD={standA:1,worker:.35,courier:.55,waiter:.2,simon:.08};
+/* Skin and hair, as the colours they should LOOK (the cast sheet, PLAN.md
+   section C): the café hands raw hex to the GPU and shows it lighter, which
+   was right for capsule cloth and wrong for skin — every face came out
+   chalk. These are linearised in dressGeometry, so they read as written.
+   Clothes keep the room's palette and its convention untouched. */
+const REAL_SKIN={simon:0xd9ae8e,standA:0xb98663,standB:0x6e4630,standC:0xe7c1a4,
+  barista:0xdcb18a,worker:0x9d6a48,drinker:0xe3bea3,reader:0xc0906b,waiter:0x5b3a27,
+  courier:0xe2b999};
+const REAL_SKIN_POOL=[0xf0cfb4,0xe3b995,0xd4a07a,0xb98260,0x9a6645,0x6f462e,0x4f3121];
+const REAL_HAIRC={simon:0x221a15,standA:0x6a645e,standB:0x16110e,standC:0x8a6a4e,
+  barista:0x120e0c,worker:0x0e0b09,drinker:0xb3aca3,reader:0x3a2618,waiter:0x100c0a,
+  courier:0x3a2c20};
+const REAL_HAIR_POOL=[0x120e0c,0x2a1d15,0x4a3524,0x6b4e36,0x8a6a4e,0x6a645e];
+/* faces differ in more than colour: nose width and lip fullness, mild */
+const REAL_FACE={standB:{nose:1.14,lips:1.12},waiter:{nose:1.12,lips:1.1},worker:{nose:1.06,lips:1.04},
+  standA:{nose:1.04},barista:{nose:.96}};
+const lin=h=>new THREE.Color(h).convertSRGBToLinear().getHex();
+function parsePeople(buf){
+  const dv=new DataView(buf);
+  if(dv.getUint32(0,true)!==0x31504356)throw new Error("people.bin: bad magic");
+  const hl=dv.getUint32(4,true),base=8+hl;
+  const hdr=JSON.parse(new TextDecoder().decode(new Uint8Array(buf,8,hl)));
+  const TYPES={i2:Int16Array,u2:Uint16Array,u1:Uint8Array,f4:Float32Array};
+  function chunk(n){
+    const c=hdr.chunks[n];
+    return {a:new TYPES[c.t](buf,base+c.off,c.n),c:c};
+  }
+  /* positions ride as int16 over each mesh's own box (~.03 mm a step):
+     half the bytes of float32 and nothing any camera here could see */
+  function mesh(name){
+    const P=chunk(name+".pos"),q=P.a,lo=P.c.lo,sp=P.c.span;
+    const pos=new Float32Array(q.length);
+    for(let i=0;i<q.length;i++){
+      const k=i%3;
+      pos[i]=lo[k]+(q[i]+32768)/65535*sp[k];
+    }
+    return {pos:pos,idx:chunk(name+".index").a,si:chunk(name+".skinIndex").a,
+      sw:chunk(name+".skinWeight").a,
+      part:hdr.chunks[name+".part"]?chunk(name+".part").a:null};
+  }
+  REAL.hdr=hdr;
+  REAL.meshes={};
+  for(const n in hdr.meshes)REAL.meshes[n]=mesh(n);
+  REAL.bodyMask=chunk("body.mask").a;
+  REAL.bodyMask1=hdr.chunks["body@1.mask"]?chunk("body@1.mask").a:null;
+
+}
+function outfitFor(rig){
+  if(!rig.outfit){
+    const TOPS=["tee","shirt","sweater"];
+    const fem=!!rig.opts.fem;
+    const HAIRS=fem?["bob","long","pony","bun"]:["short","short","fade","buzz"];
+    rig.outfit={top:REAL_TOPS[rig.id]||TOPS[(Math.random()*TOPS.length)|0],
+      bottom:"trousers",shoes:"shoes",
+      hair:REAL_HAIR[rig.id]||HAIRS[(Math.random()*HAIRS.length)|0],
+      beard:fem?0:(rig.id in REAL_BEARD?REAL_BEARD[rig.id]:(Math.random()<.5?Math.random()*.5:0)),
+      shoe:REAL_SHOES[rig.id==="waiter"?1:(Math.random()*REAL_SHOES.length)|0],
+      gloves:rig.id==="courier",
+      /* Simon (photo.jpg): a navy blazer over the white shirt, moustache and goatee */
+      outer:rig.id==="simon"?"blazer":null,outerC:0x1f2a44,
+      /* the bistro apron, now cloth that hangs from the waist */
+      apronC:rig.id==="barista"?0x9a6a3e:rig.id==="waiter"?0x1d232a:0,
+      goatee:rig.id==="simon",
+      skin:REAL_SKIN[rig.id]||REAL_SKIN_POOL[(Math.random()*REAL_SKIN_POOL.length)|0],
+      hairC:REAL_HAIRC[rig.id]||REAL_HAIR_POOL[(Math.random()*REAL_HAIR_POOL.length)|0]};
+  }
+  return rig.outfit;
+}
+/* ---- who they are: body traits ----
+   One base mesh, many people. `fem` reshapes it (narrower shoulders, waist,
+   neck and jaw; wider hips; a bust; a softer brow; a smaller nose, fuller
+   lips; smaller hands and feet) and `heavy` (-1 slim .. +1 heavy) adds or
+   takes belly, flank and limb. Both are smooth displacement fields over
+   the rest pose, applied ONCE when a person is dressed, to the body, the
+   clothes, the hair AND the joints alike — so a sleeve still sits on its
+   arm and the shoulder still turns where the shoulder is. 
+   Height (`up`) is the one trait that must NOT go through root.scale: the
+   pelvis rides at .855 because every seat in the room was measured against
+   it, and "seated" IS rootY<0 for the pose layer and the give-way rule
+   alike — a smaller woman on a window stool would need a positive rootY
+   and would stand up off it. So the legs keep their length and the upper
+   body shortens instead: torso and arms scale about the hip line, the head
+   rides down unscaled in height (a squashed face is the uncanny thing). */
+const REAL_TRAITS={standA:{heavy:.35},standB:{heavy:0},standC:{heavy:-.25,up:1.04},
+  barista:{heavy:-.3},worker:{heavy:.05},drinker:{heavy:.5},reader:{heavy:.1},
+  waiter:{heavy:-.45},courier:{heavy:.65},simon:{heavy:.05}};
+function traitsFor(rig){
+  if(!rig.traits){
+    const t=REAL_TRAITS[rig.id]||{heavy:Math.random()*1.0-.4};
+    rig.traits={fem:rig.opts.fem?1:0,heavy:t.heavy,up:(t.up||1)*(rig.opts.fem?.92:1),face:REAL_FACE[rig.id]};
+  }
+  return rig.traits;
+}
+const smooth01=(e0,e1,x)=>{const t=Math.min(1,Math.max(0,(x-e0)/(e1-e0)));return t*t*(3-2*t);};
+const bumpR=(d,R)=>{const q=d/R;return q>=1?0:(1-q*q)*(1-q*q);};
+/* w: weights by region, summed from the skin — arm (shoulder/elbow),
+   hand (wrist), leg (hip/knee), foot (ankle), head (head/neck). cloth: the
+   field is draped for garments (a shirt falls FROM a bust or a belly). */
+function morphPoint(p,w,cloth,T,J,joint){
+  let x=p[0],y=p[1],z=p[2];
+  const f=T.fem,h=T.heavy,sx=x<0?-1:1;
+  const arm=w.arm+w.hand,torso=Math.max(0,1-arm-w.leg-w.foot-w.head);
+  /* limbs thicken or thin round their own axis */
+  if(arm>0){
+    const ax=sx*J.shoulderR[0],az=J.shoulderR[2];
+    const k=1+(h*.12-f*.10)*w.arm*(y>J.wristR[1]?1:0);
+    x=ax+(x-ax)*k;z=az+(z-az)*k;
+  }
+  if(w.leg>0){
+    const lx=sx*J.hipR[0],lz=.01;
+    const k=1+(h*(y>J.kneeR[1]?.11:.06)+f*.03*smooth01(.6,.85,y))*w.leg;
+    x=lx+(x-lx)*k;z=lz+(z-lz)*k;
+  }
+  if(w.hand>0){
+    const c=J.wristR,k=1-.09*f*w.hand;
+    x=sx*c[0]+(x-sx*c[0])*k;y=c[1]+(y-c[1])*k;z=c[2]+(z-c[2])*k;
+  }
+  if(w.foot>0){
+    const c=J.ankleR,k=1-.08*f*w.foot;
+    x=sx*c[0]+(x-sx*c[0])*k;y=c[1]+(y-c[1])*k;z=c[2]+(z-c[2])*k;
+  }
+  /* shoulders come in, and the arms with them */
+  x-=sx*.024*f*Math.min(1,arm);
+  if(torso>0||w.leg>0){
+    const tw=torso+w.leg*smooth01(.72,.9,y);
+    x*=1-.12*f*smooth01(1.20,1.40,y)*torso;
+    const waist=1-(.09*f-.06*h)*bumpR(y-1.04,.17)*torso;
+    x*=waist;z=.02+(z-.02)*waist;
+    x*=1+.075*f*bumpR(y-.90,.17)*tw;
+    x*=1+.04*h*torso*smooth01(.8,.95,y)*(1-smooth01(1.3,1.45,y));
+    z=.02+(z-.02)*(1+.03*h*torso*smooth01(.85,1.0,y)*(1-smooth01(1.3,1.45,y)));
+    /* the belly, forward; on cloth it hangs from its widest point */
+    if(z>-.02&&!joint){
+      const dy=cloth&&y<1.02?(y-1.02)*.45:y-1.02;
+      z+=.045*Math.max(0,h)*bumpR(Math.hypot(x*.8,dy),.17)*tw;
+    }
+    /* the seat */
+    if(z<-.03&&!joint)z-=.013*f*bumpR(Math.hypot(Math.abs(x)-.06,y-.88,(z+.10)*.8),.10)*tw;
+    /* the bust */
+    if(f>0&&z>.02&&arm<.5&&!joint){
+      for(const s of[-1,1]){
+        const cx=s*.088,cy=1.295,cz=.105;
+        const dy=cloth&&y<cy?(y-cy)*.42:y-cy;
+        const b=.032*f*bumpR(Math.hypot(x-cx,dy,(z-cz)*.7),.078)*(1-arm);
+        x+=s*b*.24;y-=b*.12;z+=b;
+      }
+    }
+  }
+  /* neck and throat */
+  if(y>1.44&&y<1.62){
+    const k=1-(.12*f-.10*h)*bumpR(y-1.53,.075)*(1-arm);
+    x*=k;z=.035+(z-.035)*k;
+    if(!joint)z-=.006*f*bumpR(Math.hypot(x,y-1.525,z-.068),.026);
+  }
+  /* the face */
+  if(w.head>.3&&y>1.52&&!joint){
+    const lower=smooth01(1.625,1.545,y);
+    x*=1-(.07*f-.05*h)*lower*(z>-.02?1:.5);
+    for(const s of[-1,1]){
+      z-=.005*f*bumpR(Math.hypot(x-s*.03,y-1.667,z-.112),.03);            /* brow ridge */
+      const cb=.003*(f+.4*h)*bumpR(Math.hypot(x-s*.05,y-1.625,z-.08),.026); /* cheekbones */
+      x+=s*cb*.6;z+=cb*.5;
+    }
+    const FT=T.face||{};
+    const nd=Math.hypot(x,y-1.612,z-.13),nk=1-.12*f*bumpR(nd,.032);
+    if(FT.nose)x*=1+(FT.nose-1)*bumpR(Math.hypot(x*.7,y-1.603,z-.125),.022);   /* nostrils */
+    x*=nk;y=1.612+(y-1.612)*nk;z=.13+(z-.13)*nk;                        /* nose */
+    const ld=bumpR(Math.hypot(x*.7,y-1.575,z-.124),.024);
+    z+=.001*f*ld;y=1.5745+(y-1.5745)*(1+.05*f*ld);                       /* lips */
+    if(FT.lips){z+=.004*(FT.lips-1)*ld/.1;y=1.5745+(y-1.5745)*(1+(FT.lips-1)*ld);}
+    const cd=bumpR(Math.hypot(x,y-1.545,z-.11),.03);
+    y+=.004*f*cd;z-=.003*f*cd;                                           /* chin */
+  }
+  /* a woman's head is a touch smaller, not flatter: uniform, about its centre */
+  if(f>0&&w.head>0){
+    const k=1-.03*f*Math.min(1,w.head);
+    x*=k;y=1.665+(y-1.665)*k;z=.012+(z-.012)*k;
+  }
+  /* height: the upper body about the hip line, the head carried down with
+     it; legs and feet untouched (see REAL_TRAITS) */
+  if(T.up!==1){
+    const k=T.up,legs=Math.min(1,w.leg+w.foot),armsW=Math.min(1,w.arm+w.hand);
+    const top=y>1.47?y+.615*(k-1):(y>.855?.855+(y-.855)*k:y);
+    const armY=y>1.47?y+.615*(k-1):.855+(y-.855)*k;
+    y=legs*y+armsW*armY+Math.max(0,1-legs-armsW)*top;
+  }
+  return [x,y,z];
+}
+function regionWeights(si,sw,i,B){
+  const w={arm:0,hand:0,leg:0,foot:0,head:0};
+  for(let k=0;k<4;k++){
+    const b=si[i*4+k],v=sw[i*4+k]/255;
+    if(b===B.shoulderL||b===B.shoulderR||b===B.elbowL||b===B.elbowR)w.arm+=v;
+    else if(b===B.wristL||b===B.wristR)w.hand+=v;
+    else if(b===B.hipL||b===B.hipR||b===B.kneeL||b===B.kneeR)w.leg+=v;
+    else if(b===B.ankleL||b===B.ankleR)w.foot+=v;
+    else if(b===B.head||b===B.neck)w.head+=v;
+  }
+  return w;
+}
+/* the joints ride the same field, each as a point wholly its own region */
+function morphJoints(T){
+  const P=REAL.hdr.joints,out={};
+  const REG={shoulder:"arm",elbow:"arm",wrist:"hand",hip:"leg",knee:"leg",ankle:"foot",head:"head",neck:"head"};
+  for(const n in P){
+    const w={arm:0,hand:0,leg:0,foot:0,head:0},r=REG[n.replace(/[LR]$/,"")];
+    if(r)w[r]=1;
+    out[n]=morphPoint(P[n],w,false,T,P,true);
+  }
+  /* a wrist or an ankle is its own scaling centre: keep it on its limb */
+  return out;
+}
+/* The body and what it wears, merged into one skinned geometry. Body faces
+   a garment covers are dropped (people.bin flags them per face): nothing
+   under the cloth to poke through it, and nothing drawn that nobody sees. */
+function dressGeometry(rig,lod){
+  const out=outfitFor(rig),o=rig.opts,GAR=REAL.hdr.garments,sfx=lod?"@1":"";
+  /* one level of detail at a time: the "@1" parts are the decimated set */
+  const M={};for(const n in REAL.meshes)if(n.endsWith(sfx)&&(lod||!n.includes("@")))M[n.slice(0,n.length-sfx.length)]=REAL.meshes[n];
+  const worn=[out.top,out.outer,out.bottom,out.shoes,out.apronC?"apron":null].filter(Boolean);
+  let hide=0;
+  for(const g of worn)hide|=1<<GAR.indexOf(g);
+  const bm=lod?REAL.bodyMask1:REAL.bodyMask,bi=M.body.idx;
+  let n=0;
+  for(let f=0;f<bm.length;f++)if(!(bm[f]&hide))n++;
+  const keep=new Uint16Array(n*3);
+  for(let f=0,k=0;f<bm.length;f++)if(!(bm[f]&hide)){
+    keep[k++]=bi[f*3];keep[k++]=bi[f*3+1];keep[k++]=bi[f*3+2];
+  }
+  const parts=[{m:M.body,F:keep,kind:"body"}];
+  for(const g of worn)parts.push({m:M[g],F:M[g].idx,kind:g});
+  const hm=M["hair_"+out.hair];
+  parts.push({m:hm,F:hm.idx,kind:"hair"});
+  let nv=0,ni=0;
+  for(const p of parts){nv+=p.m.pos.length/3;ni+=p.F.length;}
+  const pos=new Float32Array(nv*3),si=new Uint8Array(nv*4),sw=new Uint8Array(nv*4);
+  const col=new Uint8Array(nv*3),kin=new Uint8Array(nv),idx=nv<65536?new Uint16Array(ni):new Uint32Array(ni);
+  const c=new THREE.Color();
+  const rgb=h=>{c.setHex(h);return [Math.round(c.r*255),Math.round(c.g*255),Math.round(c.b*255)];};
+  /* the courier's tee IS the brand's field: the mark canvas is decoded as
+     sRGB, the palette is not, so his blue is linearised to show the same */
+  const topHex=rig.id==="courier"?new THREE.Color(o.shirt).convertSRGBToLinear().getHex():o.shirt;
+  const SKIN=rgb(lin(out.skin)),TOP=rgb(topHex),BOT=rgb(o.pants),UP=rgb(out.shoe[0]),
+    SOLE=rgb(out.shoe[1]),GLOVE=rgb(0x2a2d33),HAIR=rgb(lin(out.hairC)),
+    OUTER=rgb(out.outerC||0x1f2a44),APRON=rgb(out.apronC||0x1d232a);
+  const KIND=REAL.hdr.kind;
+  const WL=REAL.hdr.bones.indexOf("wristL"),WR=REAL.hdr.bones.indexOf("wristR");
+  let v0=0,i0=0;
+  for(const p of parts){
+    const m=p.m,cnt=m.pos.length/3;
+    pos.set(m.pos,v0*3);si.set(m.si,v0*4);sw.set(m.sw,v0*4);
+    for(let i=0;i<p.F.length;i++)idx[i0+i]=p.F[i]+v0;
+    for(let i=0;i<cnt;i++){
+      let C=p.kind==="body"?SKIN:p.kind==="hair"?HAIR:p.kind==="apron"?APRON:p.kind===out.outer?OUTER:p.kind===out.bottom?BOT:
+        p.kind===out.shoes?(m.part&&m.part[i]?SOLE:UP):TOP;
+      /* the courier's gloves: every vertex the wrist bone leads */
+      if(C===SKIN&&out.gloves){const b=m.si[i*4];if(b===WL||b===WR)C=GLOVE;}
+      const q=(v0+i)*3;col[q]=C[0];col[q+1]=C[1];col[q+2]=C[2];
+      kin[v0+i]=p.kind==="hair"?6:C===SOLE?5:KIND[p.kind];
+    }
+    v0+=cnt;i0+=p.F.length;
+  }
+  const g=new THREE.BufferGeometry();
+  /* the person's own shape (traits), on every vertex at once */
+  const T=traitsFor(rig);
+  /* the paint and the hair strands are laid out on the BASE head: keep it */
+  const base=pos.slice();
+  if(T.fem||T.heavy||T.up!==1){
+    const BI={};REAL.hdr.bones.forEach((n,i)=>{BI[n]=i;});
+    const P=REAL.hdr.joints,q=[0,0,0];
+    let vv=0;
+    for(const p of parts){
+      const cnt=p.m.pos.length/3,cloth=p.kind!=="body"&&p.kind!=="hair";
+      for(let i=0;i<cnt;i++,vv++){
+        q[0]=pos[vv*3];q[1]=pos[vv*3+1];q[2]=pos[vv*3+2];
+        const r=morphPoint(q,regionWeights(si,sw,vv,BI),cloth,T,P);
+        pos[vv*3]=r[0];pos[vv*3+1]=r[1];pos[vv*3+2]=r[2];
+      }
+    }
+  }
+  g.setAttribute("position",new THREE.BufferAttribute(pos,3));
+  g.setAttribute("skinIndex",new THREE.BufferAttribute(si,4));
+  g.setAttribute("skinWeight",new THREE.BufferAttribute(sw,4,true));
+  g.setAttribute("color",new THREE.BufferAttribute(col,3,true));
+  g.setAttribute("kind",new THREE.BufferAttribute(kin,1));
+  g.setAttribute("base",new THREE.BufferAttribute(base,3));
+  g.setIndex(new THREE.BufferAttribute(idx,1));
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  return g;
+}
+/* ---- the face: painted, not modelled ----
+   The base head carries the shape (brow ridge, nose, lips, the lids now cut
+   open); what makes it a particular person is paint: brows, the lash line,
+   lip colour, a shadow of stubble, the fuzz where the hair meets the skin,
+   the lines of age. One canvas per person, projected round the head
+   CYLINDRICALLY (angle about the vertical axis, height) so a beard reaches
+   the jaw's sides instead of smearing off a flat front projection. Units
+   are metres in the rest pose, the same space people.bin is written in. */
+const FACE_W=384,FACE_H=288,FACE_TH=200*Math.PI/180,FACE_Y0=1.53,FACE_YH=.24;
+let FACE_CW=FACE_W,FACE_CH=FACE_H;     /* the canvas being painted */
+function faceUV(x,y,z){
+  return [(Math.atan2(x,z)/FACE_TH+.5)*FACE_CW,(1-(y-FACE_Y0)/FACE_YH)*FACE_CH];
+}
+/* the brow ridge and lids fall back toward the temples: surface depth by x */
+const zBrow=x=>.1152-.42*Math.max(0,Math.abs(x)-.01);
+const zLid=x=>.100-.22*Math.max(0,Math.abs(x)-.02);
+const zLip=x=>.1267-12*x*x;
+function hexA(h,a,mul){
+  const m=mul||1;
+  return "rgba("+Math.min(255,((h>>16)&255)*m|0)+","+Math.min(255,((h>>8)&255)*m|0)+","+
+    Math.min(255,(h&255)*m|0)+","+a+")";
+}
+function paintFace(rig){
+  const out=outfitFor(rig),o=Object.assign({},rig.opts,{hair:out.hairC}),
+    fem=!!o.fem,F=REAL.hdr.face.eye;
+  if(!rig.faceCv){
+    /* Simon is the one face seen at arm's length: three times the texels */
+    const k=rig.id==="simon"?3:1;
+    rig.faceCv=document.createElement("canvas");
+    rig.faceCv.width=FACE_W*k;rig.faceCv.height=FACE_H*k;
+    rig.faceTex=new THREE.CanvasTexture(rig.faceCv);
+    rig.faceTex.anisotropy=4;rig.faceTex.encoding=THREE.sRGBEncoding;
+  }
+  FACE_CW=rig.faceCv.width;FACE_CH=rig.faceCv.height;
+  const c=rig.faceCv.getContext("2d");
+  c.clearRect(0,0,FACE_CW,FACE_CH);
+  let seed=(rig.id||"x").split("").reduce((a,ch)=>a*31+ch.charCodeAt(0)|0,7)^(o.skin*7);
+  const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
+  const age=rig.id==="drinker"?1:rig.id==="standA"?.45:0;
+  function blob(x,y,z,r,col,a){          /* soft round tint */
+    const p=faceUV(x,y,z),rr=r/FACE_YH*FACE_CH;
+    const g=c.createRadialGradient(p[0],p[1],0,p[0],p[1],rr);
+    g.addColorStop(0,col.replace(/[\d.]+\)$/,a+")"));g.addColorStop(1,col.replace(/[\d.]+\)$/,"0)"));
+    c.fillStyle=g;c.beginPath();c.arc(p[0],p[1],rr,0,7);c.fill();
+  }
+  function stroke(pts,w,style){
+    c.strokeStyle=style;c.lineWidth=w/FACE_YH*FACE_CH;c.lineCap="round";c.lineJoin="round";
+    c.beginPath();pts.forEach((q,i)=>{const p=faceUV(q[0],q[1],q[2]);i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]);});
+    c.stroke();
+  }
+  /* warmth where blood sits close: cheeks, nose, ears, chin */
+  const warm="rgba(196,86,78,1)";
+  for(const s of[-1,1]){
+    blob(.046*s,1.607,.088,.026,warm,fem?.16:.10);
+    blob(.083*s,1.628,-.01,.022,warm,.12);                  /* the ear */
+  }
+  blob(0,1.609,.134,.011,warm,.10);
+  blob(0,1.548,.108,.018,warm,.05);
+  /* the eyes: a shade in the socket, the lid crease, the lash line */
+  const almond=(u,upper)=>{
+    const uu=Math.max(-1,Math.min(1,u));
+    const up=.0063*Math.pow(Math.max(0,1-((uu+.2)/1.2)**2),.75);
+    const lo=-.0047*Math.pow(Math.max(0,1-((uu-.15)/1.15)**2),1.1);
+    return F.y+.0015*(u+1)/2+(upper?up:lo);
+  };
+  const lidLine=(s,upper,dy,u0,u1)=>{
+    const pts=[];
+    for(let k=0;k<=16;k++){
+      const u=u0+(u1-u0)*k/16,x=s*(F.x+u*.0158);
+      pts.push([x,almond(u,upper)+dy,zLid(x)]);
+    }
+    return pts;
+  };
+  for(const s of[-1,1]){
+    blob(s*(F.x+.002),1.642,.094,.017,"rgba(92,58,52,1)",fem?.12:.14);
+    stroke(lidLine(s,true,.0046,-.9,.95),.0028,"rgba(70,45,38,"+(.10+.08*age)+")");
+    const lash=hexA(o.hair,fem?.92:.8,.35);
+    stroke(lidLine(s,true,.0006,-1,1),fem?.0016:.0012,lash);
+    if(fem)stroke(lidLine(s,true,.0009,.55,1.12),.0012,lash);      /* the outer flick */
+    stroke(lidLine(s,false,-.0004,-.9,1),.0007,hexA(o.hair,.32,.4));
+  }
+  /* brows: a soft base, then single hairs laid along their growth */
+  const browY=t=>1.6615+(fem?.0072:.0052)*Math.exp(-(((t-.62)/.36)**2))-.0035*t;
+  const browW=t=>(fem?.0036:.0055)*(1-.62*t);
+  const bc=o.hair===0xb9b3aa||age>.9?0x8a8580:o.hair;
+  for(const s of[-1,1]){
+    const base=[];
+    for(let k=0;k<=12;k++){const t=k/12,x=s*(.011+.044*t);base.push([x,browY(t),zBrow(x)]);}
+    stroke(base,browW(.3)*.95,hexA(bc,.38,.7));
+    for(let i=0;i<(fem?70:110);i++){
+      const t=Math.pow(rnd(),.9),x=s*(.011+.044*t),y=browY(t)+(rnd()-.5)*browW(t);
+      const ang=(t<.22?.85:.22+(1-t)*.3)+(rnd()-.5)*.3,len=.0032+rnd()*.0022;
+      const dx=s*Math.cos(ang)*len,dy=Math.sin(ang)*len*(t<.22?1:.55);
+      stroke([[x,y,zBrow(x)],[x+dx,y+dy,zBrow(x+dx)]],.00055,hexA(bc,.55+rnd()*.35,.55));
+    }
+  }
+  /* lips: the colour of the skin, deepened toward red; the line between them */
+  const lipCol=fem?"rgba(160,74,74,":"rgba(146,84,76,";
+  c.fillStyle=lipCol+(fem?.36:.26)+")";
+  const upLip=[],loLip=[];
+  for(let k=0;k<=20;k++){
+    const x=-.027+.054*k/20,ax=Math.abs(x);
+    const bow=.0155*Math.pow(Math.max(0,1-(ax/.027)**2),.6)-.0022*Math.exp(-((ax/.004)**2));
+    upLip.push([x,1.5745+bow,zLip(x)]);
+    loLip.push([x,1.5745-.0128*Math.pow(Math.max(0,1-(ax/.026)**2),.7),zLip(x)]);
+  }
+  c.beginPath();
+  upLip.concat(loLip.slice().reverse()).forEach((q,i)=>{const p=faceUV(q[0],q[1],q[2]);i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]);});
+  c.fill();
+  stroke(upLip.map(q=>[q[0],1.5745+.0002-Math.abs(q[0])*.008,q[2]]),.0009,"rgba(70,32,30,.55)");
+  /* one hair: a 2-4 mm stroke along its growth (dx,dy per metre of length) */
+  const hairAt=(x,y,z,len,ang,w,a,col)=>{
+    const p=faceUV(x,y,z),q=faceUV(x+Math.cos(ang)*len*(x<0?-1:1),y+Math.sin(ang)*len,z);
+    c.strokeStyle=col.replace(/,1\)$/,","+a+")");c.lineWidth=Math.max(.6,w/FACE_YH*FACE_CH);
+    c.lineCap="round";c.beginPath();c.moveTo(p[0],p[1]);c.lineTo(q[0],q[1]);c.stroke();
+  };
+  /* stubble / beard: jaw, chin and upper lip, in the cylinder's own terms */
+  if(out.beard>0){
+    const d=out.beard,bh=hexA(o.hair,1,.55);
+    const inBeard=(th,y)=>{
+      const a=Math.abs(th);
+      if(a>1.45)return false;
+      const top=a<.12?1.599:a<.42?1.586+(a-.12)*.02:a<1.1?1.600+(a-.42)*.05:1.634;
+      const bot=1.532+a*.035;
+      if(y>top||y<bot)return false;
+      return !(a<.46&&y>1.558&&y<1.592);          /* not on the lips */
+    };
+    /* the shadow of the hair first, then the hairs themselves */
+    for(let i=0;i<1800*d;i++){
+      const th=(rnd()-.5)*2.9,y=1.53+rnd()*.11;
+      if(!inBeard(th,y))continue;
+      const u=(th/FACE_TH+.5)*FACE_CW,v=(1-(y-FACE_Y0)/FACE_YH)*FACE_CH;
+      c.fillStyle=bh.replace(/,1\)$/,","+(.05+.07*d)+")");
+      c.beginPath();c.arc(u,v,.006/FACE_YH*FACE_CH,0,7);c.fill();
+    }
+    for(let i=0;i<4200*d;i++){
+      const th=(rnd()-.5)*2.9,y=1.53+rnd()*.11;
+      if(!inBeard(th,y))continue;
+      const R=.1,x=R*Math.sin(th),z=R*Math.cos(th);
+      hairAt(x,y,z,(.0012+rnd()*.0018)*(.4+d*.6),-1.2-rnd()*.5,.00035,.25+.45*d*rnd(),bh);
+    }
+  }
+  if(out.goatee){
+    const bh=hexA(o.hair,1,.5);
+    /* The moustache follows the WHOLE upper lip, corner to corner, a band
+       ~7 mm deep sitting on the lip line and drooping a touch at the ends —
+       a patch under the nose alone is a toothbrush, and that is the one
+       moustache nobody may be given. Then a small tuft under the lower lip. */
+    const lipTop=ax=>1.5745+.0155*Math.pow(Math.max(0,1-(ax/.027)**2),.6)-.0022*Math.exp(-((ax/.004)**2));
+    const inG=(x,y)=>{
+      const ax=Math.abs(x);
+      if(ax<.029){
+        const lo=Math.max(lipTop(ax)+.0006,1.5775-(ax>.022?(ax-.022)*1.3:0)),hi=lo+.0072-ax*.08;
+        if(y>lo&&y<hi)return true;                                     /* moustache */
+      }
+      return ax<.0085-Math.max(0,1.551-y)*.45&&y<1.5605&&y>1.541;          /* chin tuft */
+    };
+    for(let i=0;i<1600;i++){
+      const x=(rnd()-.5)*.07,y=1.525+rnd()*.08;
+      if(!inG(x,y))continue;
+      const p=faceUV(x,y,zLip(x)+.002);
+      c.fillStyle=bh.replace(/,1\)$/,",.16)");
+      c.beginPath();c.arc(p[0],p[1],.0035/FACE_YH*FACE_CH,0,7);c.fill();
+    }
+    for(let i=0;i<7500;i++){
+      const x=(rnd()-.5)*.07,y=1.525+rnd()*.08;
+      if(!inG(x,y))continue;
+      const mous=y>1.566;
+      /* moustache hairs comb down and outward from the middle */
+      const ang=mous?-1.05-rnd()*.35:-1.45-rnd()*.25;
+      if(!mous&&rnd()<.35)continue;                    /* the tuft is sparser than the moustache */
+      hairAt(x,y,zLip(x)+.002,.0016+rnd()*.0022,ang,.00032,(mous?.28:.22)+.4*rnd(),bh);
+    }
+  }
+  /* the hairline: fine hair thinning onto the skin, so the cap has an edge */
+  const HL_AZ=[0,30,50,68,74,84,92,100,118,145,180],HL_EL=[32,27,20,14,-14,-14,6,4,-10,-34,-52];
+  const lerp=(xs,ys,v)=>{for(let i=1;i<xs.length;i++)if(v<=xs[i]){const t=(v-xs[i-1])/(xs[i]-xs[i-1]);return ys[i-1]+t*(ys[i]-ys[i-1]);}return ys[ys.length-1];};
+  if(out.hair!=="buzz"){
+    for(let k=0;k<2;k++){
+      const pts=[];
+      for(let az=-112;az<=112;az+=4){
+        const el=(lerp(HL_AZ,HL_EL,Math.abs(az))-1.5-k*2.5)*DEG,a=az*DEG,R=.098;
+        pts.push([R*Math.cos(el)*Math.sin(a),1.665+R*Math.sin(el),.012+R*Math.cos(el)*Math.cos(a)]);
+      }
+      stroke(pts,.004-k*.0015,hexA(o.hair,k?.12:.26,.8));
+    }
+  }
+  /* age: forehead, crow's feet, the fold from nose to mouth */
+  if(age>0){
+    const L="rgba(90,60,52,"+(.13*age)+")";
+    for(let k=0;k<3;k++){
+      const pts=[];for(let x=-.04;x<=.041;x+=.01)pts.push([x,1.690+k*.0085+Math.abs(x)*.05,.102-2*x*x]);
+      stroke(pts,.0011,L);
+    }
+    for(const s of[-1,1]){
+      for(let k=-1;k<=1;k++)stroke([[s*.050,1.648+k*.003,.086],[s*.058,1.650+k*.0055,.078]],.0008,L);
+      stroke([[s*.019,1.603,.118],[s*.026,1.588,.116],[s*.030,1.573,.112]],.0016,L);
+      stroke(lidLine(s,false,-.004,-.6,.9),.0014,L);
+    }
+  }
+  /* a few marks of a real face: moles, a freckle or two */
+  for(let i=0;i<3+(rnd()*5|0);i++){
+    const th=(rnd()-.5)*2.2,y=1.56+rnd()*.13;
+    c.fillStyle="rgba(92,58,40,"+(.25+rnd()*.3)+")";
+    c.beginPath();c.arc((th/FACE_TH+.5)*FACE_CW,(1-(y-FACE_Y0)/FACE_YH)*FACE_CH,.0006/FACE_YH*FACE_CH,0,7);c.fill();
+  }
+  rig.faceTex.needsUpdate=true;
+}
+/* the material: the café's standard PBR, told what each vertex is made of
+   (kind: 0 skin, 1 cotton, 2 knit, 3 twill, 4 leather, 5 sole, 6 hair) and
+   painted with the face above. Every person gets their own instance for
+   their own face map; the compiled program is shared. */
+function realShader(shader){
+  shader.uniforms.faceMap={value:this.userData.faceTex};
+  shader.vertexShader="attribute float kind;\nattribute vec3 base;\nvarying float vKind;\nvarying vec3 vRest;\nvarying vec3 vRestN;\n"+
+    shader.vertexShader.replace("#include <begin_vertex>",
+      "#include <begin_vertex>\n  vKind=kind;vRest=base;vRestN=normal;");
+  shader.fragmentShader="uniform sampler2D faceMap;\nvarying float vKind;\nvarying vec3 vRest;\nvarying vec3 vRestN;\n"+
+    "float vhash(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}\n"+
+    "float vnoise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);"+
+    "return mix(mix(mix(vhash(i),vhash(i+vec3(1,0,0)),f.x),mix(vhash(i+vec3(0,1,0)),vhash(i+vec3(1,1,0)),f.x),f.y),"+
+    "mix(mix(vhash(i+vec3(0,0,1)),vhash(i+vec3(1,0,1)),f.x),mix(vhash(i+vec3(0,1,1)),vhash(i+vec3(1,1,1)),f.x),f.y),f.z);}\n"+
+    shader.fragmentShader.replace("#include <color_fragment>",`#include <color_fragment>
+  if(vKind<.5&&vRest.y>1.52){
+    vec2 fu=vec2(atan(vRest.x,vRest.z)*${(1/FACE_TH).toFixed(6)}+.5,(vRest.y-${FACE_Y0.toFixed(3)})/${FACE_YH.toFixed(3)});
+    vec4 fp=texture2D(faceMap,fu);
+    diffuseColor.rgb=mix(diffuseColor.rgb,fp.rgb,fp.a*clamp(1.35-abs(vRestN.y)*1.35,0.,1.));
+    diffuseColor.rgb*=vec3(1.,.97,.95);
+    /* no face is one flat colour: broad warm blotches, finer unevenness */
+    float cv=vnoise(vRest*28.),cr=vnoise(vRest*64.+7.);
+    diffuseColor.rgb*=1.+(cv-.5)*.08;
+    diffuseColor.rgb*=vec3(1.+(cr-.5)*.05,1.,1.-(cr-.5)*.03);
+  }else if(vKind>1.5&&vKind<2.5){
+    /* knit: vertical ribs, 6 mm apart — what says "jumper" and not "skin"
+       when the wool is camel */
+    float rb=.5+.5*sin((vRest.x*.8+vRest.z*.6)*1050.);
+    diffuseColor.rgb*=.9+.13*rb;
+  }else if(vKind>5.5){
+    /* combed strands: long thin cells along the fall of the hair */
+    vec3 d=vRest-vec3(0.,1.665,.012);
+    float az=atan(d.x,d.z),el=d.y/max(length(d),1e-4);
+    float s1=fract(sin(floor(az*260.)*12.9898+floor(el*9.)*78.233)*43758.5453);
+    float s2=fract(sin(floor(az*70.+el*3.)*39.346+floor(el*3.)*11.135)*24634.6345);
+    diffuseColor.rgb*=.86+.16*s1+.10*s2;
+  }`).replace("#include <roughnessmap_fragment>",`#include <roughnessmap_fragment>
+  roughnessFactor=vKind<.5?.62:vKind<1.5?.86:vKind<2.5?.96:vKind<3.5?.82:vKind<4.5?.48:vKind<5.5?.78:.5;`);
+  /* skin keeps its sheen from the lights but takes less of the room's
+     reflection: at .45 of it a face stops reading as wax */
+  /* micro relief as a bump: height from 3D noise on the REST position (so it
+     rides the skin as it moves), slopes from screen derivatives — the
+     derivatives extension is already on for every material lit by the
+     room's PMREM environment, and on WebGL2 it is core */
+  shader.fragmentShader=shader.fragmentShader.replace("#include <normal_fragment_maps>",
+    "#include <normal_fragment_maps>\n"+
+    "#if defined(GL_OES_standard_derivatives) || __VERSION__ >= 300\n"+
+    "  if(vKind<3.5){\n"+
+    "    float bs=vKind<.5?.00011:vKind>1.5&&vKind<2.5?.00016:.00005;\n"+
+    "    float hh=vKind<.5?vnoise(vRest*620.)*.7+vnoise(vRest*1500.)*.3:vKind>1.5&&vKind<2.5?"+
+    "(.5+.5*sin((vRest.x*.8+vRest.z*.6)*1050.))*.6+vnoise(vRest*vec3(700.,1800.,700.))*.4:vnoise(vRest*vec3(900.,1400.,900.));\n"+
+    "    vec3 dpx=dFdx(-vViewPosition),dpy=dFdy(-vViewPosition);\n"+
+    "    vec2 dh=vec2(dFdx(hh),dFdy(hh))*bs;\n"+
+    /* bR1/bR2, never r1/r2: three's cube-UV chunk #defines r1 as 0.8 */
+    "    vec3 bR1=cross(dpy,normal),bR2=cross(normal,dpx);\n"+
+    "    float bDet=dot(dpx,bR1);\n"+
+    "    vec3 bGr=sign(bDet)*(dh.x*bR1+dh.y*bR2);\n"+
+    "    normal=normalize(abs(bDet)*normal-bGr);\n"+
+    "  }\n"+
+    "#endif");
+  shader.fragmentShader=shader.fragmentShader.replace("#include <aomap_fragment>",
+    "#include <aomap_fragment>\n  if(vKind<.5)reflectedLight.indirectSpecular*=.45;\n"+
+    /* hair: the ring of sheen where the strands run across the view (a
+       Kajiya-Kay lobe, lit from the eye), scaled by the room's light so it
+       dims with it at closing time */
+    "  if(vKind>5.5){\n"+
+    "    vec3 upV=normalize((viewMatrix*vec4(0.,1.,0.,0.)).xyz);\n"+
+    "    vec3 Th=normalize(upV-dot(upV,normal)*normal+1e-5);\n"+
+    "    float tv=dot(Th,normalize(vViewPosition)),sh=sqrt(max(0.,1.-tv*tv));\n"+
+    "    float irr=dot(reflectedLight.indirectDiffuse,vec3(.333))/max(dot(diffuseColor.rgb,vec3(.333)),.03);\n"+
+    "    reflectedLight.indirectSpecular+=(pow(sh,70.)*.24+pow(sh,10.)*.04)*min(diffuseColor.rgb*2.2+.04,vec3(1.))*irr;\n"+
+    "  }");
+}
+function realMaterial(rig){
+  if(!rig.faceTex)paintFace(rig);
+  const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0,envMapIntensity:.35});
+  m.userData.faceTex=rig.faceTex;
+  m.onBeforeCompile=realShader;
+  return m;
+}
+/* ---- the eyes ----
+   A 12 mm ball in each socket the head now has, turning inside the eye
+   group the gaze layer already aims. The iris is painted where three's
+   sphere puts +z (u .25, v .5): fibres, a darker limbal ring, the pupil.
+   Wet (roughness .08) so the room's environment shows as a catchlight —
+   the single thing that makes an eye read as alive from across a room. */
+const IRIS_CACHE=new Map();
+function irisMaterial(hex){
+  if(IRIS_CACHE.has(hex))return IRIS_CACHE.get(hex);
+  const cv=document.createElement("canvas");cv.width=256;cv.height=128;
+  const c=cv.getContext("2d");
+  c.fillStyle="#d8cfc4";c.fillRect(0,0,256,128);
+  /* the corners are pinker, the top sits in the lid's shadow */
+  let g=c.createLinearGradient(64,0,64,128);
+  g.addColorStop(0,"rgba(60,42,38,.75)");g.addColorStop(.38,"rgba(60,42,38,.32)");g.addColorStop(.52,"rgba(0,0,0,0)");
+  c.fillStyle=g;c.fillRect(0,0,256,128);
+  for(const cx of[22,106]){
+    g=c.createRadialGradient(cx,64,0,cx,64,30);
+    g.addColorStop(0,"rgba(200,120,115,.35)");g.addColorStop(1,"rgba(200,120,115,0)");
+    c.fillStyle=g;c.fillRect(cx-30,34,60,60);
+  }
+  const R=21;
+  c.fillStyle=hexA(hex,1,.45);c.beginPath();c.arc(64,64,R,0,7);c.fill();
+  c.fillStyle=hexA(hex,1,1);c.beginPath();c.arc(64,64,R*.86,0,7);c.fill();
+  for(let i=0;i<90;i++){
+    const a=Math.random()*6.283,r0=R*.3,r1=R*(.6+Math.random()*.25);
+    c.strokeStyle=hexA(hex,.5,Math.random()<.5?.6:1.45);c.lineWidth=.9;
+    c.beginPath();c.moveTo(64+Math.cos(a)*r0,64+Math.sin(a)*r0);c.lineTo(64+Math.cos(a)*r1,64+Math.sin(a)*r1);c.stroke();
+  }
+  c.fillStyle="#0b0908";c.beginPath();c.arc(64,64,R*.36,0,7);c.fill();
+  const m=new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(cv),roughness:.2,metalness:0,envMapIntensity:.4});
+  IRIS_CACHE.set(hex,m);
+  return m;
+}
+let GEO_EYEBALL=null,GEO_LID=null;
+const LID_CACHE=new Map();
+function lidMaterial(hex){
+  if(!LID_CACHE.has(hex))LID_CACHE.set(hex,new THREE.MeshStandardMaterial({color:hex,
+    vertexColors:true,roughness:.62,metalness:0,envMapIntensity:.3}));
+  return LID_CACHE.get(hex);
+}
+function realEyes(rig){
+  const F=REAL.hdr.face.eye,H=rig.restJ.head,T=traitsFor(rig);
+  if(!GEO_EYEBALL){
+    GEO_EYEBALL=new THREE.SphereGeometry(F.r,16,12);
+    /* a cap over the top of the ball: at rest its edge sits over the top
+       millimetre of the iris (a relaxed eye — a lid ABOVE the iris is a
+       startled one), the edge darkened into a lash line; the blink swings
+       it down across the opening */
+    GEO_LID=new THREE.SphereGeometry(F.r*1.06,12,6,Math.PI/2-1.3,2.6,0,1.66);
+    const lc=[],np=GEO_LID.attributes.position.count,row=GEO_LID.parameters.widthSegments+1;
+    for(let i=0;i<np;i++){const edge=i>=np-row?.22:i>=np-2*row?.8:1;lc.push(edge,edge*.93,edge*.9);}
+    GEO_LID.setAttribute("color",new THREE.Float32BufferAttribute(lc,3));
+    GEO_LID.rotateX(-.524);
+  }
+  const irisM=irisMaterial(rig.opts.eye||0x4a2f1c),lidM=lidMaterial(lin(outfitFor(rig).skin));
+  rig.eyes.forEach((e,i)=>{
+    const s=i===0?-1:1;
+    const c=morphPoint([s*F.x,F.y,F.z],{arm:0,hand:0,leg:0,foot:0,head:1},false,T,REAL.hdr.joints,true);
+    e.eg.position.set(c[0]-H[0],c[1]-H[1],c[2]-H[2]);
+    e.eg.scale.setScalar(1-.03*T.fem);
+    if(!e.ball){e.ball=new THREE.Mesh(GEO_EYEBALL,irisM);e.eg.add(e.ball);}
+    else e.ball.material=irisM;
+    e.lid.geometry=GEO_LID;e.lid.material=lidM;e.lid.position.set(0,0,0);e.lid.scale.setScalar(1);
+    e.lid.rotation.set(0,0,0);
+    e.eg.visible=true;
+  });
+}
+/* rest offsets and inverse bind matrices from this person's own joints */
+function applyRest(rig){
+  const P=morphJoints(traitsFor(rig)),J=rig.J;
+  J.pelvis.position.fromArray(P.pelvis);
+  for(const n in REAL_PARENT){
+    const p=P[n],q=P[REAL_PARENT[n]];
+    J[n].position.set(p[0]-q[0],p[1]-q[1],p[2]-q[2]);
+    J[n].rotation.set(0,0,0);
+  }
+  /* the rest pose has no rotation anywhere, so each bone's inverse bind
+     matrix is just "back from where that joint sits" */
+  if(rig.body){
+    const inv=rig.body.skeleton.boneInverses;
+    REAL.hdr.bones.forEach((n,i)=>{const p=P[n];inv[i].makeTranslation(-p[0],-p[1],-p[2]);});
+  }
+  rig.restJ=P;
+  rig.legLen=P.hipR[1]-P.ankleR[1];
+}
+function redress(rig){
+  if(!rig.real)return;
+  const old=rig.body.geometry;
+  rig.body.geometry=dressGeometry(rig,rig.bodyLod||0);
+  old.dispose();
+  if(rig.bodyLo){const o2=rig.bodyLo.geometry;rig.bodyLo.geometry=dressGeometry(rig,1);o2.dispose();}
+  applyRest(rig);
+  paintFace(rig);                      /* new colours, maybe a new beard */
+  realEyes(rig);
+}
+/* Props hung on the joints were cut for the capsules: an apron was a board
+   18 cm in front of a chest, a scarf a ring for a neck twice as thick, the
+   ice bags hung 27 cm below a wrist that now ends in a 21 cm hand. */
+function realProps(rig){
+  const J=rig.J;
+  J.chest.children.forEach(c=>{
+    if(c.userData.acc==="apron")c.visible=false;          /* the cloth one replaces it */
+    if(c.userData.acc==="scarf"){
+      /* wound once round a real neck, one end hanging over the chest */
+      c.geometry=new THREE.TorusGeometry(.068,.027,10,22);
+      c.position.set(0,.262,.012);c.scale.set(1,1,.92);
+      const end=new THREE.Mesh(new THREE.BoxGeometry(.07,.2,.022),c.material);
+      end.position.set(.035,-.02,.07);end.rotation.set(-1.45,.18,0);   /* in the torus's own frame */
+      end.castShadow=true;c.add(end);
+    }
+  });
+  if(rig.id==="courier"){
+    courierBags.forEach(b=>{b.position.y=-.33;});
+    /* the ICE CUBE mark, back on his chest: it rode the capsule torso's own
+       UVs; on the real tee it is a patch of the same canvas, bent to the
+       chest (r .49, measured) and laid 1.5 mm proud of the cloth. The
+       field around the mark is the tee's own blue, so the patch has no edge. */
+    /* the band plus the lettering that runs below it: .24 x .48 of the
+       canvas, square in pixels, so a 12 cm square on him */
+    const g=new THREE.CylinderGeometry(.49,.49,.12,8,1,true,-.1225,.245);
+    const uv=g.attributes.uv,V0=ICE_MARK[3]-.48;
+    for(let i=0;i<uv.count;i++)uv.setXY(i,ICE_MARK[0]+uv.getX(i)*(ICE_MARK[1]-ICE_MARK[0]),
+      V0+uv.getY(i)*.48);
+    /* only the mark itself: the pale glyph and letters cut out of the
+       canvas, the field left to the tee — a textured field never quite
+       matches vertex-coloured cloth, and a darker square is a sticker */
+    const cut=document.createElement("canvas"),src=iceMarkTex.userData.canvas;
+    cut.width=src.width;cut.height=src.height;
+    const cutTex=new THREE.CanvasTexture(cut);cutTex.encoding=THREE.sRGBEncoding;
+    const derive=()=>{
+      const x=cut.getContext("2d");x.clearRect(0,0,cut.width,cut.height);x.drawImage(src,0,0);
+      const d=x.getImageData(0,0,cut.width,cut.height),q=d.data;
+      for(let i=0;i<q.length;i+=4){
+        const a=Math.max(0,Math.min(1,((q[i]+q[i+1]+q[i+2])/3-120)/90));
+        q[i]=234;q[i+1]=245;q[i+2]=251;q[i+3]=a*255;
+      }
+      x.putImageData(d,0,0);cutTex.needsUpdate=true;
+    };
+    derive();VC.fontsReady.then(derive);   /* the canvas repaints once the webfont lands */
+    const dec=new THREE.Mesh(g,new THREE.MeshStandardMaterial({map:cutTex,alphaTest:.45,roughness:.86,
+      envMapIntensity:.35,polygonOffset:true,polygonOffsetFactor:-2}));
+    /* above the belly a heavier build pushes forward (heavy .65) */
+    dec.position.set(0,.095,.1176-.49);
+    J.chest.add(dec);
+  }
+}
+const _grip=new THREE.Vector3();
+/* where a hand holds something: the wrist on a capsule, the middle of the
+   grip on a real hand (8.5 cm down it) */
+function gripPoint(rig,side,out){
+  const w=rig.J["wrist"+side];
+  if(!rig.real)return w.getWorldPosition(out);
+  w.updateWorldMatrix(true,false);
+  return w.localToWorld(out.set(0,-.085,0));
+}
+function realizeRig(rig){
+  if(!REAL.ready||rig.real)return;
+  const J=rig.J,P=REAL.hdr.joints;
+  /* the capsules go — everything buildPerson made. Props hung on the joints
+     afterwards (aprons, the book, the bags, the cup, the headsets) stay. */
+  const doomed=[];
+  rig.root.traverse(c=>{if(c!==rig.root&&c.userData.capsule)doomed.push(c);});
+  for(const c of doomed)if(c.parent)c.parent.remove(c);
+  const bones=REAL.hdr.bones.map(n=>J[n]);
+  const skel=new THREE.Skeleton(bones,bones.map(()=>new THREE.Matrix4()));
+  /* two levels of detail sharing the skeleton and the material: the full
+     person within REAL_LOD_FAR of the camera, a third of the triangles
+     beyond it — and on a phone only that lighter one (Simon excepted:
+     he is the one seen at arm's length on every device) */
+  const hasLo=!!REAL.meshes["body@1"],onlyLo=hasLo&&TOUCH&&rig.id!=="simon";
+  const mat=realMaterial(rig),I4=new THREE.Matrix4();
+  rig.bodyLod=onlyLo?1:0;
+  const body=new THREE.SkinnedMesh(dressGeometry(rig,rig.bodyLod),mat);
+  body.castShadow=true;
+  if(hasLo&&!onlyLo){
+    const far=new THREE.SkinnedMesh(dressGeometry(rig,1),mat);
+    far.castShadow=true;
+    const lod=new THREE.LOD();
+    lod.addLevel(body,0);lod.addLevel(far,REAL_LOD_FAR);
+    rig.root.add(lod);
+    /* identity bind: the vertices are already in root space, and attached
+       mode re-inverts the mesh's own world matrix every frame */
+    far.bind(skel,I4);
+    rig.bodyLo=far;rig.lod=lod;
+  }else rig.root.add(body);
+  body.bind(skel,I4);
+  rig.body=body;
+  /* rest offsets from the file — the mesh's anatomy, this person's shape */
+  applyRest(rig);
+  rig.real=true;
+  /* the eye groups stayed in the tree — gaze and blink write to them
+     every frame — and now get real eyes, in the sockets the head has */
+  realEyes(rig);
+  realProps(rig);
+}
+if(USE_REAL_PEOPLE)fetch("people.bin").then(r=>{
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  return r.arrayBuffer();
+}).then(function(buf){
+  parsePeople(buf);
+  REAL.ready=true;
+  for(let i=0;i<agents.length;i++){
+    const a=agents[i];
+    realizeRig(a.rig);
+    if(a.rootY<-.2)a.rootY+=seatPelvisY(a.rig)-.56;   /* on a chair (stools ride at -.01) */
+  }
+  realizeSimon();
+}).catch(function(err){
+  console.warn("[vc] people.bin failed — capsule people it is:",err);
+});
+
 /* ---------------- LIGHTS ----------------
    Daylight is COOL (sky through two walls of glass), the practicals are
    WARM (2700 K globes, the cove, the toe kick) — and since the design pass
@@ -5763,6 +6587,7 @@ const GEO_THUMB=new THREE.BoxGeometry(.021,.052,.022);
    forward on both sides. */
 function buildHand(parent,mat,sgn){
   const h=new THREE.Group();
+  h.userData.capsule=true;
   h.position.y=-.014;
   h.rotation.y=-sgn*Math.PI/2;
   const palm=new THREE.Mesh(GEO_PALM,mat);
@@ -5800,6 +6625,7 @@ function buildPerson(opts){
   const mSh=stdMat(0x1d1d22,.7,0,.35);
   function put(parent,geo,mat,x,y,z,cast,slot){
     const m=new THREE.Mesh(geo,mat);
+    m.userData.capsule=true;             /* realizeRig() strips these */
     m.position.set(x,y,z);
     if(cast)m.castShadow=true;
     if(slot)m.userData.slot=slot;
@@ -5874,6 +6700,7 @@ function buildPerson(opts){
      It rides the head joint, so it turns with a glance — no simulation,
      and none missed at this scale. */
   const longHair=new THREE.Group();
+  longHair.userData.capsule=true;
   longHair.visible=!!o.fem;
   longHair.userData.acc="longhair";
   /* worn down, the hair covers the ears — theirs used to poke straight
@@ -5968,6 +6795,7 @@ function buildPerson(opts){
   mouth.position.set(0,-.030,.1405);
   mouth.scale.set(1.3,.72,1);      /* wider than tall: gentle, not a grin */
   mouth.userData.acc="mouth";      /* humanizeRig moves it onto the sculpted lips */
+  mouth.userData.capsule=true;
   head.add(mouth);
   /* ARMS ON THE BODY, not beside it. The joints used to sit at |x|=.225
      with a .045 arm hanging off them: the arm's inner edge landed at .18
@@ -6011,6 +6839,7 @@ function buildPerson(opts){
 function setFem(rig,on){
   if(!rig.longHair)return;
   rig.opts.fem=!!on;
+  if(rig.real)return;               /* a real body keeps its own rest shoulders */
   rig.longHair.visible=!!on;
   if(rig.ears)rig.ears.forEach(e=>{e.visible=!on;});
   const x=on?.204:.215;
@@ -6039,6 +6868,8 @@ function shotsLayer(a,buf,dt){
 const agents=[];
 function makeAgent(id,kind,opts){
   const rig=buildPerson(opts);
+  rig.id=id;rig.kind=kind;             /* realizeRig() dresses by character */
+  if(REAL.ready)realizeRig(rig);       /* born after people.bin landed */
   const a={
     id:id,kind:kind,rig:rig,buf:makePoseBuffer(),
     pos:new THREE.Vector3(),yaw:0,rootY:0,
@@ -6135,7 +6966,10 @@ function gazeAngles(a){
 function clampN(v,l){return Math.max(-l,Math.min(l,v));}
 function gazeLayer(a,buf,dt,ac){
   gazeAngles(a);
-  const eyeY=clampN(_ga.yaw,LIM.eyeYaw),eyeP=clampN(_ga.pitch,LIM.eyePitch);
+  /* a real eyeball sits deep in its socket: past ~17 degrees the iris goes
+     under a lid, so on the new faces the head takes more of every glance */
+  const RE=a.rig.real;
+  const eyeY=clampN(_ga.yaw,RE?.30:LIM.eyeYaw),eyeP=clampN(_ga.pitch,RE?.16:LIM.eyePitch);
   const restY=_ga.yaw-eyeY,restP=_ga.pitch-eyeP;
   const headY=clampN(restY,LIM.headYaw),headP=clampN(restP,LIM.headPitch);
   const chestY=clampN(restY-headY,LIM.chestYaw);
@@ -6161,11 +6995,21 @@ function blinkLayer(a,dt){
     a.blinkPhase=1;
     a.blinkT=Math.random()<.17?.2:jit(4.2,.55);
   }
+  let k=0;
   if(a.blinkPhase>0){
     a.blinkPhase-=dt*8.5;
-    const k=Math.sin(Math.max(0,a.blinkPhase)*Math.PI);
-    for(let i=0;i<a.rig.eyes.length;i++)
+    k=Math.sin(Math.max(0,a.blinkPhase)*Math.PI);
+    if(!a.rig.real)for(let i=0;i<a.rig.eyes.length;i++)
       a.rig.eyes[i].lid.rotation.x=k*Math.PI*.92;
+  }
+  /* a real upper lid is written every frame: it rests over the top of the
+     iris and FOLLOWS a downward glance (the eye group already carries it
+     down with the eye; this lowers it as far again) — an eye that looks
+     down under a lid that stays up is all white above the iris, the stare
+     that read as blind across the room */
+  if(a.rig.real){
+    const lo=k*.93+Math.max(0,-a.eyeP)*.9;
+    for(let i=0;i<a.rig.eyes.length;i++)a.rig.eyes[i].lid.rotation.x=lo;
   }
 }
 function breathLayer(a,buf,ac){
@@ -6391,7 +7235,7 @@ drinker.pos.set(-1.706,0,-1.809);drinker.yaw=-Math.PI/2;drinker.rootY=-.01;
 {
   const scarf=new THREE.Mesh(new THREE.TorusGeometry(.09,.035,10,18),
     stdMat(0x2f8f86,.9,0,.3));
-  scarf.position.y=.28;scarf.rotation.x=Math.PI/2;
+  scarf.position.y=.28;scarf.rotation.x=Math.PI/2;scarf.userData.acc="scarf";
   drinker.rig.J.chest.add(scarf);
 }
 const sitCup=new THREE.Mesh(new THREE.CylinderGeometry(.035,.03,.08,12),
@@ -6505,6 +7349,12 @@ const SEAT_SERVE=[
   {cup:[-0.079,.837,2.488],stand:[-0.152,1.933]}
 ];
 const SIT_ROOTY=-.295;
+/* The chair height (.56 for the pelvis on a .503 seat) was measured on the
+   capsules, whose hip cylinder bottomed out exactly on the seat. A real
+   seat carries 3.7 cm more of person under the hip joint (measured: the
+   lowest pelvis-led vertex, CPU-skinned), so a real body rides that much
+   higher — rootY stays negative, "seated" means what it always meant. */
+const seatPelvisY=rig=>rig&&rig.real?.597:.56;
 const sitters=[];
 for(let i=0;i<2;i++){
   const s=makeAgent("sitter"+i,"sitter",{});
@@ -6522,7 +7372,7 @@ function freeSeat(a){
 }
 function sitterSeat(a,s){
   a.walkTarget=null;a.active=false;
-  a.pos.set(s.pos[0],0,s.pos[1]);a.yaw=s.yaw;a.rootY=SIT_ROOTY;
+  a.pos.set(s.pos[0],0,s.pos[1]);a.yaw=s.yaw;a.rootY=seatPelvisY(a.rig)-.855*a.rig.root.scale.y;
 }
 /* ---------------- THE WAITER ----------------
    The room had a barista who made coffee and customers who sat down, and
@@ -6584,7 +7434,7 @@ waiter.job=null;waiter.leg=0;waiter.plan=null;waiter.phase=0;
 { /* a short apron, the same cut the barista wears */
   const ap=new THREE.Mesh(new THREE.BoxGeometry(.30,.34,.055),
     stdMat(0x1d232a,.92,0,.25));
-  ap.position.set(0,-.16,.11);waiter.rig.J.chest.add(ap);
+  ap.position.set(0,-.16,.11);ap.userData.acc="apron";waiter.rig.J.chest.add(ap);
   /* THE TRAY, and he never puts it down. It is NOT a child of the hand:
      parented to the wrist it inherits every rotation in the arm chain, so
      it tips with the forearm and a tray carrying a coffee turns into a
@@ -6868,7 +7718,11 @@ function reskin(a){
   /* the stroller and the guest are rebuilt every visit, so their gender
      is rolled with the rest of the wardrobe rather than fixed at birth */
   setFem(a.rig,Math.random()<.5);
-  a.rig.root.traverse(m=>{
+  /* kept on the rig as well, so a body that turns real after this still
+     wears this visit's colours */
+  Object.assign(a.rig.opts,o);
+  if(a.rig.real){a.rig.outfit=null;a.rig.traits=null;redress(a.rig);}   /* a new cut, a new build */
+  else a.rig.root.traverse(m=>{
     if(!m.isMesh||!m.userData.slot)return;
     const s=m.userData.slot;
     m.material=stdMat(o[s],s==="skin"?.55:s==="hair"?.8:.9,0,
@@ -7528,7 +8382,7 @@ function startSit(a){
   a.state="sit";a.walkTarget=null;
   jbOnSit();                      /* sitting down ends the party — music included */
   showSeatMarker(false);          /* you are in it: the marker has done its job */
-  a.sit={k:0,fx:a.pos.x,fz:a.pos.z,rY:.56-.855*a.rig.root.scale.x};
+  a.sit={k:0,fx:a.pos.x,fz:a.pos.z,rY:seatPelvisY(a.rig)-.855*a.rig.root.scale.x};
   playShot(a,1.05,(k,buf)=>{           /* brace on the way down */
     const p=pulse(k);
     addPose(buf,{chest:{x:.18*p},
@@ -7728,8 +8582,8 @@ function sipShot(a,cup){
       if(a.cupHeld&&p<.1)a.cupHeld=false;
     }
     if(cup&&a.cupHeld){
-      a.rig.J.wristR.getWorldPosition(cup.position);
-      cup.position.y-=.03;
+      gripPoint(a.rig,"R",cup.position);
+      if(!a.rig.real)cup.position.y-=.03;
     }else if(cup&&!a.cupHeld){
       cup.position.lerp(a.cupRest,.25);
     }
@@ -7847,6 +8701,11 @@ function angleDamp(cur,target,k,dt){
   return cur+d*(1-Math.pow(1-k,dt*60));
 }
 const SEAT_POSE={hipL:{x:-1.35},hipR:{x:-1.35},kneeL:{x:1.2},kneeR:{x:1.2}};
+/* a real leg is a longer shin under a shorter thigh than the capsule's:
+   at the capsule's angles the feet went 5-6 cm into the floor. The thigh
+   nearer level and the shin nearer plumb put the soles back on it. */
+const SEAT_POSE_REAL={hipL:{x:-1.45},hipR:{x:-1.45},kneeL:{x:1.3},kneeR:{x:1.3}};
+const seatPose=a=>a.rig.real?SEAT_POSE_REAL:SEAT_POSE;
 /* Steer AROUND a blocker instead of into it. Walking straight at a
    target on the far side of the table pins him on the collision circle:
    the push-out and the pull-in cancel and he stalls there for ever. With
@@ -7990,7 +8849,7 @@ function walkLayer(a,buf,ac,dt){
      .3824) are the mesh's own proportions, while the joints rest at
      .44 / .38 — measured on every agent, capsule cast and person.obj
      alike, so one number is honest for all of them. */
-  const leg=.82*a.rig.root.scale.x;
+  const leg=(a.rig.legLen||.82)*a.rig.root.scale.x;   /* a real body brings its own */
   /* The stride is DERIVED from the swing instead of declared next to it,
      and that is the whole repair. stepLen was a hand-set .52 while the
      legs actually spread .667: the body advanced 22% less per step than
@@ -8044,7 +8903,7 @@ function sitLayer(a,buf,dt){
       a.sit=null;a.state="walk";a.rootY=0;a.gazeLock=null;
       return;
     }
-    addPose(buf,SEAT_POSE,e);
+    addPose(buf,seatPose(a),e);
     return;
   }
   if(s.k<1){
@@ -8056,7 +8915,7 @@ function sitLayer(a,buf,dt){
     a.rootY=s.rY*e;
     if(s.k>=1)a.state="seated";
   }
-  addPose(buf,SEAT_POSE,easeInOut(s.k));
+  addPose(buf,seatPose(a),easeInOut(s.k));
 }
 /* ---- typing ----
    These angles are MEASURED in the running scene, which is not the same
@@ -8109,9 +8968,9 @@ function trayLayer(a,buf){
      when the right one leaves, the offset it had from the LEFT wrist is
      what it keeps, so the tray stays where the remaining hand is holding
      it instead of lurching after the arm that walked away. */
-  a.rig.J.wristL.getWorldPosition(_tw);
+  gripPoint(a.rig,"L",_tw);
   if(two){
-    a.rig.J.wristR.getWorldPosition(_tw2);
+    gripPoint(a.rig,"R",_tw2);
     a.tray.position.lerpVectors(_tw,_tw2,.5);
     a.tray.position.y+=.035;
     if(!a.trayOff)a.trayOff=new THREE.Vector3();
@@ -8148,7 +9007,7 @@ function animateAgents(dt){
        stool on it) — the courier's set-down dip lowers the same field,
        and without the exclusion the trigger folded him into a full
        chair pose mid-delivery */
-    if(a.rootY<0&&!a.sit&&a.kind!=="courier")addPose(a.buf,SEAT_POSE,1);
+    if(a.rootY<0&&!a.sit&&a.kind!=="courier")addPose(a.buf,seatPose(a),1);
     walkLayer(a,a.buf,ac,dt);
     if(a.sit)sitLayer(a,a.buf,dt);
     shotsLayer(a,a.buf,dt);
@@ -8527,7 +9386,7 @@ window.__sit=()=>{
   jbOnSit();          /* same rule as the real ring: sitting ends the party */
   guest.pos.set(GUEST_SEAT.x,0,GUEST_SEAT.z);
   guest.yaw=GUEST_SEAT.yaw;
-  guest.rootY=.56-.855*guest.rig.root.scale.x;
+  guest.rootY=seatPelvisY(guest.rig)-.855*guest.rig.root.scale.x;
   guest.sit={k:1,fx:GUEST_SEAT.x,fz:GUEST_SEAT.z,rY:guest.rootY};
   guest.state="seated";
   guest.moveTo=null;guest.walkTarget=null;
@@ -8661,6 +9520,9 @@ function jbEnsureHeadsets(){
     const hs=jbHeadset();
     hs.position.set(0,.02,-.006);
     hs.rotation.x=-.07;
+    /* a real head is narrower than it is tall: the band an ellipse, the
+       cups on the ears (±.09), the crown clear of the hair */
+    if(a.rig.real){hs.scale.set(.5,.62,.6);hs.position.set(0,-.025,-.004);}
     hs.visible=false;
     a.rig.J.head.add(hs);
     a.jbHs=hs;
@@ -9543,6 +10405,149 @@ mouthMesh.position.set(0,-.088,.168);simonHead.add(mouthMesh);
 const simonBox=new THREE.Mesh(new THREE.BoxGeometry(.85,1.35,.65),
   new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
 simonBox.position.set(0,1.15,-1.08);scene.add(simonBox);
+
+/* ---------------- THE REAL SIMON ----------------
+   The host becomes a person like the rest of the room, built from the same
+   people.bin as the cast: the white shirt and navy blazer, the round
+   tortoiseshell glasses, the moustache and small goatee, short dark hair
+   with a wave in it (photo.jpg). Everything the scene already does WITH him
+   keeps its handle: `simonHead` stays the point every glance in the room is
+   aimed at (moved onto his real head every frame), and the animate loop
+   still writes the head turn, the nods, the eyes, the blink, the jaw and
+   the talking shoulder to the old objects — mapSimon() reads them back onto
+   the new body. The primitives are hidden, not deleted: if people.bin never
+   arrives, the old Simon is simply still there. */
+let simonRig=null,simonMouth=null;
+let SIMON_EYE_Y=1.6;       /* where tPit measures his gaze from; the real eyes sit lower */
+/* leaning in a touch over the table, head level again */
+const SIMON_POSE={spine:{x:.04},chest:{x:.10},neck:{x:-.06},head:{x:-.03}};
+/* Two-bone reach by coordinate descent on the rig itself: slow (a few hundred
+   world-matrix updates) but run once, and it answers the only question that
+   matters here — where the wrist and the fingertips actually land. */
+function solveArm(rig,S,wristAt,tipAt){
+  const J=rig.J,sh=J["shoulder"+S],el=J["elbow"+S],wr=J["wrist"+S];
+  const tip=new THREE.Object3D();tip.position.set(0,-.19,0);wr.add(tip);
+  const V=[[sh.rotation,"x",-2.2,.3],[sh.rotation,"y",-1,1],[sh.rotation,"z",-.7,.7],
+    [el.rotation,"x",-2.3,0],[wr.rotation,"x",-1,1],[wr.rotation,"y",-1.8,1.8]];
+  const a=new THREE.Vector3(),b=new THREE.Vector3();
+  const err=()=>{simon.updateMatrixWorld(true);wr.getWorldPosition(a);tip.getWorldPosition(b);
+    return a.distanceToSquared(wristAt)+.5*b.distanceToSquared(tipAt);};
+  let e=err(),step=.25;
+  for(let it=0;it<600&&step>2e-4;it++){
+    let better=false;
+    for(const v of V){
+      const o=v[0],k=v[1],v0=o[k];
+      for(const d of[step,-step]){
+        o[k]=Math.min(v[3],Math.max(v[2],v0+d));
+        const e2=err();
+        if(e2<e){e=e2;better=true;break;}
+        o[k]=v0;
+      }
+    }
+    if(!better)step*=.5;
+  }
+  wr.remove(tip);
+  return Math.sqrt(e);
+}
+function realizeSimon(){
+  if(simonRig||!REAL.ready)return;
+  simonRig=buildPerson({shirt:0xeeece6,pants:0x2b2e37,skin:0xdcb08d,hair:0x1c1512,eye:0x4a3322});
+  simonRig.id="simon";simonRig.kind="simon";
+  scene.remove(simonRig.root);
+  simon.add(simonRig.root);
+  /* pelvis at .56 on his .503 seat, like a seated guest; the simon group
+     itself sits .10 low (see above), so the root rides .10 higher inside it */
+  realizeRig(simonRig);
+  simonRig.root.position.set(0,seatPelvisY(simonRig)-.855+.10,0);
+  simon.children.forEach(c=>{if(c!==simonRig.root)c.visible=false;});
+  simonHead.children.forEach(c=>{c.visible=false;});
+  const J=simonRig.J;
+  for(const n in SIMON_POSE)J[n].rotation.set(SIMON_POSE[n].x||0,0,0);
+  J.hipL.rotation.x=J.hipR.rotation.x=-1.45;J.kneeL.rotation.x=J.kneeR.rotation.x=1.3;
+  J.shoulderL.rotation.set(-.6,0,-.12);J.shoulderR.rotation.set(-.6,0,.12);
+  J.elbowL.rotation.x=J.elbowR.rotation.x=-1.1;
+  /* hands flat on the table, 16 cm in from its edge (z -.865), fingers
+     toward the visitor and a little inward — where the old hands rested */
+  const eL=solveArm(simonRig,"L",new THREE.Vector3(-.17,.835,-.70),new THREE.Vector3(-.12,.814,-.53));
+  const eR=solveArm(simonRig,"R",new THREE.Vector3(.17,.835,-.70),new THREE.Vector3(.12,.814,-.53));
+  if(eL>.03||eR>.03)console.warn("[vc] simon's hands miss the table by",eL.toFixed(3),eR.toFixed(3));
+  simonRig.shR=J.shoulderR.rotation.z;
+  simonGlasses(J,simonRig.restJ.head);
+  simonMouth=simonMouthMesh(J,simonRig.restJ.head);
+  simon.updateMatrixWorld(true);
+  const v=new THREE.Vector3();simonRig.eyes[0].eg.getWorldPosition(v);SIMON_EYE_Y=v.y;
+}
+/* Round tortoiseshell frames, on the real eyes: rings 43 mm across set
+   ~15 mm in front of the cornea and a hair below the pupils (glasses ride
+   on the nose, not on the brows), a keyhole bridge, temples to the ears.
+   Lenses are there for the room's reflection in them and nothing else. */
+function simonGlasses(J,H){
+  const g=new THREE.Group();
+  const frame=new THREE.MeshStandardMaterial({color:0x3b2416,roughness:.3,metalness:0,envMapIntensity:.7});
+  const lens=new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:.07,
+    roughness:.04,metalness:0,envMapIntensity:1.5,depthWrite:false});
+  const EX=.032,EY=1.643,EZ=.113,R=.0215;
+  const L=(x,y,z)=>new THREE.Vector3(x-H[0],y-H[1],z-H[2]);
+  for(const s of[-1,1]){
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(R,.0024,8,32),frame);
+    ring.position.copy(L(s*EX,EY,EZ));g.add(ring);
+    const gl=new THREE.Mesh(new THREE.CircleGeometry(R,24),lens);
+    gl.position.copy(ring.position);gl.position.z-=.0008;g.add(gl);
+    const a=L(s*(EX+R*.96),EY+.004,EZ-.003),b=L(s*.077,1.647,-.014);
+    const tm=new THREE.Mesh(new THREE.CylinderGeometry(.0016,.0016,a.distanceTo(b),6),frame);
+    tm.position.copy(a).add(b).multiplyScalar(.5);
+    tm.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),b.clone().sub(a).normalize());
+    g.add(tm);
+  }
+  const br=new THREE.Mesh(new THREE.TorusGeometry(.0105,.0022,6,12,Math.PI),frame);
+  br.position.copy(L(0,1.6505,.1178));g.add(br);
+  g.traverse(m=>{if(m.isMesh)m.castShadow=true;});
+  J.head.add(g);
+  return g;
+}
+/* The inside of the mouth, for the lip-sync: a dark shape laid ON the lip
+   line and bent round it (a flat one stands proud of the corners), opened
+   by the same jaw value the old box took. Closed, it is a hairline. */
+function simonMouthMesh(J,H){
+  const N=15,P=[],I=[];
+  for(let i=0;i<N;i++){
+    const t=i/(N-1)*2-1,x=t*.0165,hw=Math.sqrt(Math.max(0,1-t*t));
+    const z=zLip(x)+.0012-(zLip(0)+.0012);
+    P.push(x,hw,z, x,-hw*.9,z);
+  }
+  for(let i=0;i<N-1;i++){const a=i*2;I.push(a,a+1,a+2, a+2,a+1,a+3);}
+  const g=new THREE.BufferGeometry();
+  g.setAttribute("position",new THREE.Float32BufferAttribute(P,3));
+  g.setIndex(I);g.computeVertexNormals();
+  const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x120605,
+    polygonOffset:true,polygonOffsetFactor:-2}));
+  /* the upper teeth: a pale band along the top of the opening, which only
+     grows into view as the mouth does */
+  const teeth=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:0xa99d8c,roughness:.45,
+    polygonOffset:true,polygonOffsetFactor:-3}));
+  teeth.scale.set(.9,.26,1);teeth.position.set(0,.7,.0002);
+  m.add(teeth);
+  m.position.set(-H[0],1.5745-H[1],zLip(0)+.0012-H[2]);
+  m.scale.set(1,.0004,1);
+  J.head.add(m);
+  return m;
+}
+function mapSimon(eyeS){
+  const J=simonRig.J;
+  J.neck.rotation.set(SIMON_POSE.neck.x+simonHead.rotation.x*.35,simonHead.rotation.y*.35,simonHead.rotation.z*.4);
+  J.head.rotation.set(SIMON_POSE.head.x+simonHead.rotation.x*.65,simonHead.rotation.y*.65,simonHead.rotation.z*.6);
+  const eY=clampN(simonEyeY,.30),eP=clampN(simonEyeP,.16);
+  simonRig.eyes.forEach(e=>{
+    e.eg.rotation.y=eY;e.eg.rotation.x=-eP;
+    e.lid.rotation.x=(eyeS<1?.93:0)+Math.max(0,-eP)*.9;
+  });
+  const jaw=Math.max(0,(mouthMesh.scale.y-1)/3.2);
+  simonMouth.scale.set(mouthMesh.scale.x,.0004+jaw*.0046,1);
+  if(simon.userData.rShoulder)
+    J.shoulderR.rotation.z=simonRig.shR+(simon.userData.rShoulder.rotation.z-.32)*.8;
+  /* every glance in the room is aimed at simonHead: put it on his real head */
+  J.head.getWorldPosition(simonHead.position);
+}
 
 /* Simon's cup + saucer + steam + pen + croissant */
 const saucer=new THREE.Mesh(new THREE.CylinderGeometry(.085,.07,.014,20),
@@ -10599,7 +11604,9 @@ function startEntrance(){
      honour: re-pick the shirt from the clearly-clothed end of the rack */
   const GUEST_SHIRTS=[0x2c4a6e,0x35543f,0x5a2c33,0x7d3b3b];
   const sc=GUEST_SHIRTS[(Math.random()*GUEST_SHIRTS.length)|0];
-  guest.rig.root.traverse(m=>{
+  guest.rig.opts.shirt=sc;
+  if(guest.rig.real)redress(guest.rig);
+  else guest.rig.root.traverse(m=>{
     if(m.isMesh&&m.userData.slot==="shirt")m.material=stdMat(sc,.9,0,.25);
   });
   guest.rig.root.scale.setScalar(1);
@@ -10612,7 +11619,7 @@ function startEntrance(){
   if(RM){                              /* no cutscene: already seated, talk now */
     guest.pos.set(GUEST_SEAT.x,0,GUEST_SEAT.z);
     guest.yaw=GUEST_SEAT.yaw;
-    guest.rootY=.56-.855*guest.rig.root.scale.x;
+    guest.rootY=seatPelvisY(guest.rig)-.855*guest.rig.root.scale.x;
     guest.sit={k:1,fx:GUEST_SEAT.x,fz:GUEST_SEAT.z,rY:guest.rootY};
     guest.state="seated";
     arriveAtTable();
@@ -10745,7 +11752,7 @@ addEventListener("pagehide",saveVisit);
     guest.active=true;guest.prop=paper;
     guest.pos.set(GUEST_SEAT.x,0,GUEST_SEAT.z);
     guest.yaw=GUEST_SEAT.yaw;
-    guest.rootY=.56-.855*guest.rig.root.scale.x;
+    guest.rootY=seatPelvisY(guest.rig)-.855*guest.rig.root.scale.x;
     guest.sit={k:1,fx:GUEST_SEAT.x,fz:GUEST_SEAT.z,rY:guest.rootY};
     guest.state="seated";
     showSeatMarker(false);
@@ -11621,7 +12628,7 @@ function animate(){
   const tYaw=hasGuest?Math.atan2(guest.pos.x,guest.pos.z+1.08)
                      :Math.atan2(camera.position.x,camera.position.z+1.08);
   const tgtY=hasGuest?(guest.state==="walk"?1.5:1.34):camera.position.y;
-  const tPit=Math.atan2(tgtY-1.6,
+  const tPit=Math.atan2(tgtY-SIMON_EYE_Y,
     Math.hypot(hasGuest?guest.pos.x:camera.position.x,
                (hasGuest?guest.pos.z:camera.position.z)+1.08));
   simonLook=damp(simonLook,clampN(tYaw,.62),.055,dt);
@@ -11662,6 +12669,7 @@ function animate(){
     if(simon.userData.rShoulder)
       simon.userData.rShoulder.rotation.z+=(.32-simon.userData.rShoulder.rotation.z)*.1;
   }
+  if(simonRig&&simonRig.real)mapSimon(eyeS);
   /* the seat marker: bob, slow spin, breathing ring — and a fade so it
      leaves the frame instead of blinking out when he sits down */
   {

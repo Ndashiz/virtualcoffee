@@ -106,7 +106,10 @@ ANATOMIE.md         Body measurements + 100 joint criteria — the cast's refere
 cafe.obj.txt        The café itself — real 3D model, ~95k tris (5.1 MB, ~980 KB gzipped)
 tex/*.png           13 baked label maps — trophy cabinet, diplomas, van (~376 KB)
 DIRECTION_ARTISTIQUE_2026.md  The 2026 design brief, space by space (French)
-person.obj          Male NPC body — base mesh cut into 15 rig segments (~550 KB)
+people.bin          The cast's bodies, clothes and hair — one skinned mesh per person,
+                    two levels of detail (~1.1 MB, built by people/)
+people/             The offline Blender pipeline that writes people.bin
+person.obj          Retired segmented body (USE_PERSON_MESH=false, never fetched)
 fonts.css           @font-face for the three self-hosted families
 fonts/*.woff2       Space Grotesk · Inter · Caveat (latin + latin-ext)
 three.min.js        three.js r134, vendored
@@ -227,10 +230,49 @@ blowing up the wall texture, so the ticker is legible — a second of "connectin
 to the live", then the picture, a progress bar and the current story. One big
 arrow sends it back.
 
+### The people (real bodies, 2026-09)
+
+Everyone in the room — the cast, the extras, the guest and Simon — is now **one
+continuous skinned body**, not a stack of capsules: `people.bin` carries
+FinalBaseMesh re-posed to the rig's rest, heat-weighted to the rig's **own
+joint names**, so a `THREE.Skeleton` binds straight onto the `THREE.Group`
+joints `buildPerson()` already makes. Every behaviour layer, `applyPose()`
+and its `LIMITS`, the seats and the props keep driving the same joints —
+nothing about how people move was rewritten. The capsules are still built
+first and only swapped once the file lands (`realizeRig()`), so a failed
+fetch leaves the old cast in place.
+
+- **Dressed, not painted.** Tee, shirt, sweater, blazer, trousers, shoes and
+  a bistro apron are shells cut from the body offline — hems exactly on a
+  line, cloth that falls from the chest and the shoulder blades instead of
+  clinging under them, sleeves that taper. The body faces a garment covers
+  are dropped at runtime; body + clothes + hair merge into **one draw call
+  per person** (the capsules were ~30).
+- **Faces.** The base head's eyes are cut open; real eyeballs turn in the
+  sockets under upper lids that rest on the iris and follow a downward
+  glance; brows, lashes, lips, stubble and beards, the fuzz of a hairline and
+  the lines of age are painted per person onto a canvas projected round the
+  head. Eight haircuts, each a shell that thins to nothing at the hairline.
+- **Who they are.** `fem` and `heavy` are displacement fields applied to
+  body, clothes, hair and joints alike (shoulders, waist, hips, bust, jaw,
+  brow, nose, lips; belly and limbs). Height shortens the upper body and never
+  goes through `root.scale` (see CLAUDE.md). The cast sheet — who wears what,
+  which haircut, which beard — is `REAL_TOPS` / `REAL_HAIR` / `REAL_BEARD` /
+  `REAL_TRAITS`.
+- **Simon** is a real body too, seated at his table with his hands placed by
+  a small IK solve, in the navy blazer, round tortoiseshell glasses,
+  moustache and goatee of the photo; the old head/eye/mouth handles are read
+  back onto him every frame (`mapSimon()`), his voice opens a real mouth.
+- **Cost.** One `MeshStandardMaterial` per person (shared program) with an
+  `onBeforeCompile` for the paint, fabric and skin micro-relief and a hair
+  sheen. LOD1 (~35 % of the triangles) beyond 4.5 m and everywhere on touch
+  devices except Simon. Draw calls went 772 → 319 (desktop), triangles
+  242 k → ~435 k in the main pass.
+
 `person.obj` is currently **retired** (`USE_PERSON_MESH=false` in the scene):
 the segmented base-mesh bodies read as ragged mannequins next to the capsule
-cast, so the capsule people are the look again — consistent with Simon, who
-was always bespoke. The whole swap pipeline is still in the file and the asset
+cast, so the capsules stayed the look until the continuous bodies above
+replaced them (the capsules are still what renders if `people.bin` fails). The whole swap pipeline is still in the file and the asset
 still ships, for a future better-cut mesh: it is a decimated base mesh cut
 offline into fifteen segments, each exported **in the local space of the rig
 joint that carries it**, so the swap is just "remove the cylinder under this
@@ -238,7 +280,7 @@ joint, add this mesh under the same joint" and every behaviour written for the
 capsules (gaze, turn-taking, sip, walk, `reskin()`) drives either body
 untouched. Flip the flag to try again.
 
-Being the look again, the capsules got the pass they had been owed: **hands
+Before that, the capsules got the pass they had been owed: **hands
 with five digits** (a palm, four fingers and a thumb, shared geometry, and
 cheaper than the ball they replace), **ears**, **shoulders that meet the body**
 — a deltoid cap bridges the joint, with the arm socket a centimetre in from

@@ -187,6 +187,44 @@ mechanics that bite:
   replaced: grade offsets that were harmless before clip walnut, bronze and
   smoked oak to pure black (the night grade's exposure had to move).
 
+## The people (people.bin) — what bites
+
+The cast is skinned onto the rig's own `THREE.Group` joints (`realizeRig()`,
+section `REAL PEOPLE`). The capsules are still built first and are the
+fallback. Rebuild the asset with `people/build_all.sh` (Blender 4.5, source
+mesh not in the repo — see `people/README.md`).
+
+- **Height never goes through `root.scale`.** The pelvis rides at .855
+  because every seat was measured against it, and "seated" IS `rootY<0` —
+  for the pose layer and the give-way rule alike. A woman scaled to .95 on a
+  window stool needs a positive `rootY` and stands up off it. The `up` trait
+  shortens the upper body instead (`morphPoint`).
+- **Real bodies sit 3.7 cm higher on chairs** (`seatPelvisY()` → .597, not
+  .56): a capsule hip bottomed out exactly on the seat, a real seat carries
+  more of the person under the joint. Measured by CPU-skinning the lowest
+  pelvis-led vertex. Stools (`rootY -.01`) needed nothing. Any new seat code
+  goes through `seatPelvisY`, and `SEAT_POSE_REAL` (hips -1.45, knees 1.3)
+  keeps the soles on the floor — the capsule angles sank them 6 cm.
+- **Never name a shader variable `r1`, `r2`, `m0`, `v0`…** three's cube-UV
+  chunk `#define`s them (`r1` is `0.8`), and every material lit by the room's
+  PMREM environment includes it. The syntax error names the number, not you.
+- **Real eyes turn less** (gaze yaw .30 / pitch .16, the head takes the rest)
+  and the upper lid is written EVERY frame in `blinkLayer`: it rests on the
+  iris and follows a downward look. An eye looking down under a lid that stays
+  up is all white above the iris — the "blind" stare.
+- **Props on joints were cut for capsules.** `realProps()` refits them (the
+  scarf, the ice bags); aprons are cloth now (`apronC` in the outfit) and the
+  old boxes are hidden. Hand-held things use `gripPoint()`, not the wrist:
+  a real hand is 21 cm long.
+- **Faces are paint on the BASE head** (`base` attribute = the unmorphed
+  position): a trait that moves the face must not move the paint with it.
+- **LOD**: `THREE.LOD` with two skinned meshes on one skeleton, swap at
+  `REAL_LOD_FAR`; touch devices build only LOD1, except Simon.
+- Simon's old primitives are hidden, never deleted: `mapSimon()` reads the
+  animate loop's writes to `simonHead` / `eyeGroups` / `mouthMesh` /
+  `rShoulder` back onto the real rig, and puts `simonHead` on the real head
+  every frame because every glance in the room is aimed at it.
+
 ## Conventions
 
 - **Commits** — conventional style with a scope, then an em-dash clause, in
