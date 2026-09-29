@@ -241,6 +241,19 @@ mechanics that bite:
   body, lid and facade are HIDE'd; its groups, portafilters, wand and gauge
   stay (MACHINE_TURN). Steel (`inox`, the machine's polished panel) reflects
   the photographed room box-projected, not STEEL_ENV, once the bake is on.
+- **Shadow maps are NOT re-rendered every frame** (`renderer.shadowMap.
+  autoUpdate=false`, `needsUpdate` one frame in `SHADOW_EVERY`: 2 desktop,
+  3 phone — DA audit phase 4, the mobile budget). Anything that makes a
+  shadow change in a single frame and must show at once (a light switched,
+  a caster teleported) sets `renderer.shadowMap.needsUpdate=true` itself.
+  Far eyelids are hidden (`cullLids`, `EYE_FAR`); on a phone small casters
+  lose `castShadow`.
+- **The room has a sound** (`ambBuild`/`ambTick`, all synthesised,
+  THE ROOM'S SOUND): it starts once the page's AudioContext (`lipCtx`) is
+  running, ducks under `speaking` and `JB.on`, obeys `muted` (the mute is
+  the page's now: "Mute the sound"), and is cued by the barista's `BAR`
+  modes and `openDoor()`. `ambBuild(ctx,dest)` takes any context — render
+  it offline to listen (film/sound.js). `?noamb` turns it off.
 - **Scanned materials** (`applyScans`, `tex/scan/`, 1.3 MB): oak, walnut,
   travertine, limewash/tadelakt and leather take a CC0 scan's normal and
   roughness, and its detail OVERLAID on the painted colour (luminance

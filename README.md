@@ -601,6 +601,28 @@ Not done, on purpose: physically correct light units (the baked GI and
 every light were calibrated in three's units; switching would re-light the
 room for no visible gain) and SMAA (the FXAA pass stays).
 
+### DA audit, phase 4 (2026-09-29)
+
+- **The mobile budget.** Shadow maps re-render one frame in three on a phone
+  (one in two on a desktop) instead of every frame; far eyelids are hidden;
+  small props stop casting on a phone; the traces of life share one
+  material. A phone's frame went from 298 draw calls to ~185 on average
+  (main pass 157, shadow passes 83 every third frame); a desktop's from 331
+  to ~250.
+- **The room's sound**, all synthesised (no file): room tone, the street
+  through the glass, a walla of distant talk, and the bar cued by the
+  barista — grinder, portafilter knock, pump, steam, the cup she serves —
+  the door's bell, cars, cups set down. Placed, ducked under Simon and the
+  jukebox, muted with the page.
+- **The trailer and the share image** ([`film/`](film/README.md)): the real
+  scene filmed frame by frame at a fixed step, scored with the same synth
+  offline, cut and titled in Blender; `og.jpg` re-rendered from today's
+  café (it still showed the capsule people).
+
+Not done, and why: a Gaussian-splat capture of a real Brussels street and a
+look-dev review against photographs of a real café both need someone on
+location with a camera.
+
 Cost, scene pass from the interview shot: 323 draw calls against 300,
 849k triangles against 829k on desktop; 292 / 646k against 263 / 625k on a
 phone.

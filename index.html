@@ -23,7 +23,7 @@
 <meta property="og:url" content="https://ndashiz.be/virtualcoffee/"/>
 <meta property="og:title" content="Virtual Coffee — Simon Goffin, Product Manager"/>
 <meta property="og:description" content="Pull up a chair. An interactive 3D café where my resume sits on the table — read it, put it down, and I'll talk you through it out loud."/>
-<meta property="og:image" content="https://ndashiz.be/virtualcoffee/og.jpg"/>
+<meta property="og:image" content="https://ndashiz.be/virtualcoffee/og.jpg?v=20260929"/>
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
 <meta property="og:image:alt" content="A warm 3D café: Simon sits at a table with a coffee and his resume."/>
@@ -32,7 +32,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="Virtual Coffee — Simon Goffin, Product Manager"/>
 <meta name="twitter:description" content="Pull up a chair. An interactive 3D café where my resume sits on the table — read it, put it down, and I'll talk you through it out loud."/>
-<meta name="twitter:image" content="https://ndashiz.be/virtualcoffee/og.jpg"/>
+<meta name="twitter:image" content="https://ndashiz.be/virtualcoffee/og.jpg?v=20260929"/>
 
 <link rel="icon" href="favicon.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="favicon.svg"/>
@@ -674,7 +674,7 @@
           aria-label="Stop the music and exit the jukebox"
           title="Stop the music and exit the jukebox">⏏ Stop the music</button>
   <button class="pill icon" id="muteBtn" hidden aria-pressed="false"
-          aria-label="Mute Simon's voice" title="Mute the voice (M)">
+          aria-label="Mute the sound" title="Mute the sound (M)">
     <svg class="on" viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none"
          stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <path d="M4 7.6h2.6L10 4.6v10.8L6.6 12.4H4z"/>
@@ -1588,6 +1588,8 @@ try{ renderer=new THREE.WebGLRenderer({antialias:false,stencil:false}); }
 catch(err){ VC.textOnly((err&&err.message)||"WebGL context refused"); return; }
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;
+renderer.shadowMap.autoUpdate=false;       /* see SHADOW_EVERY */
+let shadowTick=0;
 renderer.outputEncoding=THREE.sRGBEncoding;
 /* ACES moved into the composite shader: the renderer must output raw HDR,
    or the bloom bright-pass has no >1 values left to catch. */
@@ -1651,6 +1653,7 @@ const QUALITY=(function(){
    internally, so the cost of the detour is one redundant resize at boot;
    both land long before allocTargets() asks for the buffer size. */
 renderer.setPixelRatio(Math.min(devicePixelRatio,QUALITY.pixelRatio));
+const SHADOW_EVERY=TOUCH?3:2;
 renderer.shadowMap.type=QUALITY.shadowType;
 /* The hardware cap is a ceiling, not a target: every texture in the file
    reads ANISO. Clamped to 1 because getMaxAnisotropy() returns 0 where
@@ -3281,7 +3284,7 @@ function buildDoorPivot(){
   if(!n)return;                   /* map renamed the door: it just stays shut */
   scene.add(g);DOOR.pivot=g;
 }
-function openDoor(){DOOR.t=1.6;}  /* somebody is coming through */
+function openDoor(){DOOR.t=1.6;if(typeof ambDoor==="function")ambDoor();}  /* somebody is coming through */
 function updateDoor(dt){
   if(!DOOR.pivot)return;
   if(DOOR.t>0)DOOR.t-=dt;
@@ -4328,10 +4331,35 @@ function buildAtelier(REB){
   dressBar(mats);
   bevelSlabs(REB,mats);
   try{dressLife(mats);}catch(e){console.warn("[vc] traces of life skipped —",e);}
+  /* a phone draws every shadow caster twice more (two shadow maps): the
+     small things — cups, cutlery, a pen — go, their contact is baked or
+     painted (DA audit phase 4) */
+  if(TOUCH)scene.traverse(function(o){
+    if(!o.isMesh||!o.castShadow||o.isSkinnedMesh)return;
+    const g=o.geometry;if(!g.boundingSphere)g.computeBoundingSphere();
+    if(g.boundingSphere.radius*o.matrixWorld.getMaxScaleOnAxis()<.12)o.castShadow=false;
+  });
   applyLightMaps();
   if(cafeClosed)atelierNight();                /* closed before the model landed */
 }
 
+/* Several single-colour materials in a Batch become ONE: each part carries
+   its material's colour as vertex colour (linear, as the material holds
+   it) into a shared vertex-coloured material. Draw calls, not looks. */
+function batchMerge(b,list,shared){
+  list.forEach(function(m){
+    const items=b.bags.get(m);if(!items)return;
+    const c=m.color;
+    items.forEach(function(it){
+      const g=it.g.index?it.g.toNonIndexed():it.g.clone();
+      const n=g.attributes.position.count,col=new Float32Array(n*3);
+      for(let i=0;i<n;i++){col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b;}
+      g.setAttribute("color",new THREE.BufferAttribute(col,3));
+      b.add(shared,g,it.m);
+    });
+    b.bags.delete(m);
+  });
+}
 /* ---- TRACES OF LIFE (DA audit phase 2) ----
    The café looked like the carpenter's catalogue photo: nothing out of
    place, nothing left behind. A room is dated by its traces, and without
@@ -4469,7 +4497,10 @@ function dressLife(mats){
   const hoursM=new THREE.MeshBasicMaterial({map:ctex(256,256,paintHours),transparent:true,side:THREE.DoubleSide,depthWrite:false});
   const hp=new THREE.PlaneGeometry(.3,.3);hp.rotateY(Math.PI/2);
   const hm=new THREE.Mesh(hp,hoursM);hm.position.set(6.995,1.42,1.72);hm.renderOrder=4;scene.add(hm);
-  b.build(scene,{cast:true});
+  /* one draw call for every matte flat colour here, not seven */
+  batchMerge(b,[paperM,kraftM,greenM,terraM,fabricM,corkM,jacketM],
+    new THREE.MeshStandardMaterial({vertexColors:true,roughness:.88,envMapIntensity:.3}));
+  b.build(scene,{cast:!TOUCH});
   /* the floor, worn where everybody stands: in front of the till, in the
      door's arc, along the counter — the oil polished lighter and matte */
   const wearM=new THREE.MeshBasicMaterial({map:ctex(256,256,paintWear),transparent:true,depthWrite:false,
@@ -6739,6 +6770,195 @@ if(!RM){
 /* The floating dust is GONE — Simon's call. 140 additive motes drifting
    through the room read as a dirty lens, not as sunlight. The shafts stay:
    they are daylight, and daylight without specks in it is a clean room. */
+/* ---------------- THE ROOM'S SOUND (DA audit, phase 4) ----------------
+   The café had a voice and a jukebox and nothing else: a room with eleven
+   people and an espresso machine in dead silence is the loudest "this is a
+   render" there is. Everything here is SYNTHESISED — no file to load, no
+   licence to track: a room tone and the street through the glass; a walla
+   of distant conversation (five voices: a glottal saw through two formant
+   filters, vowels and syllables at speaking rate, a breath of consonant
+   noise on each onset, all of it low-passed like talk across a room); and
+   the bar's own sounds cued by what the barista is doing — the grinder
+   while she grinds, the knock of the portafilter, the pump through the
+   pull, the steam wand, the clink of the cup she serves — plus the door's
+   bell, a car now and then, a cup set down at a table. Each event is placed
+   (gain by distance, pan by bearing from the lens). It ducks under Simon's
+   voice and under the jukebox, obeys the page's mute, and goes quiet at
+   closing time. The builder takes any context, so the same code renders
+   offline (OfflineAudioContext) for listening tests. */
+function ambBuild(ctx,dest){
+  const S={ctx:ctx,crowdOn:true};
+  const master=ctx.createGain();master.gain.value=1;master.connect(dest);
+  const duck=ctx.createGain();duck.gain.value=1;duck.connect(master);
+  const out=ctx.createGain();out.gain.value=0;out.connect(duck);
+  out.gain.setTargetAtTime(1,ctx.currentTime+.2,1.2);          /* fade in */
+  S.master=master;S.duck=duck;S.out=out;
+  function noiseBuf(sec,brown){
+    const n=ctx.sampleRate*sec|0,b=ctx.createBuffer(1,n,ctx.sampleRate),d=b.getChannelData(0);
+    let l=0;for(let i=0;i<n;i++){const w=Math.random()*2-1;if(brown){l=(l+.02*w)/1.02;d[i]=l*3.5;}else d[i]=w;}
+    return b;
+  }
+  const WHITE=noiseBuf(3,false),BROWN=noiseBuf(5,true);
+  function src(buf,t,loop){const s=ctx.createBufferSource();s.buffer=buf;s.loop=!!loop;
+    s.loopEnd=buf.duration;s.start(t||0,Math.random()*buf.duration*.9);return s;}
+  function filt(type,f,q){const b=ctx.createBiquadFilter();b.type=type;b.frequency.value=f;if(q)b.Q.value=q;return b;}
+  function place(v){                     /* {g,p} -> a gain+pan into out */
+    const g=ctx.createGain();g.gain.value=v&&v.g!==undefined?v.g:1;
+    if(ctx.createStereoPanner){const pn=ctx.createStereoPanner();pn.pan.value=v&&v.p||0;g.connect(pn);pn.connect(out);}
+    else g.connect(out);
+    return g;
+  }
+  function env(param,t,a,peak,hold,rel){
+    param.setValueAtTime(0,t);param.linearRampToValueAtTime(peak,t+a);
+    param.setValueAtTime(peak,t+a+hold);param.setTargetAtTime(0,t+a+hold,rel/4);
+  }
+  /* --- beds --- */
+  {const s=src(BROWN,0,true),f=filt("lowpass",280),g=ctx.createGain();g.gain.value=.05;s.connect(f);f.connect(g);g.connect(out);}
+  {const s=src(BROWN,0,true),f=filt("lowpass",170),g=ctx.createGain();g.gain.value=.07;s.connect(f);f.connect(g);g.connect(out);S.street=g;}
+  /* the fridge's compressor: a 50 Hz hum and its octave, barely there */
+  {const o=ctx.createOscillator(),o2=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=50;o2.frequency.value=100;
+   g.gain.value=.006;o.connect(g);o2.connect(g);g.connect(place({g:1,p:.3}));o.start();o2.start();}
+  /* --- the walla: five voices --- */
+  const VOW=[[800,1200],[500,1800],[320,2300],[520,920],[340,800],[520,1500],[660,1700]];
+  S.voices=[];
+  for(let i=0;i<5;i++){
+    const fem=i%2===1,o=ctx.createOscillator();o.type="sawtooth";
+    const f0=fem?185+Math.random()*50:98+Math.random()*30;o.frequency.value=f0;
+    const f1=filt("bandpass",500,6),f2=filt("bandpass",1500,9),mix=ctx.createGain(),lp=filt("lowpass",1300),g=ctx.createGain();
+    g.gain.value=0;o.connect(f1);o.connect(f2);f1.connect(mix);f2.connect(mix);mix.gain.value=.6;
+    mix.connect(lp);lp.connect(g);
+    const nz=src(WHITE,0,true),nf=filt("bandpass",4200,1.2),ng=ctx.createGain();ng.gain.value=0;
+    nz.connect(nf);nf.connect(ng);ng.connect(lp);
+    g.connect(place({g:.55,p:(i/4-.5)*1.2}));o.start();
+    S.voices.push({o:o,f1:f1,f2:f2,g:g,ng:ng,f0:f0,next:Math.random()*2,lvl:.018+Math.random()*.012});
+  }
+  /* syllables up to t1 (called ahead of time, realtime or offline) */
+  S.murmur=function(t0,t1){
+    if(!S.crowdOn)return;
+    S.voices.forEach(function(v){
+      let t=Math.max(v.next,t0);
+      while(t<t1){
+        const n=2+Math.random()*9|0;                      /* a phrase */
+        for(let k=0;k<n&&t<t1+2;k++){
+          const w=VOW[Math.random()*VOW.length|0],d=.11+Math.random()*.13;
+          v.f1.frequency.setTargetAtTime(w[0]*(v.f0>150?1.12:1),t,.025);
+          v.f2.frequency.setTargetAtTime(w[1]*(v.f0>150?1.1:1),t,.025);
+          v.o.frequency.setTargetAtTime(v.f0*(1+(Math.random()-.5)*.25)*(1-k*.012),t,.04);
+          env(v.g.gain,t,.03,v.lvl*(.7+Math.random()*.6),d*.5,d);
+          if(Math.random()<.6)env(v.ng.gain,t-.01,.005,.04,.02,.04);
+          t+=d+.03+Math.random()*.06;
+        }
+        t+=.4+Math.random()*2.2;                          /* breath, listening */
+      }
+      v.next=t;
+    });
+  };
+  /* --- the bar --- */
+  S.grind=function(t,dur,v){
+    const g=place(v),e=ctx.createGain();e.connect(g);env(e.gain,t,.08,.5,dur-.4,.35);
+    const o=ctx.createOscillator();o.type="sawtooth";o.frequency.setValueAtTime(90,t);
+    o.frequency.linearRampToValueAtTime(155,t+.15);const lp=filt("lowpass",700);o.connect(lp);
+    const og=ctx.createGain();og.gain.value=.35;lp.connect(og);og.connect(e);o.start(t);o.stop(t+dur+.5);
+    const n=src(WHITE,t,true),bp=filt("bandpass",2600,.9),ng=ctx.createGain();ng.gain.value=.55;
+    const lfo=src(WHITE,t,true),lf=filt("lowpass",38),lg=ctx.createGain();lg.gain.value=.9;
+    lfo.connect(lf);lf.connect(lg);lg.connect(ng.gain);
+    n.connect(bp);bp.connect(ng);ng.connect(e);n.stop(t+dur+.5);lfo.stop(t+dur+.5);
+  };
+  S.knock=function(t,v){
+    const g=place(v),o=ctx.createOscillator(),e=ctx.createGain();
+    o.frequency.setValueAtTime(140,t);o.frequency.exponentialRampToValueAtTime(48,t+.09);
+    e.gain.setValueAtTime(.9,t);e.gain.setTargetAtTime(0,t+.01,.05);o.connect(e);e.connect(g);o.start(t);o.stop(t+.4);
+    const n=src(WHITE,t,true),hp=filt("highpass",2500),ne=ctx.createGain();
+    ne.gain.setValueAtTime(.25,t);ne.gain.setTargetAtTime(0,t,.008);n.connect(hp);hp.connect(ne);ne.connect(g);n.stop(t+.1);
+  };
+  S.pump=function(t,dur,v){
+    const g=place(v),e=ctx.createGain();e.connect(g);env(e.gain,t,.3,1,dur-.8,.5);
+    const o=ctx.createOscillator();o.type="square";o.frequency.value=49;
+    const lp=filt("lowpass",220),og=ctx.createGain();og.gain.value=.05;o.connect(lp);lp.connect(og);og.connect(e);o.start(t);o.stop(t+dur+.6);
+    const n=src(WHITE,t+2,true),bp=filt("bandpass",3300,2.2),ng=ctx.createGain();ng.gain.value=0;
+    ng.gain.setValueAtTime(0,t+2);ng.gain.linearRampToValueAtTime(.011,t+3);
+    n.connect(bp);bp.connect(ng);ng.connect(e);n.stop(t+dur+.6);
+  };
+  S.steam=function(t,dur,v){
+    const g=place(v),e=ctx.createGain();e.connect(g);env(e.gain,t,.15,.13,dur-.6,.4);
+    const n=src(WHITE,t,true),hp=filt("highpass",2200),pk=filt("peaking",3600,3);pk.gain.value=8;
+    pk.frequency.setValueAtTime(3200,t);pk.frequency.linearRampToValueAtTime(5200,t+dur*.8);
+    const am=ctx.createGain();am.gain.value=.7;const lfo=ctx.createOscillator();lfo.frequency.value=17;
+    const lg=ctx.createGain();lg.gain.value=.3;lfo.connect(lg);lg.connect(am.gain);
+    n.connect(hp);hp.connect(pk);pk.connect(am);am.connect(e);lfo.start(t);lfo.stop(t+dur+.6);n.stop(t+dur+.6);
+  };
+  S.clink=function(t,v,k){
+    const g=place(v);k=k||(.9+Math.random()*.2);
+    [[2350,1,.35],[3810,.6,.22],[5230,.4,.15],[6900,.2,.08]].forEach(function(m){
+      const o=ctx.createOscillator(),e=ctx.createGain();o.frequency.value=m[0]*k;
+      e.gain.setValueAtTime(m[1]*.09,t);e.gain.setTargetAtTime(0,t,m[2]/3);o.connect(e);e.connect(g);o.start(t);o.stop(t+m[2]*2);
+    });
+    const n=src(WHITE,t,true),hp=filt("highpass",4000),ne=ctx.createGain();
+    ne.gain.setValueAtTime(.05,t);ne.gain.setTargetAtTime(0,t,.004);n.connect(hp);hp.connect(ne);ne.connect(g);n.stop(t+.05);
+  };
+  S.bell=function(t,v){
+    for(const dt of[0,.32]){
+      const g=place(v);
+      [[1320,1,1.4],[1985,.5,1],[2650,.35,.7],[3960,.15,.4]].forEach(function(m){
+        const o=ctx.createOscillator(),e=ctx.createGain();o.frequency.value=m[0]*(dt?1.01:1);
+        e.gain.setValueAtTime(m[1]*.05,t+dt);e.gain.setTargetAtTime(0,t+dt,m[2]/3);o.connect(e);e.connect(g);o.start(t+dt);o.stop(t+dt+m[2]*2);
+      });
+    }
+  };
+  S.car=function(t,v){
+    const g=place(v),e=ctx.createGain();e.connect(g);
+    const n=src(BROWN,t,true),lp=filt("lowpass",200);n.connect(lp);lp.connect(e);
+    lp.frequency.setValueAtTime(180,t);lp.frequency.linearRampToValueAtTime(620,t+2);lp.frequency.linearRampToValueAtTime(160,t+4.5);
+    e.gain.setValueAtTime(0,t);e.gain.linearRampToValueAtTime(.16,t+2);e.gain.linearRampToValueAtTime(0,t+4.5);n.stop(t+5);
+  };
+  S.doorOpen=function(t){                 /* the street comes in for a moment */
+    S.street.gain.cancelScheduledValues(t);S.street.gain.setTargetAtTime(.2,t,.15);S.street.gain.setTargetAtTime(.07,t+2.2,.6);
+  };
+  S.setDuck=function(x){duck.gain.setTargetAtTime(x,ctx.currentTime,.25);};
+  S.crowd=function(on){
+    S.crowdOn=on;
+    if(!on)S.voices.forEach(function(v){v.g.gain.cancelScheduledValues(ctx.currentTime);v.g.gain.setTargetAtTime(0,ctx.currentTime,.3);});
+  };
+  return S;
+}
+/* the live driver: built on the page's own context once a gesture has
+   woken it, fed a second ahead, cued by the scene */
+const AMB={S:null,sched:0,bMode:-1,nextCar:12,nextClink:6,nextSteam:30,closed:false};
+const _ambV=new THREE.Vector3();
+function ambAt(x,z){
+  const dx=x-camera.position.x,dz=z-camera.position.z,d=Math.hypot(dx,dz);
+  const e=camera.matrixWorld.elements;
+  return {g:1/(1+d*.32),p:Math.max(-1,Math.min(1,(dx*e[0]+dz*e[2])/Math.max(d,1)))*.8};
+}
+function ambTick(dt){
+  if(!AMB.S){
+    if(!lipCtx||lipCtx.state!=="running"||/[?&]noamb\b/.test(location.search))return;
+    AMB.S=ambBuild(lipCtx,lipCtx.destination);
+    AMB.S.master.gain.value=muted?0:1;
+    AMB.sched=lipCtx.currentTime;
+  }
+  const S=AMB.S,now=lipCtx.currentTime;
+  if(cafeClosed&&!AMB.closed){AMB.closed=true;S.crowd(false);}
+  if(AMB.sched<now)AMB.sched=now;                 /* a slow frame never leaves a hole */
+  if(now+1>AMB.sched){S.murmur(AMB.sched,AMB.sched+1.5);AMB.sched+=1.5;}
+  S.setDuck(speaking?.4:(JB.on?.35:1));
+  if(cafeClosed)return;
+  /* the barista's beats */
+  if(barista.mode!==AMB.bMode){
+    AMB.bMode=barista.mode;const at=ambAt(1.27,-3.9),t=now+.05;
+    if(barista.mode===BAR.GRIND)S.grind(t,3.2,ambAt(.3,-3.75));
+    else if(barista.mode===BAR.TAMP){S.knock(t+.4,at);S.knock(t+.62,at);}
+    else if(barista.mode===BAR.PULL)S.pump(t+.3,20,at);
+    else if(barista.mode===BAR.SERVE)S.clink(t+1.4,ambAt(1.6,-3.3));
+  }
+  AMB.nextSteam-=dt;if(AMB.nextSteam<0){AMB.nextSteam=45+Math.random()*50;S.steam(now,4.5,ambAt(1.7,-3.95));}
+  AMB.nextClink-=dt;if(AMB.nextClink<0){AMB.nextClink=5+Math.random()*12;
+    const spots=[[-2.3,-1.8],[-2.3,-.8],[3.07,1.81],[.21,2.45],[1.3,-3.2]],q=spots[Math.random()*spots.length|0];
+    S.clink(now,ambAt(q[0],q[1]),.8+Math.random()*.4);}
+  AMB.nextCar-=dt;if(AMB.nextCar<0){AMB.nextCar=18+Math.random()*30;S.car(now,ambAt(-9,Math.random()<.5?-6:6));}
+}
+function ambDoor(){if(AMB.S&&!cafeClosed){const t=AMB.S.ctx.currentTime;AMB.S.bell(t,ambAt(7,.7));AMB.S.doorOpen(t);}}
+
 /* ---------------- THE STREET ----------------
    Simon, 2026-09-28: "retravaille entièrement la zone extérieure… un
    véritable environnement en arrière-plan… supprime l'effet d'écran ou de
@@ -12208,10 +12428,20 @@ function typingLayer(a,buf,ac){
     chest:{x:.09},head:{x:.14-(1-amp)*.06}
   },1);
 }
+/* past EYE_FAR the lids go (a blink two pixels tall is not seen; the
+   painted lash line stays): two draw calls a person, a dozen in the room */
+const EYE_FAR=TOUCH?4:7,_eyeV=new THREE.Vector3();
+function cullLids(a){
+  if(!a.rig.real||!a.rig.eyes.length)return;
+  a.rig.J.head.getWorldPosition(_eyeV);
+  const near=_eyeV.distanceToSquared(camera.position)<EYE_FAR*EYE_FAR;
+  for(let i=0;i<a.rig.eyes.length;i++)a.rig.eyes[i].lid.visible=near;
+}
 function animateAgents(dt){
   for(let i=0;i<agents.length;i++){
     const a=agents[i];
     if(!a.rig.root.visible)continue;
+    if(((shadowTick+i)&7)===0)cullLids(a);
     a.clock+=dt*a.rateMul;
     const ac=a.clock;
     clearPose(a.buf);
@@ -14447,6 +14677,7 @@ try{muted=localStorage.getItem("vc:muted")==="1";}catch(_){}
 const muteBtn=document.getElementById("muteBtn");
 function applyMute(){
   if(lipGain)lipGain.gain.value=muted?0:1;
+  if(AMB.S)AMB.S.master.gain.value=muted?0:1;       /* the room goes quiet too */
   /* an element that never made it into the graph has to be cut directly */
   if(audioEl&&!audioRouted)audioEl.muted=muted;
   /* the mp3 path keeps playing at gain 0 so captions and lipsync live;
@@ -14459,8 +14690,9 @@ function applyMute(){
   }
   if(muteBtn){
     muteBtn.setAttribute("aria-pressed",muted?"true":"false");
-    muteBtn.setAttribute("aria-label",muted?"Unmute Simon's voice":"Mute Simon's voice");
-    muteBtn.title=(muted?"Unmute the voice":"Mute the voice")+" (M)";
+    /* the room has a sound of its own now: the toggle is the page's */
+    muteBtn.setAttribute("aria-label",muted?"Unmute the sound":"Mute the sound");
+    muteBtn.title=(muted?"Unmute the sound":"Mute the sound")+" (M)";
   }
 }
 function setMuted(v){
@@ -16040,6 +16272,7 @@ function animate(){
     updateDoor(dt);
     updateVan(dt);
     updateTV(dt);
+    ambTick(dt);
     updateReadHint(dt);
     jbFrame(dt);
     if(zoomItem&&zoomItem.live){paintZoom();updateZoomChrome();}
@@ -16161,6 +16394,14 @@ function animate(){
 
   /* ---- post pipeline: scene -> HDR -> bloom -> DOF -> composite -> FXAA ---- */
   if(!RM){compMat.uniforms.uTime.value=t;STREET.time.value=t;skyMat.uniforms.uTime.value=t;}
+  /* The two shadow maps are re-rendered one frame in SHADOW_EVERY, not
+     every frame (DA audit phase 4, the mobile budget): the room is still,
+     only people move, and a walker's shadow at 20-30 Hz is not a thing an
+     eye can catch — while the shadow passes were 135 of the 298 draw calls
+     a phone made per frame. needsUpdate is consumed by the first render
+     that has shadow-casting lights, which is this one (the TV studio and
+     the post passes have none). */
+  if((shadowTick++%SHADOW_EVERY)===0)renderer.shadowMap.needsUpdate=true;
   renderer.setRenderTarget(RT_HDR);
   renderer.clear();
   renderer.render(scene,camera);

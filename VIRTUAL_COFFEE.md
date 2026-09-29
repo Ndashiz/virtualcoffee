@@ -685,6 +685,25 @@ payants) :
 - **Pas faits, volontairement** : unités de lumière physiques (tout, cuisson
   comprise, est calibré dans les unités de three.js) et SMAA (le FXAA reste).
 
+### Audit DA, phase 4 (2026-09-29)
+
+- **Budget mobile** : ombres recalculées une image sur trois au téléphone
+  (une sur deux sur ordinateur), paupières des personnages lointains
+  masquées, petits objets sans ombre au téléphone, traces de vie fusionnées :
+  de 298 à ~185 appels de rendu par image au téléphone.
+- **Le son de la salle**, entièrement synthétisé : fond de salle, rue
+  derrière la vitre, murmure de conversations, et le comptoir calé sur la
+  barista (moulin, porte-filtre, pompe, vapeur, tasse servie), clochette de
+  la porte, voitures, tasses posées. Spatialisé, s'efface sous la voix de
+  Simon et le juke-box, coupé avec la page.
+- **Film-annonce et image de partage** ([`film/`](film/README.md)) : la vraie
+  scène filmée image par image, sonorisée avec la même synthèse, montée et
+  titrée dans Blender ; `og.jpg` refaite (elle montrait encore les
+  personnages-capsules).
+- **Pas faits** : capture d'une vraie rue bruxelloise (Gaussian splatting) et
+  revue sur photos d'un vrai café — il faut quelqu'un sur place avec un
+  appareil.
+
 ## 6 ter. La rue (2026-09-28)
 
 Le dehors lisait comme un écran, pour trois raisons, toutes supprimées :
