@@ -219,7 +219,11 @@ mesh not in the repo — see `people/README.md`).
 - **Faces are paint on the BASE head** (`base` attribute = the unmorphed
   position): a trait that moves the face must not move the paint with it.
 - **LOD**: `THREE.LOD` with two skinned meshes on one skeleton, swap at
-  `REAL_LOD_FAR`; touch devices build only LOD1, except Simon.
+  `REAL_LOD_FAR`; touch devices build only LOD1, except Simon. LOD1 keeps
+  the head and neck EXACTLY as LOD0 (`pp_lod.py`): a head decimated without
+  symmetry comes out lopsided, and a lopsided head reads as a face that is
+  off-centre. Do not mirror the collapse either — against the protected head
+  it threw a shard of skin from the chin across the chest.
 - Simon's old primitives are hidden, never deleted: `mapSimon()` reads the
   animate loop's writes to `simonHead` / `eyeGroups` / `mouthMesh` /
   `rShoulder` back onto the real rig, and puts `simonHead` on the real head
@@ -249,8 +253,15 @@ mesh not in the repo — see `people/README.md`).
   stands behind the vans' doors past x 11.30. Any new outdoor object near
   x 7-18, z 0-3 needs the route audit.
 - **The flying man** is realized lazily (`buildHero()` once `REAL.ready`) and
-  stops at `HERO.hz` = -12.5 because that is where SHOTS.gameplay sees the
-  street through the bay; move the shot, move the stop.
+  stops at x -10.2, z -12.5 because raycasts from SHOTS.gameplay to thirteen
+  of his joints find nothing in the way there (at x -12.6 a mullion cut him
+  in half). Move the shot, re-run `.work/exterior/probe_hero.js` (a `PROBE=`
+  script for `shoot.js`) and move the stop.
+- **The vans' cabs are `CAR_TYPES.vancab`** (placeCar), the model's cabs,
+  wheels and lamps are HIDE'd. The boxes and the ICE CUBE leaves are still
+  the model's; door hardware is `vanDoorKit()`, a child of each leaf so it
+  swings with it. Mirror heads end at z 0.80 and the step bumper at x 11.30:
+  both are courier-lane clearances.
 
 ## Conventions
 

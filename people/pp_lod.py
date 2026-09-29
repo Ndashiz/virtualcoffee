@@ -40,8 +40,16 @@ def decimate(d, ratio, face_safe=False):
         # The face is where a decimation shows: collapse moved the lip line and
         # the lid rims, and the painted mouth and lash lines (laid out on the
         # original surface) slid off them — every distant face looked shifted.
-        # So: eye rims and mouth kept exactly, the rest of the head halved,
-        # everything below the neck decimated hard.
+        # Protecting only eyes, mouth and nose was not enough (2026-09-29):
+        # the rest of the head, halved WITHOUT symmetry, came out with one
+        # cheek and one side of the jaw wider than the other, and from across
+        # the room a lopsided head reads as a face that is off-centre. So the
+        # whole head AND the neck are kept exactly as LOD0 (a small share of
+        # the triangles — pp_body already spent its budget there), the collar
+        # line eases out, and everything below is decimated hard. NOT mirrored:
+        # a mirrored collapse against a protected region threw a shard of skin
+        # from the chin across the chest; with the head untouched there is
+        # nothing left for symmetry to fix.
         EX, EY = .032, 1.646
         keep = o.vertex_groups.new(name="__keep")
         for v in o.data.vertices:
@@ -50,7 +58,8 @@ def decimate(d, ratio, face_safe=False):
             mouth = abs(x) < .038 and 1.55 < y < 1.605 and z > .085
             nose = abs(x) < .022 and 1.595 < y < 1.66 and z > .10
             hand = bones[int(d["skI"][v.index, 0])] in ("wristL", "wristR")   # fingers go to spikes otherwise
-            w = 1.0 if (eye or mouth or nose) else (.3 if (y > 1.47 and abs(x) < .13) else (.45 if hand else 0.0))
+            head = bones[int(d["skI"][v.index, 0])] == "head" or (y > 1.53 and abs(x) < .13)
+            w = 1.0 if (eye or mouth or nose or head or y > 1.45) else (.7 if y > 1.36 else (.45 if hand else 0.0))
             if w: keep.add([v.index], w, 'REPLACE')
         m = o.modifiers.new("d", 'DECIMATE'); m.decimate_type = 'COLLAPSE'; m.ratio = ratio
         m.vertex_group = "__keep"; m.invert_vertex_group = True; m.vertex_group_factor = 12.0

@@ -21,7 +21,7 @@ numpy only. Nothing in this folder runs in the browser.
 | `pp_face.py` | The base head has its eyes shut: refine, cut an almond opening exactly along its outline, turn the rim in (lid thickness). Eyeball at (±.032, 1.646, .085), r .012 |
 | `pp_garments.py` | Tee, shirt, sweater, blazer, trousers, shoes, apron. A field clips the body exactly along the hem; rounds of smoothing + push-out against a **Taubin-smoothed** body (cloth rests on the form, not the muscles) with 3 mm kept off the real skin; a **drape** (cloth falls from what carries it) on torso, sleeves (tapered) and trouser legs; layering over the waistband; hem bands; weights copied from the skin. Shoes are a loft along each foot. Writes, per body face, which garments hide it |
 | `pp_hair.py` | Eight cuts, all shells off the scalp with a thickness that reaches **zero at the hairline** (buzz, short, fade, curly, bun, pony, bob, long) |
-| `pp_lod.py` | LOD1: every part decimated (~35 %), weights carried; the body mask inherited from the nearest LOD0 face |
+| `pp_lod.py` | LOD1: every part decimated (~35 %), weights carried; the body mask inherited from the nearest LOD0 face. The body keeps its head and neck exactly as LOD0 (15.9 k → 7.8 k tris): an unmirrored collapse made faces lopsided |
 | `export_people.py` | `../people.bin`: `VCP1` + JSON header + int16 positions, u16 indices, u8×4 skin; `body.mask` / `body@1.mask` (u16 per face, bit = garment order) |
 
 Coordinates are three.js's throughout (Y up, face +z, feet at 0). Joint

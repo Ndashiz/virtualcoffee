@@ -628,7 +628,13 @@ plaques belges, ombre de contact) ; les arbres sont des **platanes** à
 l'écorce marbrée ; la **profondeur de champ** adoucit ce qui est loin derrière
 la vitre ; les camionnettes gardent les caisses du modèle (le livreur est
 calé sur leurs portes) et gagnent pare-chocs marchepied, plaques, bavettes,
-châssis, baguettes, rails de toit et rétroviseurs.
+châssis, baguettes, rails de toit et rétroviseurs. Depuis le 2026-09-29,
+tout ce qui est devant la caisse est une **vraie cabine de fourgon**
+(pare-brise incliné, capot court, portière vitrée, calandre, pare-chocs
+enveloppant, optiques), sur roues arrière jumelées, avec carénage de toit,
+passages de roue découpés dans la jupe de la caisse, montants et rail en
+alu, et la quincaillerie des portes arrière (charnières, barres de
+fermeture, poignée, joint) — qui pivote avec les battants du van ICE CUBE.
 
 **Le menu** est agrandi (2,75 × 1,12 m, de la tête de Simon à l'horloge, de
 la machine à 10 cm sous le soffite), en trois colonnes, avec sa propre
@@ -640,7 +646,21 @@ cape en tissu qui flotte d'autant plus qu'il va vite, éclairé par le soleil de
 la rue. Il survole la rue ouest à trois ou quatre mètres, passe derrière les
 jeunes platanes du trottoir, s'arrête au milieu de la rue là où le plan
 principal voit à travers la baie, regarde dedans pendant que le comptoir le
-regarde, et repart ; son ombre traverse la chaussée. L'avion est un vrai
+regarde, et repart ; son ombre traverse la chaussée. Son point d'arrêt est
+**mesuré** : des rayons lancés depuis le plan principal vers treize de ses
+articulations, sur une grille de positions — à l'ancien arrêt, un montant de
+la baie le coupait en deux ; à x −10,2 / z −12,5 rien ne le masque.
+
+**Le jukebox** porte un bandeau LED ambre sous son fronton : « CLICK TO PLAY
+ME » (« TAP TO PLAY ME » au doigt) clignote tant qu'il est au repos, et
+« NOW PLAYING » s'affiche fixe une fois la musique lancée (fixe aussi sous
+mouvement réduit).
+
+**Les visages de loin** : la version allégée des corps (au-delà de 6 m, donc
+la plupart des personnages dans le plan principal) garde désormais la tête
+et le cou exactement comme de près. Décimée sans symétrie, elle sortait une
+joue plus large que l'autre, et un visage asymétrique se lit comme un visage
+décalé. L'avion est un vrai
 avion, 330 m plus loin et 110 m plus haut.
 
 Coût mesuré : +13 appels de rendu, +31 % de triangles sur ordinateur, +19 %

@@ -379,10 +379,17 @@ How it is built (`/* ---------------- THE STREET` in `index.html`):
   the far side of the glass with distance (`uBg` — under a pixel at the
   parked cars, about three at the roofs), with an early-out so the room, in
   focus, costs two taps a pixel.
-- The vans keep the model's boxes — the courier's whole round is timed
-  against those doors — and gain a step bumper (stopping at x 11.30; the
-  courier stands at 10.95 at most), plates, mud flaps, a chassis, rubbing
-  strips, roof rails and the cab's mirrors.
+- The vans keep the model's cargo boxes — the courier's whole round is
+  timed against those doors — but since 2026-09-29 everything forward of
+  them is a real light-commercial cab (`CAR_TYPES.vancab`, lofted like the
+  cars: raked windscreen, short hood, door glass, grille, wrap-round bumper,
+  head lamps) on twin rear tyres, with a roof fairing up to the box, wheel
+  wells cut into the box skirt, aluminium posts and bottom rail, a step
+  bumper (stopping at x 11.30; the courier stands at 10.95 at most), barn-door
+  hardware on the rear doors (hinge straps, locking rods, handle, seal — on
+  the ICE CUBE leaves it swings with them), plates, mud flaps, rubbing
+  strips, roof rails and mirrors whose heads stop at z 0.80, clear of the
+  courier's lane.
 
 **The menu grew** with it: 2.75 x 1.12 m, from just right of Simon's head to
 the clock and from the machine's top to 10 cm under the soffit, three columns,
@@ -398,7 +405,11 @@ lit by the street's sun and hazed like it. He flies the west street at three
 to four metres, passes behind the young trees on our pavement, pulls up over
 the middle of the street at z -12.5 — exactly where the main shot sees
 through the bay — hangs there looking in while the window bar looks back, and
-goes. His shadow crosses the tarmac under him. The airliner is 36 m of
+goes. His shadow crosses the tarmac under him. Where he stops is measured,
+not picked: raycasts from the main shot to thirteen of his joints over a
+grid of stops (`.work/exterior/probe_hero.js`) — the first stop had a
+mullion of the bay cutting him in half; at x -10.2, z -12.5 nothing covers
+him, no mullion, no tree, no patron's head. The airliner is 36 m of
 wingspan 330 m out and 110 m up: you catch it over the roofs from the glass.
 
 Cost, measured on the main pass: +13 draw calls, +31 % triangles on desktop
