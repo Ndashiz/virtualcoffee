@@ -198,6 +198,12 @@ saveurs sourdes et des jus en bouteille. La machine a ses groupes côté
 barista et montre à la salle un dos en inox brossé coiffé de tasses ; la
 vitrine est garnie de viennoiseries.
 
+**2026-09-29 (audit, phase 2).** L'arrière-bar disparaît et le comptoir perd
+12 cm côté barista : son couloir passe de 23–35 cm à 61–69 cm, le mur olive
+descend jusqu'au sol derrière elle. Service lisible, en deux langues
+(« Commandez ici · Bestel hier », « Retrait · Afhalen »), point d'eau au bout
+du comptoir.
+
 **4.6 À remplacer.** Ardoise → menu ; caisse → tablette + TPE ; abat-jour laiton →
 globes opalins ; néon → supprimé ; façade du comptoir → cannelures ; plateaux
 marbre → travertin ; machine laiton/noir → inox brossé ; vitrine sur socle

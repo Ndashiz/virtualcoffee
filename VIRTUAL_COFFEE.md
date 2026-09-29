@@ -632,6 +632,33 @@ Les gains rapides de l'audit de direction artistique en dix axes :
   triangles contre 747 k, une lumière de moins ; téléphone 257 / 591 k contre
   269 / 564 k.
 
+### Audit DA, phase 2 (2026-09-29)
+
+- **Lumière cuite** : sol, plafond et quatre murs portent une lumière
+  calculée dans Blender Cycles à partir de la géométrie, des matériaux et des
+  lumières de la page (six light maps JPG, 169 Ko). Éclairage mixte : le
+  ciel, la corniche, les LED, les écrans et le rebond des lumières temps réel
+  sont cuits ; les lumières temps réel gardent leur éclairage direct et leurs
+  ombres. Pour recuire : [`gi/tools/README.md`](gi/tools/README.md).
+- **Reflets** : la salle cuite est photographiée dans un cube ; elle éclaire
+  tout ce qui n'est pas cuit (personnages, mobilier) et se reflète, avec
+  correction de parallaxe, dans le parquet et toutes les vitres.
+- **Chanfreins** sur le plan du comptoir, le bar de fenêtre, le socle de la
+  vitrine et l'étagère.
+- **Traces de vie** : carafes, verres, cuillère, sucre déchiré, tasses d'un
+  client parti, miettes, journal, gobelet à emporter, carnet, veste sur une
+  chaise, fleurs, parapluies, radiateur en fonte, extincteur, sortie de
+  secours, panneau d'affichage et signalétique bilingue, usure du sol.
+- **Service** : arrière-bar supprimé et comptoir aminci de 12 cm côté
+  barista (couloir de 23–35 cm → 61–69 cm), tabouret devant la caisse retiré,
+  « Commandez ici · Bestel hier », « Retrait · Afhalen », point d'eau,
+  horaires sur la vitre.
+- **Dehors** : une seule météo (soleil de fin d'après-midi à l'ouest, pour la
+  rue comme pour la salle), trois passants sur le trottoir du café, des vélos,
+  une terrasse, un chevalet.
+- **Coût** (plan de jeu) : 323 appels de rendu contre 300, 849 k triangles
+  contre 829 k ; téléphone 292 / 646 k contre 263 / 625 k.
+
 ## 6 ter. La rue (2026-09-28)
 
 Le dehors lisait comme un écran, pour trois raisons, toutes supprimées :

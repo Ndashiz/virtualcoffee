@@ -544,6 +544,37 @@ calls against 333 (the tighter lens culls more), 770k triangles against
 747k, one light fewer, 78 shader programs against 68. Phone (390×844):
 257 / 591k against 269 / 564k.
 
+### DA audit, phase 2 (2026-09-29)
+
+- **Baked light.** The floor, ceiling and four walls carry light computed in
+  Blender Cycles from the page's own geometry, materials and lights (six
+  JPG light maps, 169 KB). Mixed lighting: the sky through both glazings,
+  the cove, LEDs and screens and the bounce of every real-time light are
+  baked; the real-time lights keep their direct light and shadows. How to
+  re-bake: [`gi/tools/README.md`](gi/tools/README.md).
+- **Room reflections.** With the bake on, the room is photographed into a
+  cube once; it lights everything unbaked (people, furniture) in place of the
+  old environment "maquette", and the floor and a layer over all the glass
+  read it box-projected, so the windows' streak lands where the windows are.
+- **Edges**: the counter top, window bar, vitrine base and shelf are rebuilt
+  as soft slabs (5 mm).
+- **Traces of life**: water carafes and glasses, a spoon and a torn sugar
+  stick, yesterday's cups, crumbs and a newspaper at an empty table, a
+  takeaway cup, a notebook, a jacket on a chair, flowers, umbrellas by the
+  door, a cast-iron radiator, an extinguisher, an exit sign, a notice board
+  and signage in French and Dutch, wear on the floor where people stand.
+- **Service**: the back bar is gone and the counter is 12 cm shallower on
+  the barista's side (her aisle: 23–35 cm → 61–69 cm); the stool in front of
+  the till is gone; "Commandez ici · Bestel hier", "Retrait · Afhalen", a
+  water station, opening hours on the glass.
+- **Outside**: one weather (the street's sun is the room's, late afternoon
+  in the west), three passers-by on the café's pavement, bikes, a terrace
+  and an A-board.
+
+Cost, scene pass from the interview shot: 323 draw calls against 300,
+849k triangles against 829k on desktop; 292 / 646k against 263 / 625k on a
+phone.
+
 ## The switch — "is the bar open?"
 
 One public endpoint, doing two jobs. The **load ping** asks whether the bar is

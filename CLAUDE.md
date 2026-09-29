@@ -209,6 +209,34 @@ mechanics that bite:
   at parse, so they still merge by material — no SPECIAL, no extra draw call.
 - **`mergeGeos` keeps vertex colours** (white where a part has none), so
   baked-colour props (`croissantGeo`, `painAuChocGeo`) batch like anything else.
+- **The room's light is BAKED** (DA audit phase 2): floor, ceiling and four
+  walls carry Cycles light maps (`gi/*.jpg`, pipeline and weights in
+  `gi/tools/README.md`). Mixed lighting: the bake is the sky, the
+  non-three.js emitters and the bounce of the real-time lights; on those six
+  receivers it REPLACES the indirect diffuse (`giPatch`), the lights' direct
+  light stays live. **Move a wall, the counter, furniture or anything that
+  stands on the floor and the maps must be re-baked** — they would show the
+  old shadows. The export skips multiply/additive materials (the furniture
+  blobs once baked as white emitters) and the blobs are hidden once the
+  floor's bake is on (`FURN_BLOBS`). `?nogi`, `?gigain=`, `?noprobeenv` for
+  comparisons.
+- **With the bake on, `scene.environment` is a photograph of the room**
+  (`captureProbe`, re-taken at closing time), not the "maquette": people and
+  furniture take the baked room's light. The floor and a reflection layer
+  over all glass read it BOX-PROJECTED (`boxProject`) — anything that edits
+  `envmap_physical_pars_fragment` on those materials must keep that patch.
+- **The barista's aisle is 61–69 cm now**: the back bar, the grinder and the
+  cup stacks on it are HIDE'd and the counter lost 12 cm on HER side at parse
+  (`COUNTER_BACK`, the captured boxes follow). Its face, the stools, the
+  laptop and every route are where they were. The counter stool in front of
+  the till is gone (nobody sat there).
+- **Outside there are passers-by** (`PASSERS`, kind `passer`): three real
+  bodies on the café's own west pavement, x -4.35..-5.85 (a metre off the
+  young trees), never inside, never recruited by the jukebox (its crew is a
+  fixed list). They stand at the pavement's `.15`. Bikes, a terrace and an
+  A-board stand outside the storefront, measured off the courier's lanes
+  (bikes 2.8 m, terrace 1.4 m, A-board 2.1 m) and out of the door's swing.
+  The street's sun is the room's sun now (west, late afternoon).
 - **Roughness maps**: `roughFromCanvas()` (paint luminance + a tileable wear
   field, written to G, linear) runs in the same idle queue as the normals
   (`RGH`); a material that gets one is set to `roughness:1`, the map carries
