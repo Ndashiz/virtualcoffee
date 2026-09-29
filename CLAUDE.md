@@ -257,6 +257,10 @@ mesh not in the repo — see `people/README.md`).
   of his joints find nothing in the way there (at x -12.6 a mullion cut him
   in half). Move the shot, re-run `.work/exterior/probe_hero.js` (a `PROBE=`
   script for `shoot.js`) and move the stop.
+- **Clothes are allocated, not rolled** (`pickDistinct()`, NO TWO ALIKE):
+  any new cast member or rack colour must keep ΔE ≥ 16 (cast) / ≥ 12
+  (extras) against everything worn, measured on the DISPLAYED colour
+  (`shownLab` treats the hex as linear, as the café feeds it).
 - **The vans' cabs are `CAR_TYPES.vancab`** (placeCar), the model's cabs,
   wheels and lamps are HIDE'd. The boxes and the ICE CUBE leaves are still
   the model's; door hardware is `vanDoorKit()`, a child of each leaf so it

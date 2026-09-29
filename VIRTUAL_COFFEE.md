@@ -654,7 +654,21 @@ la baie le coupait en deux ; à x −10,2 / z −12,5 rien ne le masque.
 **Le jukebox** porte un bandeau LED ambre sous son fronton : « CLICK TO PLAY
 ME » (« TAP TO PLAY ME » au doigt) clignote tant qu'il est au repos, et
 « NOW PLAYING » s'affiche fixe une fois la musique lancée (fixe aussi sous
-mouvement réduit).
+mouvement réduit). Une guirlande de 27 ampoules fait le tour de l'arche et
+descend les montants : chenillard de fête foraine au repos (une sur quatre
+allumée, qui court), double éclat de toute la guirlande et du néon toutes les
+6,5 s, respiration au rythme du morceau pendant la lecture.
+
+**Le menu se lit depuis la chaise** (7,6 m) : les huit cafés de Simon en deux
+colonnes, 54 px sur 832 (7,3 cm au mur), chaque blague sur une ligne, la
+boulangerie sur une seule ligne dessous, sans pointillés ; un clic l'ouvre en
+grand comme la plaque et les journaux.
+
+**Jamais deux fois la même tenue** : le casting tient en dix couleurs écartées
+d'au moins ΔE 16 telles qu'affichées ; le portant des figurants n'en partage
+aucune ; chaque tirage (passant, clients de la vitre, invité) prend une couleur
+à au moins ΔE 12 de tout ce que portent les autres (`pickDistinct()`). Le
+serveur passe en chemise noire et long tablier blanc.
 
 **Les visages de loin** : la version allégée des corps (au-delà de 6 m, donc
 la plupart des personnages dans le plan principal) garde désormais la tête

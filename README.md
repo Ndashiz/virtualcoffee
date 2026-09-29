@@ -392,9 +392,29 @@ How it is built (`/* ---------------- THE STREET` in `index.html`):
   courier's lane.
 
 **The menu grew** with it: 2.75 x 1.12 m, from just right of Simon's head to
-the clock and from the machine's top to 10 cm under the soffit, three columns,
-long items stepping down a size rather than running into their price, and a
-bronze picture light of its own — lit like the room instead of glowing.
+the clock and from the machine's top to 10 cm under the soffit, with a bronze
+picture light of its own — lit like the room instead of glowing. Since
+2026-09-29 it is written to be READ from the chair (7.6 m away): Simon's
+eight coffees in two columns at 54 px on the 832 px board (7.3 cm letters),
+each joke on one line, the bakery on a single line beneath, no dot leaders —
+and a click opens the whole card full size, like the plaque and the press
+(its `menu` key is not in the ping's `ITEMS` yet: the read is counted without
+an item until store.ts learns it).
+
+**The jukebox calls you over.** An amber LED strip under its marquee blinks
+CLICK TO PLAY ME (TAP TO PLAY ME on a phone) while it waits and says NOW
+PLAYING, steady, once it is on; a string of 27 marquee bulbs round the arch
+and down the brass stiles runs a fairground chase — one in four lit and
+marching, the whole string flashing twice every 6.5 s with the arch's neon —
+and breathes with the track on air. One instanced mesh; the lit bulbs are HDR
+so the bloom does the glow. Steady under reduced motion.
+
+**No two alike.** No two people in the café wear the same clothes at the same
+time: the cast is ten colours at least ΔE 16 apart as the screen shows them
+(clothing hex is fed as linear, so the check runs on the displayed colour),
+the extras' rack shares none of them, and every roll — stroller, window
+customers, guest — takes a colour at least ΔE 12 from everything anyone else
+is wearing (`pickDistinct()`), seen or not.
 
 **The flying man is a man.** He was a 42 cm figure of primitives flying in the
 gap between the plate and the wall. He is now built by the real-person
