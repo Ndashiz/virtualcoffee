@@ -186,6 +186,34 @@ mechanics that bite:
 - **The fitted ACES holds the darks down** harder than the one-liner it
   replaced: grade offsets that were harmless before clip walnut, bronze and
   smoked oak to pure black (the night grade's exposure had to move).
+- **Hex colours are LINEAR here** (r134, no colour management): `0x3e4246`
+  renders as a light grey, not an anthracite. A surface meant to look dark
+  needs a genuinely dark hex (the fridge interior is `0x1c1f22`). Vertex and
+  instance colours are linear too — convert sRGB picks with
+  `convertSRGBToLinear()`.
+- **The interview shot is a shift lens** (DA audit phase 1, 2026-09-29): the
+  camera looks level at its target's height and `setViewOffset` slides the
+  frame down, so verticals stay vertical; `levelK` blends it off for the
+  chase. Two traps: `setViewOffset` REWRITES `camera.aspect` as
+  fullWidth/fullHeight (pass the aspect, or the picture is squeezed square),
+  and anything rebuilding view positions from depth must add the
+  off-centre term — SSAO's `uOff` is projection `[8]`, `[9]`.
+- **Where the bar's globes hang is measured** (`BAR_GLOBES`): from every
+  gameplay camera (desktop, ±.10 parallax, portrait) only x −.22..0 and
+  x 2.77..3.19 clear both the left TV and the menu. Move the shot or either
+  of those, re-project before moving a globe. The model's cables are HIDE'd
+  (each globe's stem runs to the rail) and its bulbs are offset into the
+  globes; the third bulb is hidden.
+- **The parser can bake a half-turn** (`parseOBJGroups`' 4th argument): the
+  espresso machine's parts (`MACHINE_TURN`) turn about their body's centre
+  at parse, so they still merge by material — no SPECIAL, no extra draw call.
+- **`mergeGeos` keeps vertex colours** (white where a part has none), so
+  baked-colour props (`croissantGeo`, `painAuChocGeo`) batch like anything else.
+- **Roughness maps**: `roughFromCanvas()` (paint luminance + a tileable wear
+  field, written to G, linear) runs in the same idle queue as the normals
+  (`RGH`); a material that gets one is set to `roughness:1`, the map carries
+  the absolute value. Steel reflects `STEEL_ENV`, a painted panorama — the
+  room's environment is too even for metal to read as metal.
 
 ## The people (people.bin) — what bites
 

@@ -308,10 +308,10 @@ l'étrange sur une page de recrutement).
 - **Matière** : table en lames de bois vernies (clearcoat), briques au bon
   ratio avec crasse en bas de mur, normal maps dérivées automatiquement des
   textures procédurales, ombres de contact sous chaque objet.
-- **Caméra** : **fixe, en plan large** — reculée à 2,6 m de la table (fov 52)
-  pour que le café entier — comptoir, caisse, carte, bar de fenêtre — fasse
-  partie du plan, angle d'assise légèrement décentré, respiration
-  imperceptible. Pas de plans de coupe (choix délibéré). Pendant qu'il parle :
+- **Caméra** : **fixe**, un ≈ 30 mm (fov 40) à 1,32 m, par-dessus l'épaule
+  du visiteur, Simon à droite du centre et la carte entière dans le cadre ;
+  objectif **à décentrement** (caméra de niveau, verticales droites),
+  respiration imperceptible. Pas de plans de coupe (choix délibéré). Pendant qu'il parle :
   letterbox + sous-titres façon jeu vidéo. La feuille survolée vient à la
   rencontre de la caméra (elle serait illisible sinon).
 - **Voix** : mp3 enregistrés ; la bouche de Simon est synchronisée à
@@ -604,6 +604,34 @@ profond, parce qu'un visage se lit sur un fond sombre.
   ordinateur ; 489 / 214 k contre 476 / 189 k sur téléphone, où les grandes
   textures et les light maps sont peintes à demi-résolution.
 
+### Audit DA, phase 1 (2026-09-29)
+
+Les gains rapides de l'audit de direction artistique en dix axes :
+
+- **Cadrage** : ≈ 30 mm au lieu de ≈ 21 mm (fov 40), caméra à 1,32 m, Simon
+  à droite du centre, carte entière ; objectif à décentrement
+  (`setViewOffset`) pour des verticales droites. Arrêt de Superman re-mesuré
+  depuis ce plan : inchangé (13 articulations sur 13 visibles).
+- **Deux globes encadrent la carte** au lieu de trois qui la coupaient
+  (`BAR_GLOBES` : les deux seules places libres entre la télé et la carte,
+  depuis toutes les caméras de jeu).
+- **Vapeur** : un ruban de fumée au lieu de cinq sphères.
+- **Machine à espresso retournée** (les groupes côté barista, `MACHINE_TURN`
+  dans le parseur), inox brossé, tasses sur le chauffe-tasses, plaque en
+  laiton côté salle.
+- **Viennoiseries** : un vrai croissant roulé (`croissantGeo`) dans
+  l'assiette de Simon, la vitrine du comptoir garnie de croissants et de
+  pains au chocolat.
+- **Frigo** : intérieur anthracite, LED dans le cadre et sous chaque
+  clayette, jus en bouteille, reflet sur la porte vitrée.
+- **Rugosité** : cartes dérivées de la peinture (parquet, travertin, noyer)
+  et peintes (cuir, inox) ; globes opalins assombris au bord ; feutre du
+  radeau gris chaud, lattes nuancées.
+- **La lectrice** du bar de fenêtre se tourne de trois quarts vers la salle.
+- **Coût** (plan de jeu, 1440×810) : 292 appels de rendu contre 333, 770 k
+  triangles contre 747 k, une lumière de moins ; téléphone 257 / 591 k contre
+  269 / 564 k.
+
 ## 6 ter. La rue (2026-09-28)
 
 Le dehors lisait comme un écran, pour trois raisons, toutes supprimées :
@@ -660,8 +688,9 @@ regarde, et repart ; son ombre traverse la chaussée. Son point d'arrêt est
 articulations, sur une grille de positions — à l'ancien arrêt, un montant de
 la baie le coupait en deux ; à x −10,2 / z −12,5 rien ne le masque.
 
-**Le jukebox** porte un bandeau LED ambre sous son fronton : « CLICK TO PLAY
-ME » (« TAP TO PLAY ME » au doigt) clignote tant qu'il est au repos, et
+**Le jukebox** porte un bandeau LED ambre sous son fronton : « PICK A RECORD »
+(les mots du juke-box, pas ceux du joueur — le « cliquer » est dans la
+bulle d'aide de l'interface) clignote tant qu'il est au repos, et
 « NOW PLAYING » s'affiche fixe une fois la musique lancée (fixe aussi sous
 mouvement réduit). Une guirlande de 27 ampoules fait le tour de l'arche et
 descend les montants : chenillard de fête foraine au repos (une sur quatre

@@ -73,7 +73,8 @@ l'anneau de la chaise. L'un est un écran, l'autre une interface ; ils n'ont pas
    dans une retombée de plâtre) qui lèche l'enduit de haut en bas, et un
    **radeau de lattes de chêne** au-dessus des tables dont le halo réchauffe
    le plafond.
-3. **Tâche** — trois **globes opalins** au-dessus du bar, un quatrième, plus
+3. **Tâche** — deux **globes opalins** qui encadrent la carte au-dessus du bar
+   (trois à l'origine ; ils coupaient la carte et la télé, voir §4), un troisième, plus
    grand, au-dessus de la table de Simon : la source enfin visible du spot qui
    l'éclaire.
 4. **Accent** — une **lampe à tableau** en bronze sur chaque une du mur
@@ -187,10 +188,15 @@ dessine), plateau en **travertin** de 10 cm, socle en retrait avec un **filet
 de lumière 2700 K** qui fait flotter le bloc. Derrière, le mur olive lavé par la
 corniche ; à droite de Simon, un **menu de 1,84 × 0,72 m** au ratio exact de sa
 toile, cadre bronze, texte ivoire (Inter), prix champagne (Space Grotesk),
-points de conduite. Trois **globes opalins** sur tiges bronze. Une **tablette
+points de conduite. Deux **globes opalins** sur tiges bronze, de part et
+d'autre de la carte (2026-09-29 : trois la coupaient depuis la chaise). Une **tablette
 sur pied pivotant** et un terminal de paiement à la place de la caisse. Le
-frigo gainé de bronze, bandeau chêne, intérieur lumineux, et des canettes d'une
-seule marque en quatre saveurs sourdes.
+frigo gainé de bronze, bandeau chêne, intérieur anthracite éclairé par des
+LED (montants, haut, bord de chaque clayette — 2026-09-29 : l'intérieur
+blanc lumineux sortait blanc pur), des canettes d'une seule marque en quatre
+saveurs sourdes et des jus en bouteille. La machine a ses groupes côté
+barista et montre à la salle un dos en inox brossé coiffé de tasses ; la
+vitrine est garnie de viennoiseries.
 
 **4.6 À remplacer.** Ardoise → menu ; caisse → tablette + TPE ; abat-jour laiton →
 globes opalins ; néon → supprimé ; façade du comptoir → cannelures ; plateaux

@@ -1789,12 +1789,12 @@ const dofMat=new THREE.ShaderMaterial({
    taps on a golden spiral rotated per pixel by a 4x4 Bayer angle, then a
    4x4 depth-aware box that exactly cancels that pattern. */
 const aoMat=new THREE.ShaderMaterial({
-  uniforms:{tDepth:{value:null},uRes:{value:new THREE.Vector2()},uTanFov:{value:new THREE.Vector2(1,1)},
+  uniforms:{tDepth:{value:null},uRes:{value:new THREE.Vector2()},uTanFov:{value:new THREE.Vector2(1,1)},uOff:{value:new THREE.Vector2()},
     cameraNear:{value:.1},cameraFar:{value:25},uRadius:{value:.5},uIntensity:{value:2.6},uBias:{value:.04}},
   vertexShader:QUAD_VS,
   fragmentShader:`
     #include <packing>
-    uniform sampler2D tDepth; uniform vec2 uRes,uTanFov;
+    uniform sampler2D tDepth; uniform vec2 uRes,uTanFov,uOff;
     uniform float cameraNear,cameraFar,uRadius,uIntensity,uBias;
     varying vec2 vUv;
     float bayer4(vec2 p){
@@ -1811,7 +1811,8 @@ const aoMat=new THREE.ShaderMaterial({
     }
     vec3 viewPos(vec2 uv){
       float z=perspectiveDepthToViewZ(texture2D(tDepth,uv).x,cameraNear,cameraFar);
-      return vec3((uv*2.-1.)*uTanFov*(-z),z);
+      /* uOff: the shift lens's off-centre frustum (projection [8],[9]) */
+      return vec3((uv*2.-1.+uOff)*uTanFov*(-z),z);
     }
     void main(){
       if(texture2D(tDepth,vUv).x>=.99999){gl_FragColor=vec4(1.);return;}
@@ -2170,6 +2171,88 @@ function normalFromCanvas(srcCanvas,strength,downscale){
   t.anisotropy=ANISO;
   return t;
 }
+/* Luminance -> ROUGHNESS. Until 2026-09-29 no surface in the café had a
+   roughness map: every material shone the same everywhere, and a sheen
+   that never varies is the surest "plastique neuf" there is (DA audit).
+   Two sources, both tileable: the paint itself — a darker texel is a pore,
+   a grain line, a seam, so it holds less polish — and a low-frequency
+   field for the wax, the wear and the wipe marks that break a sheen at
+   the scale a chair sees. Linear like the normals, written to G, which is
+   the channel three reads roughness from; the material's own roughness is
+   then 1 and the map carries the absolute value, lo..hi. */
+function roughFromCanvas(src,lo,hi,grain,wear,seed,ds){
+  ds=ds||1;
+  const w=Math.max(4,Math.floor(src.width/ds)),h=Math.max(4,Math.floor(src.height/ds));
+  const tmp=document.createElement("canvas");tmp.width=w;tmp.height=h;
+  const tc=tmp.getContext("2d");tc.drawImage(src,0,0,w,h);
+  const s=tc.getImageData(0,0,w,h).data;
+  const L=new Float32Array(w*h);let sum=0,sq=0;
+  for(let i=0;i<w*h;i++){
+    const l=(s[i*4]*.299+s[i*4+1]*.587+s[i*4+2]*.114)/255;
+    L[i]=l;sum+=l;sq+=l*l;
+  }
+  const mean=sum/(w*h),sd=Math.sqrt(Math.max(1e-6,sq/(w*h)-mean*mean));
+  /* periodic value noise, 5 cells across: tiles with the texture */
+  const N=5,R=rng(seed),G=new Float32Array(N*N);
+  for(let i=0;i<N*N;i++)G[i]=R();
+  function field(u,v){
+    const x=u*N,y=v*N,xi=Math.floor(x),yi=Math.floor(y);
+    let fx=x-xi,fy=y-yi;fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);
+    const g=function(a,b){return G[((b%N+N)%N)*N+((a%N+N)%N)];};
+    return (g(xi,yi)*(1-fx)+g(xi+1,yi)*fx)*(1-fy)+(g(xi,yi+1)*(1-fx)+g(xi+1,yi+1)*fx)*fy;
+  }
+  const out=document.createElement("canvas");out.width=w;out.height=h;
+  const oc=out.getContext("2d"),img=oc.createImageData(w,h),o=img.data;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=y*w+x;
+    const z=(L[i]-mean)/sd;                         /* darker = rougher */
+    const f=field(x/w,y/h)*.7+field(x/w*3.1+.37,y/h*3.1+.71)*.3;
+    let r=.5-grain*z*.22+wear*(f-.5);
+    r=r<0?0:r>1?1:r;
+    const v=(lo+(hi-lo)*r)*255;
+    o[i*4]=v;o[i*4+1]=v;o[i*4+2]=v;o[i*4+3]=255;
+  }
+  oc.putImageData(img,0,0);
+  const t=new THREE.CanvasTexture(out);
+  t.encoding=THREE.LinearEncoding;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=ANISO;
+  return t;
+}
+/* brushed stainless: fine horizontal strokes, roughness .15..33 across
+   them — the one-directional sheen that tells steel from grey paint.
+   Doubles as its own bump (the strokes' relief). */
+function paintBrushed(x,w,h){
+  x.fillStyle="rgb(62,62,62)";x.fillRect(0,0,w,h);
+  const R=rng(7331);
+  for(let i=0;i<1400;i++){
+    const y=R()*h,v=50+R()*26|0;
+    x.fillStyle="rgba("+v+","+v+","+v+","+(.2+R()*.3)+")";
+    x.fillRect(0,y,w,.5+R()*.9);
+  }
+  for(let i=0;i<10;i++){                          /* a few longer scratches */
+    const y=R()*h,v=80+R()*12|0;x.fillStyle="rgba("+v+","+v+","+v+",.4)";
+    x.fillRect(R()*w*.5,y,w*(.2+R()*.5),.6);
+  }
+}
+/* cognac leather: pebble grain, then worn smooth where you sit */
+function paintLeather(x,w,h){
+  x.fillStyle="rgb(128,128,128)";x.fillRect(0,0,w,h);
+  const R=rng(5512);
+  for(let i=0;i<2600;i++){
+    const v=95+R()*70|0;x.fillStyle="rgba("+v+","+v+","+v+",.55)";
+    x.beginPath();x.arc(R()*w,R()*h,1+R()*2.2,0,7);x.fill();
+  }
+  for(let i=0;i<6;i++){
+    const g=x.createRadialGradient(0,0,0,0,0,w*.25);
+    g.addColorStop(0,"rgba(70,70,70,.5)");g.addColorStop(1,"rgba(70,70,70,0)");
+    x.save();x.translate(R()*w,R()*h);x.fillStyle=g;x.fillRect(-w*.25,-w*.25,w*.5,w*.5);x.restore();
+  }
+}
+function linTileTex(w,h,paint,rep){
+  const t=tileTex(w,h,paint);t.encoding=THREE.LinearEncoding;
+  if(rep)t.repeat.set(rep,rep);
+  return t;
+}
 function speckle(x,w,h,n,a){
   for(let i=0;i<n;i++){
     x.fillStyle=Math.random()<.5?`rgba(255,255,255,${a})`:`rgba(0,0,0,${a})`;
@@ -2382,6 +2465,33 @@ const oakTex  =tileTex(TEX_HI,TEX_HI,(x,w,h)=>paintWood(x,w,h,3301,{staves:7,var
 const walnutTex=tileTex(TEX_HI,TEX_HI,(x,w,h)=>paintWood(x,w,h,3402,{staves:5,var:.1,
   r:98,g:66,b:47,lines:30,ink:"40,24,14",a0:.14,a1:.24,figure:.6,joint:.3}));
 const travTex =tileTex(TEX_HI,TEX_HI,(x,w,h)=>paintTravertine(x,w,h,5150));
+const BRUSH_TEX=linTileTex(256,256,paintBrushed);
+/* What the steel mirrors. Metal has no colour of its own — it IS its
+   reflection — and the room's environment is a bright, soft box, so the
+   machine mirrored an even pale grey and read as a white box whatever its
+   roughness. Steel reads as steel by CONTRAST in what it reflects: dark
+   counter and floor below, a bright band at eye level (the windows, the
+   lime wall) broken by dark shapes (people, chairs), a warm ceiling above.
+   A painted panorama for the steel alone; three PMREMs it on first use. */
+const STEEL_ENV=(function(){
+  const t=ctex(512,256,function(x,w,h){
+    const g=x.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,"#c8b8a0");g.addColorStop(.36,"#877d71");
+    g.addColorStop(.44,"#f2ece2");g.addColorStop(.52,"#ddd5c9");
+    g.addColorStop(.57,"#3a322b");g.addColorStop(1,"#1a1411");
+    x.fillStyle=g;x.fillRect(0,0,w,h);
+    x.fillStyle="#fffdf8";
+    x.fillRect(w*.08,h*.29,w*.17,h*.19);x.fillRect(w*.58,h*.27,w*.24,h*.22);
+    const R=rng(4242);
+    for(let i=0;i<16;i++){
+      x.fillStyle="rgba(34,28,23,"+(.55+R()*.4).toFixed(2)+")";
+      x.fillRect(R()*w,h*(.38+R()*.08),8+R()*34,h*(.1+R()*.12));
+    }
+  });
+  t.mapping=THREE.EquirectangularReflectionMapping;
+  return t;
+})();
+const LEATHER_TEX=linTileTex(256,256,paintLeather,3);
 /* window view — the financial district Simon actually worked, not five
    anonymous slabs: a Big Four house and the two banks the café keeps
    talking about (NdaBank runs the plaque and the TV news, HENRY runs
@@ -3077,9 +3187,9 @@ const CAFE={meshes:new Map(),floor:null,backWall:null,bulbs:[],ready:false};
 /* Shared by the café and the NPC body parts: group an OBJ's triangles by
    keyFor(objectName, usemtl). The preprocessors write v/vt/vn for textured
    materials and v//vn for the rest — uv presence is read off the face. */
-function parseOBJGroups(text,keyFor,boxFor){
+function parseOBJGroups(text,keyFor,boxFor,turnFor){
   const v=[],vt=[],vn=[],groups=new Map();
-  let key=null,name="",box=null;
+  let key=null,name="",box=null,turn=null;
   const lines=text.split("\n");
   for(let li=0;li<lines.length;li++){
     const L=lines[li];
@@ -3089,7 +3199,8 @@ function parseOBJGroups(text,keyFor,boxFor){
       case "v": v.push(+t[1],+t[2],+t[3]);break;
       case "vt":vt.push(+t[1],+t[2]);break;
       case "vn":vn.push(+t[1],+t[2],+t[3]);break;
-      case "o": name=t[1];box=boxFor?boxFor(name):null;break;
+      case "o": name=t[1];box=boxFor?boxFor(name):null;
+        turn=turnFor?turnFor(name):null;break;
       /* keyFor may answer null: the object is dropped (its bounding box
          can still be recorded through boxFor — the café rebuilds several
          things exactly where the model put them) */
@@ -3108,9 +3219,13 @@ function parseOBJGroups(text,keyFor,boxFor){
             if(q>box.max[c])box.max[c]=q;
           }
           if(!g)continue;
-          g.pos.push(v[vi],v[vi+1],v[vi+2]);
+          /* turn: a half-turn about a vertical axis at (turn[0], turn[1]),
+             baked into the vertices so the object still merges by material */
+          if(turn)g.pos.push(2*turn[0]-v[vi],v[vi+1],2*turn[1]-v[vi+2]);
+          else g.pos.push(v[vi],v[vi+1],v[vi+2]);
           vi=(+a[2]-1)*3;
-          g.nrm.push(vn[vi],vn[vi+1],vn[vi+2]);
+          if(turn)g.nrm.push(-vn[vi],vn[vi+1],-vn[vi+2]);
+          else g.nrm.push(vn[vi],vn[vi+1],vn[vi+2]);
           if(a[1]){vi=(+a[1]-1)*2;g.uv.push(vt[vi],vt[vi+1]);}
         }
         break;}
@@ -3563,28 +3678,38 @@ function boxUV(geo,tile){
     /* blackened, not polished: at full metalness the bronze mirrored the
        bright floor and ceiling and every table foot read as aluminium */
     bronze:     std({color:0x28221d,metalness:.5,roughness:.46,envMapIntensity:.6}),
-    inox:       std({color:0xc4c7c9,metalness:1,roughness:.24,envMapIntensity:1.2}),
+    /* brushed, not a uniform .24: at one roughness everywhere the machine
+       read as a white box (DA audit). boxUV runs its strokes horizontal. */
+    inox:       std({color:0xc4c7c9,metalness:1,roughness:1,envMap:STEEL_ENV,envMapIntensity:1,
+                     roughnessMap:BRUSH_TEX,bumpMap:BRUSH_TEX,bumpScale:.001}),
     laiton:     std({color:0xb8966a,metalness:1,roughness:.3,envMapIntensity:1.15}),
     noyer_fonce:std({map:walnutTex,roughness:.5,envMapIntensity:.6}),
-    cuir:       std({color:0x6b3c20,roughness:.5,envMapIntensity:.55}),
+    /* grain + seat wear in the roughness (.5 was one flat sheen) */
+    cuir:       std({color:0x6b3c20,roughness:1,envMapIntensity:.55,
+                     roughnessMap:LEATHER_TEX,bumpMap:LEATHER_TEX,bumpScale:.004}),
     /* --- table and service: stoneware, not glossy white china --- */
     gres:       std({color:0xebe4d8,roughness:.48,envMapIntensity:.7}),
     creme:      std({color:0xe6dccb,roughness:.55,envMapIntensity:.5}),
-    frigo_int:  std({color:0xf2ede4,roughness:.6,emissive:0xfff0d8,emissiveIntensity:.3,envMapIntensity:.4}),
+    /* the drinks fridge was a white box glowing all over, clipped to pure
+       white from the chair, its cans floating in it (DA audit). A real one
+       is dark steel inside, lit by LED strips in the frame (dressBar), so
+       the light has a source and a falloff and the products read. */
+    frigo_int:  std({color:0x1c1f22,metalness:.3,roughness:.45,envMapIntensity:.5}),
     verre:      phys({color:0xe4ecee,transparent:true,opacity:.06,roughness:.03,envMapIntensity:.35,depthWrite:false}),
     ampoule:    std({color:0x1a1208,emissive:0xffd6a0,emissiveIntensity:1.5,roughness:1}),
     enseigne_porte:new THREE.MeshBasicMaterial({map:signTex}),
     vitrophanie:new THREE.MeshBasicMaterial({color:0xe9eef2,transparent:true,opacity:.35,depthWrite:false}),
     coco:       std({map:cocoTex,roughness:1,envMapIntensity:.2}),
-    pain:       std({color:0xc98b45,roughness:.7}),
-    garniture:  std({color:0x7d8f4e,roughness:.8}),
+    /* the fridge's goods carry a little of its LED light (their only use) */
+    pain:       std({color:0xc98b45,roughness:.7,emissive:0xc98b45,emissiveIntensity:.16}),
+    garniture:  std({color:0x7d8f4e,roughness:.8,emissive:0x7d8f4e,emissiveIntensity:.16}),
     emballage:  std({color:0xd9ccb4,roughness:.5,transparent:true,opacity:.55,depthWrite:false}),
     /* the fridge stock: one small-batch brand in four muted flavours, not
        four primary-coloured cans shouting from the far end of the bar */
-    soda_rouge: std({color:0xa4533a,metalness:.3,roughness:.35,envMapIntensity:1}),
-    soda_vert:  std({color:0x6f7f55,metalness:.3,roughness:.35,envMapIntensity:1}),
-    soda_bleu:  std({color:0x2f4a5e,metalness:.3,roughness:.35,envMapIntensity:1}),
-    soda_jaune: std({color:0xd2b57a,metalness:.3,roughness:.35,envMapIntensity:1}),
+    soda_rouge: std({color:0xa4533a,metalness:.3,roughness:.35,envMapIntensity:.5,emissive:0xa4533a,emissiveIntensity:.16}),
+    soda_vert:  std({color:0x6f7f55,metalness:.3,roughness:.35,envMapIntensity:.5,emissive:0x6f7f55,emissiveIntensity:.16}),
+    soda_bleu:  std({color:0x2f4a5e,metalness:.3,roughness:.35,envMapIntensity:.5,emissive:0x2f4a5e,emissiveIntensity:.16}),
+    soda_jaune: std({color:0xd2b57a,metalness:.3,roughness:.35,envMapIntensity:.5,emissive:0xd2b57a,emissiveIntensity:.16}),
 
     /* --- the trophy cabinet: kept whole, dressed in the new oak --- */
     socle_trophee:std({color:0x14110e,roughness:.55}),
@@ -3701,12 +3826,12 @@ function boxUV(geo,tile){
        gone — they take the treeline's foliage and its street light */
     [/^feuillage\./,"feuillu_2","verdure"]
   ];
-  const HIDE=/^(assise|latte_dossier|pied_chaise|barreau|montant|plateau_table|bord_table|fut_table|socle_table|assise_tabouret|fut_tabouret|socle_tabouret|repose_pied|abat_jour|abat_jour_applique|bras_applique|ampoule_applique|cadre_carte|carte_prix|comptoir_panneau|tapis_rond|pot|pot_col|caisse_(socle|corps|tiroir|tiroir_poignee|plaque_clavier|cloche)|touche_\d+_\d+|ecran_boitier|ecran_afficheur)\.|^feuillage\.[0-6]$|^(sol_naturel|clairiere_sous_bois|etage_resineux|houppier|branche|touffe|glissiere_securite|poteau_glissiere|tronc|feuillage|chassis|caisse_haute|nez|pavillon|lunette|vitre_g|vitre_d|arriere|becquet|retroviseur)\.|^(capot|pare_brise|phare|pneu|jante|cabine|calandre|pare_choc|vitre_cabine_g|vitre_cabine_d)\.|^feu_arriere\.[01]$/;
+  const HIDE=/^(cable|assise|latte_dossier|pied_chaise|barreau|montant|plateau_table|bord_table|fut_table|socle_table|assise_tabouret|fut_tabouret|socle_tabouret|repose_pied|abat_jour|abat_jour_applique|bras_applique|ampoule_applique|cadre_carte|carte_prix|comptoir_panneau|tapis_rond|pot|pot_col|caisse_(socle|corps|tiroir|tiroir_poignee|plaque_clavier|cloche)|touche_\d+_\d+|ecran_boitier|ecran_afficheur)\.|^feuillage\.[0-6]$|^(sol_naturel|clairiere_sous_bois|etage_resineux|houppier|branche|touffe|glissiere_securite|poteau_glissiere|tronc|feuillage|chassis|caisse_haute|nez|pavillon|lunette|vitre_g|vitre_d|arriere|becquet|retroviseur)\.|^(capot|pare_brise|phare|pneu|jante|cabine|calandre|pare_choc|vitre_cabine_g|vitre_cabine_d)\.|^feu_arriere\.[01]$/;
   const CAPTURE=/^(assise|latte_dossier|plateau_table|assise_tabouret|abat_jour|pot|caisse_socle|cadre_carte|comptoir_corps|comptoir_plateau|meuble_arriere)\./;
   /* texel size, in metres per tile, for every material mapped by boxUV */
   const BOXUV={chene_sol:2.4,platre:2.6,mur_avant_teinte:2.6,platre_vert:2.6,
     olive_panneau:1.4,chene:1.3,travertin:1.9,noyer_fonce:.8,
-    trottoir:1.4,bitume:3.5,bitume_rue:3.5};
+    trottoir:1.4,bitume:3.5,bitume_rue:3.5,inox:.22};
   function matFor(name,mtl){
     for(let i=0;i<REMAT.length;i++){
       const r=REMAT[i];
@@ -3715,6 +3840,18 @@ function boxUV(geo,tile){
     return mtl;
   }
   const REB=new Map();          /* captured bounding boxes, by object name */
+  /* The espresso machine faced the wrong way: its group heads, portafilters,
+     gauge and wand were on the CUSTOMER side of the body (z -3.42..-3.53,
+     facade at -3.49) while the barista works behind it at z -4.30 — a
+     machine nobody behind the bar could use, which any barista sees in one
+     look (DA audit, 2026-09-29). A half-turn about the body's own centre
+     (x 1.27, z -3.805) puts the working face toward her and shows the room
+     the steel back, as in every bar where the machine sits on the front
+     counter. The two cups under the groups go with them. Her own beats
+     never touch it: she grinds at the prop left of it and gazes at its
+     centre, which does not move. */
+  const MACHINE_TURN=/^(machine_corps|machine_chapeau|machine_facade|groupe_tete|porte_filtre|porte_filtre_manche|buse_vapeur|manometre|tasse)\.[01]$/;
+  const MACHINE_AXIS=[1.27,-3.805];
 
   function parseCafe(text){
     const groups=parseOBJGroups(text,function(name,mtl){
@@ -3724,6 +3861,8 @@ function boxUV(geo,tile){
       if(!CAPTURE.test(name))return null;
       const b={min:[1e9,1e9,1e9],max:[-1e9,-1e9,-1e9]};
       REB.set(name,b);return b;
+    },function(name){
+      return MACHINE_TURN.test(name)?MACHINE_AXIS:null;
     });
     groups.forEach((g,k)=>{
       const matName=k.indexOf("m:")===0?k.slice(2):matFor(k,g.mat);
@@ -3749,6 +3888,14 @@ function boxUV(geo,tile){
     CAFE.backWall=CAFE.meshes.get("m:platre_vert")||null;
     CAFE.bulbs=[CAFE.meshes.get("ampoule.0"),CAFE.meshes.get("ampoule.1"),
                 CAFE.meshes.get("ampoule.2")];
+    /* the bulbs follow their globes (world-space vertices: an offset);
+       the model's third has no globe left to sit in */
+    CAFE.bulbs.forEach(function(b,i){
+      if(!b)return;
+      if(i<BAR_GLOBES.length)b.position.x=BAR_GLOBES[i]-BAR_GLOBE_X0[i];
+      else b.visible=false;
+    });
+    CAFE.bulbs.length=BAR_GLOBES.length;
     CAFE.boxes=REB;
     CAFE.ready=true;
     buildDoorPivot();
@@ -3763,6 +3910,11 @@ function boxUV(geo,tile){
     }
     /* Relief for the big surfaces, derived from their own paint, one per
        idle slot: six Sobel passes back to back are a long task on a phone. */
+    /* and the roughness of the three surfaces a chair sees most of —
+       the floor, the stone and the walnut — derived the same way */
+    const RGH=[[MATS.chene_sol,floorTex,.36,.66,1,.5,811],
+      [MATS.travertin,travTex,.3,.6,1.2,.35,812],
+      [MATS.noyer_fonce,walnutTex,.3,.56,.8,.5,813]];
     const NRM=[[MATS.chene_sol,floorTex,2.4,.75],[MATS.platre,limeTex,2.2,.55],
       [MATS.platre_vert,oliveTex,2.2,.7],[MATS.chene,oakTex,1.6,.35],
       [MATS.travertin,travTex,1.4,.3],[MATS.noyer_fonce,walnutTex,1.6,.35]];
@@ -3777,6 +3929,18 @@ function boxUV(geo,tile){
           job[0].needsUpdate=true;
         }catch(e){console.warn("[vc] normal map skipped —",e);}
         nextNormal();
+      });
+    })();
+    (function nextRough(){
+      const job=RGH.shift();
+      if(!job)return;
+      idle(function(){
+        try{
+          const r=roughFromCanvas(job[1].userData.canvas,job[2],job[3],job[4],job[5],job[6],2);
+          r.repeat.copy(job[1].repeat);
+          job[0].roughnessMap=r;job[0].roughness=1;job[0].needsUpdate=true;
+        }catch(e){console.warn("[vc] roughness map skipped —",e);}
+        nextRough();
       });
     })();
   }
@@ -3826,27 +3990,33 @@ function mtx(x,y,z,rx,ry,rz,sx,sy,sz){
 /* one geometry out of many, each placed by its own matrix. Every part is
    de-indexed, and gets a zero uv if it has none, so any mix merges. */
 function mergeGeos(list){
-  let n=0;
+  let n=0,anyCol=false;
   const parts=list.map(function(it){
     const g=it.g.index?it.g.toNonIndexed():it.g.clone();
     if(it.m)g.applyMatrix4(it.m);
     if(!g.attributes.uv)g.setAttribute("uv",
       new THREE.BufferAttribute(new Float32Array(g.attributes.position.count*2),2));
+    if(g.attributes.color)anyCol=true;
     n+=g.attributes.position.count;
     return g;
   });
   const pos=new Float32Array(n*3),nrm=new Float32Array(n*3),uv=new Float32Array(n*2);
+  /* vertex colour survives the merge (the baked pastries carry theirs);
+     a part without any is white, i.e. untinted */
+  const col=anyCol?new Float32Array(n*3).fill(1):null;
   let o=0;
   parts.forEach(function(g){
     pos.set(g.attributes.position.array,o*3);
     nrm.set(g.attributes.normal.array,o*3);
     uv.set(g.attributes.uv.array,o*2);
+    if(col&&g.attributes.color)col.set(g.attributes.color.array,o*3);
     o+=g.attributes.position.count;g.dispose();
   });
   const geo=new THREE.BufferGeometry();
   geo.setAttribute("position",new THREE.BufferAttribute(pos,3));
   geo.setAttribute("normal",new THREE.BufferAttribute(nrm,3));
   geo.setAttribute("uv",new THREE.BufferAttribute(uv,2));
+  if(col)geo.setAttribute("color",new THREE.BufferAttribute(col,3));
   geo.computeBoundingSphere();
   return geo;
 }
@@ -4099,11 +4269,10 @@ function buildAtelier(REB){
      A light the eye cannot find a source for is the first thing that reads
      as "render". Each globe owns its material: closeCafe() puts two out,
      and the disco gels tint them one by one. */
-  const shades=[];
-  REB.forEach(function(b,k){if(/^abat_jour\./.test(k))shades.push(boxCentre(b));});
-  shades.sort(function(a,b){return a[0]-b[0];});
-  shades.forEach(function(c,i){
-    const g=makeGlobe(.155,[c[0],2.035,c[2]],2.285);
+  /* at BAR_GLOBES, not on the model's shades (see there); the stem runs
+     all the way to the rail now that the model's cables are gone */
+  BAR_GLOBES.forEach(function(x,i){
+    const g=makeGlobe(.155,[x,2.035,-3.477],3.29);
     if(pendants[i]){pendants[i].shade=g;applyPendant(pendants[i]);}
   });
   /* its bottom sits at 2.62: out of the guest-chair frame (the hero shot
@@ -4117,8 +4286,82 @@ function buildAtelier(REB){
      press frames and in front of a dancer's spot, so it grows up, not out. */
   const pot=REB.get("pot.0");
   if(pot){const c=boxCentre(pot);buildStrelitzia(c[0],c[2]);}
+  dressBar(mats);
   applyLightMaps();
   if(cafeClosed)atelierNight();                /* closed before the model landed */
+}
+
+/* ---- THE BAR, DRESSED (DA audit, 2026-09-29) ----
+   Three things on and behind the counter read as placeholders from the
+   chair: a machine with nothing on it, a glass case with nothing in it, a
+   fridge that was a lamp. Everything here merges by material (Batch), so
+   the whole dressing costs a handful of draw calls. */
+function dressBar(mats){
+  /* THE MACHINE, room side. Turned (MACHINE_TURN), the room sees its steel
+     back — so give the back what a real one carries: the cup warmer on top
+     stacked with upturned espresso cups and two nested towers, and a brass
+     maker's plate. */
+  const cups=new Batch();
+  const cupGeo=lathe([[0,0],[.021,0],[.026,.004],[.031,.028],[.033,.05]],20);
+  cupGeo.rotateX(Math.PI);cupGeo.translate(0,.05,0);   /* upturned: foot up */
+  for(let row=0;row<2;row++)for(let k=0;k<6;k++){
+    cups.add(mats.gres,cupGeo,mtx(.95+k*.13+(row?.065:0),1.772,-3.73-row*.15));
+  }
+  const capGeo=lathe([[0,0],[.028,0],[.034,.006],[.044,.05],[.047,.075]],20);
+  for(const tx of[.86,1.68])for(let k=0;k<3;k++)
+    cups.add(mats.gres,capGeo,mtx(tx,1.772+k*.022,-3.97));
+  cups.build(scene);
+  const plate=new THREE.Mesh(new THREE.PlaneGeometry(.26,.052),
+    new THREE.MeshStandardMaterial({map:ctex(256,52,function(x,w,h){
+      x.fillStyle="#b8966a";x.fillRect(0,0,w,h);
+      x.strokeStyle="rgba(60,40,20,.55)";x.lineWidth=2;x.strokeRect(4,4,w-8,h-8);
+      x.fillStyle="rgba(52,34,16,.85)";x.textAlign="center";x.textBaseline="middle";
+      x.font='600 20px "Space Grotesk", sans-serif';
+      spaced(x,"VIRTUAL COFFEE · BXL",w/2,h/2+1,2);
+    }),metalness:1,roughness:.32,envMapIntensity:1.1}));
+  plate.position.set(1.27,1.49,-3.506);scene.add(plate);
+
+  /* THE VITRINE, which the model left empty: two slate trays of the
+     menu's own viennoiserie — croissants on the left, pains au chocolat on
+     the right. */
+  const vit=new Batch();
+  const slate=new THREE.MeshStandardMaterial({color:0x2a2b2c,roughness:.7,envMapIntensity:.4});
+  for(const tx of[2.12,2.76])vit.add(slate,softSlab(.52,.3,.012,.02,.004),mtx(tx,1.272,-3.72));
+  let seed=11;
+  for(let row=0;row<2;row++)for(let k=0;k<3;k++){
+    vit.add(PASTRY_MAT,croissantGeo(.13,.03,seed++),
+      mtx(1.96+k*.16,1.284,-3.66-row*.14,0,(row?.2:-.15)+(k-1)*.12));
+    vit.add(PASTRY_MAT,painAuChocGeo(seed++),
+      mtx(2.6+k*.155,1.284,-3.66-row*.14,0,(k-1)*.08));
+  }
+  vit.build(scene);
+
+  /* THE FRIDGE: LED strips down both jambs, across the top and under
+     each shelf's front edge — cool white, HDR so the bloom finds them —
+     and a third kind of product on its empty floor: small juice bottles.
+     The door gets a reflection of the room laid over its glass (additive,
+     dielectric: 4% head-on, more at an angle), which is what says
+     "glass door" rather than "open hole". */
+  const led=new THREE.MeshBasicMaterial({color:new THREE.Color(1.5,1.62,1.8)});
+  const leds=new Batch();
+  for(const lx of[3.625,4.425])leds.add(led,new THREE.BoxGeometry(.008,1.62,.006),mtx(lx,1.1,-4.01));
+  leds.add(led,new THREE.BoxGeometry(.8,.008,.006),mtx(4.025,1.91,-4.01));
+  for(const sy of[.43,.86,1.28,1.71])leds.add(led,new THREE.BoxGeometry(.8,.004,.004),mtx(4.025,sy-.006,-4.015));
+  leds.build(scene,{cast:false,receive:false});
+  const bottleGeo=lathe([[0,0],[.024,0],[.027,.006],[.027,.095],[.02,.118],[.011,.13],[.011,.148],[0,.148]],14);
+  const bottles=new THREE.InstancedMesh(bottleGeo,
+    new THREE.MeshStandardMaterial({roughness:.12,envMapIntensity:1}),10);
+  const juice=[0xd9822b,0xc4412f,0x8ea447,0xe7c35a,0x6b2a3a];
+  const bm=new THREE.Matrix4(),bc=new THREE.Color();
+  for(let i=0;i<10;i++){
+    bm.makeTranslation(3.69+i*.083,.262,-4.28+(i%2)*.1);bottles.setMatrixAt(i,bm);
+    bottles.setColorAt(i,bc.setHex(juice[i%juice.length]).convertSRGBToLinear());
+  }
+  bottles.castShadow=false;scene.add(bottles);
+  const glassSheen=new THREE.Mesh(new THREE.PlaneGeometry(.85,1.68),
+    new THREE.MeshStandardMaterial({color:0x000000,roughness:.06,metalness:0,envMapIntensity:1,
+      transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+  glassSheen.position.set(4.025,1.09,-3.932);glassSheen.renderOrder=3;scene.add(glassSheen);
 }
 
 /* ---- the atelier's own small materials and maps ---- */
@@ -4179,6 +4422,18 @@ function makeGlobe(r,c,topY){
   const mats=CAFE.mats;
   const mat=new THREE.MeshStandardMaterial({color:0xf3eee6,emissive:0xffd4a0,
     emissiveIntensity:1.15,roughness:.3,envMapIntensity:.45});
+  /* Opal glass lit from inside is not a flat disc: the light crosses more
+     glass toward the rim, so the limb darkens, and the lamp itself shows
+     through as a soft hot centre. A uniform emissive read as a paper circle
+     stuck on the wall (DA audit, 2026-09-29). View-dependent, so it holds
+     from any seat; the hot centre is HDR and the bloom takes it. */
+  mat.onBeforeCompile=function(sh){
+    sh.fragmentShader=sh.fragmentShader.replace("#include <emissivemap_fragment>",
+      "#include <emissivemap_fragment>\n"+
+      "float opalNdv=clamp(dot(normalize(normal),normalize(vViewPosition)),0.,1.);\n"+
+      "totalEmissiveRadiance*=mix(.3,1.,pow(opalNdv,1.4))+.8*pow(opalNdv,16.);");
+  };
+  mat.customProgramCacheKey=function(){return "opalGlobe";};
   const g=new THREE.Mesh(new THREE.SphereGeometry(r,28,18),mat);
   g.position.set(c[0],c[1],c[2]);scene.add(g);
   const capY=c[1]+r*.93;
@@ -4351,8 +4606,8 @@ function applyLightMaps(){
       x.strokeStyle="rgba("+WARM+","+(.08*(1-i/14))+")";x.lineWidth=P.s*.08;
       x.strokeRect(cx-rw/2-m,cy-rh/2-m,rw+2*m,rh+2*m);
     }
-    [[-.9,-3.48],[.371,-3.48],[1.642,-3.48]].forEach(function(p){
-      glow(x,P.x(p[0]),P.y(p[1]),P.s*.9,P.s*.9,WARM,.5);});
+    BAR_GLOBES.forEach(function(gx){
+      glow(x,P.x(gx),P.y(-3.48),P.s*.9,P.s*.9,WARM,.5);});
     glow(x,P.x(0),P.y(-.3),P.s*1.2,P.s*1.2,WARM,.6);
     const g=x.createLinearGradient(0,P.y(-4.75),0,P.y(-3.6));   /* cove bounce */
     g.addColorStop(0,"rgba("+WARM+",.35)");g.addColorStop(1,"rgba("+WARM+",0)");
@@ -5386,12 +5641,25 @@ winDir.shadow.normalBias=.02;
 winDir.shadow.bias=-.0002;
 scene.add(winDir,winDir.target);
 const lampPts=[];
-/* The three pendants over the counter: rail, cable and bulb are model
-   geometry, the shade is an opal globe buildAtelier() hangs on the model's
-   shade position (pendants[i].shade). The scene keeps their LIGHT: one glow sprite and
-   an optional point per fixture, built eagerly at the model's known bulb
-   positions so closeCafe() works even while cafe.obj.txt is in flight.
-   Each record's bulb mesh joins it when the model lands. */
+/* Where the bar's globes hang is measured, not inherited. The model hung
+   three, at x -.90 / .371 / 1.642, and from the chair every one of them
+   sat ON something: the first across the left television, the other two
+   across the menu's last line of prices (DA audit, 2026-09-29). Projecting
+   the set, the board and a .155 globe at the bar's z through the interview
+   shot — desktop, the mouse parallax's ±.10 either side, and portrait —
+   leaves exactly two clear slots: x -.22..0 between the set and the board,
+   and x 2.77..3.19 past the board's right edge. So two globes FRAME the
+   board instead of three cutting it; the light count is unchanged (the old
+   middle globe glowed on bloom alone). */
+const BAR_GLOBES=[-.10,2.95];
+const BAR_GLOBE_X0=[-.90,.371,1.642];   /* the model's own, for its bulbs */
+/* The pendants over the counter: the rail and the bulbs are model
+   geometry (the model's cables are HIDE'd — each globe's own stem runs up
+   to the rail now), the shade is an opal globe buildAtelier() hangs at
+   BAR_GLOBES (pendants[i].shade). The scene keeps their LIGHT: one glow sprite and
+   a point per fixture, built eagerly so closeCafe() works even while
+   cafe.obj.txt is in flight. Each record's bulb mesh joins it when the
+   model lands. */
 const pendants=[];
 function applyPendant(p){
   if(p.bulb)p.bulb.visible=p.lit;
@@ -5410,9 +5678,7 @@ function pendant(x,y,z,withPoint){
   }
   pendants.push({bulb:null,glow:spr,point:p,lit:true,dim:false});
 }
-pendant(-.90,2.045,-3.477,true);   /* the two counter ends carry points; */
-pendant(.371,2.045,-3.477,false);  /* the middle one glows on bloom alone */
-pendant(1.642,2.045,-3.477,true);
+BAR_GLOBES.forEach(function(x){pendant(x,2.045,-3.477,true);});
 
 /* ---------------- ENVIRONMENT (IBL) ----------------
    scene.environment feeds the specular term of every PBR material AND its
@@ -5443,13 +5709,13 @@ function buildEnvironment(night){
     root.add(m);tmp.push(geo,mat);
   }
   if(night){
-    /* closing time: one lamp over the machine, a street lamp's worth of
+    /* closing time: one lamp over the bar, a street lamp's worth of
        blue through the glass, and the room's surfaces barely there */
     emitter(10.3,.04,8.6,1.85,.01,-.47,0x3a2c20,.6);
     emitter(10,.04,8.4,1.85,3.42,-.47,0x2a2d38,.8);
     emitter(.04,1.46,5.6,-3.3,1.75,-.47,0x2a3a5c,1.6);
     emitter(.04,2.0,8.6,7.02,1.55,-.4,0x2c3a60,1.6);
-    emitter(.3,.3,.3,1.642,2.03,-3.48,0xffc890,5);
+    emitter(.3,.3,.3,BAR_GLOBES[BAR_GLOBES.length-1],2.03,-3.48,0xffc890,5);
   }else{
     emitter(10,.04,8.4,1.85,3.42,-.47,0xf2dcc0,1.05);   /* the lit ceiling */
     emitter(10.3,3.1,.04,1.85,1.6,-4.74,0x434837,.8);   /* olive back wall */
@@ -5458,7 +5724,7 @@ function buildEnvironment(night){
     emitter(.04,1.46,5.6,-3.3,1.75,-.47,0xd2e4f6,2.6);  /* the window: sky */
     emitter(.04,2.0,8.6,7.02,1.55,-.4,0xe2ebf3,2.1);    /* the storefront */
     emitter(10.2,.03,.08,1.85,3.2,-4.7,0xffd3a0,4);     /* the cove strip */
-    [-.9,.371,1.642].forEach(function(x){emitter(.3,.3,.3,x,2.03,-3.48,0xffd2a0,5);});
+    BAR_GLOBES.forEach(function(x){emitter(.3,.3,.3,x,2.03,-3.48,0xffd2a0,5);});
     emitter(.44,.44,.44,0,2.84,-.3,0xffd6a8,4);          /* his globe */
   }
   const pmrem=new THREE.PMREMGenerator(renderer);
@@ -5621,14 +5887,34 @@ const cove=new THREE.Group();
    room. The camera is held under 2.72 m (updateFollowShot), well clear. */
 const RAFT={x0:1.05,x1:6.35,z0:-2.55,z1:2.65,y:3.02};
 {
+  /* Two fixes from the DA audit (2026-09-29). The felt faces DOWN, so it
+     only ever saw the dark floor half of the environment and every gap
+     read pure black — a barcode overhead. Real felt up there catches the
+     room's bounce: a mid-dark grey, a little warm, and it glows that much
+     on its own (emissive stands in for the bounce). And fifty slats of one
+     identical tone read as extruded plastic; each takes its own ±5%, the
+     spread a batch of real oak boards has. */
+  const raftOak=CAFE.mats.chene.clone();raftOak.vertexColors=true;
   const b=new Batch(),len=RAFT.z1-RAFT.z0,slat=new THREE.BoxGeometry(.045,.07,len);
-  for(let x=RAFT.x0;x<=RAFT.x1+1e-6;x+=.1)
-    b.add(CAFE.mats.chene,slat,mtx(x,RAFT.y+.035,(RAFT.z0+RAFT.z1)/2));
+  let nSlat=0;
+  for(let x=RAFT.x0;x<=RAFT.x1+1e-6;x+=.1){
+    b.add(raftOak,slat,mtx(x,RAFT.y+.035,(RAFT.z0+RAFT.z1)/2));nSlat++;
+  }
   const felt=new THREE.PlaneGeometry(RAFT.x1-RAFT.x0+.12,len);
   felt.rotateX(Math.PI/2);
-  b.add(new THREE.MeshStandardMaterial({color:0x4a433c,roughness:1,envMapIntensity:.3}),
+  b.add(new THREE.MeshStandardMaterial({color:0x4b453f,roughness:1,envMapIntensity:.8,
+    emissive:0x0e0c0a,emissiveIntensity:1}),
     felt,mtx((RAFT.x0+RAFT.x1)/2,RAFT.y+.085,(RAFT.z0+RAFT.z1)/2));
-  b.build(scene,{cast:false});
+  b.build(scene,{cast:false}).forEach(function(m){
+    if(m.material!==raftOak)return;
+    const n=m.geometry.attributes.position.count,per=n/nSlat,col=new Float32Array(n*3);
+    const R=rng(6071);
+    for(let k=0;k<nSlat;k++){
+      const t=.95+R()*.1,w=(R()-.5)*.04;           /* tone, and a hair warm/cool */
+      for(let i=k*per;i<(k+1)*per;i++){col[i*3]=t*(1+w);col[i*3+1]=t;col[i*3+2]=t*(1-w);}
+    }
+    m.geometry.setAttribute("color",new THREE.BufferAttribute(col,3));
+  });
 }
 /* city view, hung outside the model's window bay. Taller than the bay
    on purpose: eye height then lands on the texture's middle band, not on
@@ -9238,7 +9524,15 @@ drinker.prop=sitCup;
 /* Reader one stool over, backlit by the window, page turn every 30-55 s
    (the model even leaves him a cup on the bar) */
 const reader=makeAgent("reader","reader",{shirt:0x9c7447,pants:0x2e2e38,skin:0xdcae86,hair:0x3a2c1c,fem:true});
-reader.pos.set(-1.706,0,-.809);reader.yaw=-Math.PI/2;reader.rootY=-.01;
+/* Swivelled on her stool, three-quarters to the room (yaw -.25, not -pi/2
+   square to the glass): from the interview shot everyone in the café had
+   their back to the lens, which is what makes extras read as set dressing
+   (DA audit, 2026-09-29). Her book rides on her chest and never touches
+   the bar, so she is the one who can turn; same stool, same spot, same
+   way out at closing — nothing about where she is or how she leaves
+   changed, so no route moved. Her knees point along the bar, a metre
+   short of the next stool. */
+reader.pos.set(-1.706,0,-.809);reader.yaw=-.25;reader.rootY=-.01;
 const bookG=new THREE.Group();
 let bookPages=null;
 {
@@ -11631,9 +11925,13 @@ let jbNeonA,jbNeonB,jbTipMat,jbLight,jbFaceTex,jbCd,jbScreen,jbScreenTex,jbBulbs
       emissive:0xffffff,emissiveMap:jbFaceTex,emissiveIntensity:.5}));
   face.position.set(0,.72,.202);jbGroup.add(face);
   /* THE CALL TO ACTION (Simon, 2026-09-29): an amber LED strip under the
-     marquee that blinks CLICK TO PLAY ME while the box is idle — the one
-     object in the room that wants to be touched now says so, in words.
-     On air it stops blinking and says what it is doing. A screen is a
+     marquee that blinks while the box is idle — the one object in the room
+     that wants to be touched says so, in words. The words are the
+     jukebox's own, not the player's: "CLICK TO PLAY ME" named the mouse,
+     and a sign in the room that talks about the mouse says "this is a
+     game" (DA audit, same day). A real box asks you to pick a record; the
+     "click" lives in the HUD hint (updateReadHint), where instructions
+     belong. On air it stops blinking and says what it is doing. A screen is a
      light source: unlit material, and a dark dot pitch drawn over the
      letters so it reads as a matrix, not as a printed label. Steady under
      reduced motion. */
@@ -11645,7 +11943,7 @@ let jbNeonA,jbNeonB,jbTipMat,jbLight,jbFaceTex,jbCd,jbScreen,jbScreenTex,jbBulbs
     for(let i=0;i<w;i+=4)x.fillRect(i,0,1,h);
     for(let j=0;j<h;j+=4)x.fillRect(0,j,w,1);
   }
-  const JB_MSG=[TOUCH?"TAP TO PLAY ME":"CLICK TO PLAY ME","NOW PLAYING"];
+  const JB_MSG=["PICK A RECORD","NOW PLAYING"];
   jbScreenTex=JB_MSG.map(function(m){return ctex(512,96,function(x,w,h){drawJbScreen(x,w,h,m);});});
   VC.fontsReady.then(()=>{jbScreenTex.forEach(function(t,i){
     drawJbScreen(t.userData.canvas.getContext("2d"),512,96,JB_MSG[i]);t.needsUpdate=true;});});
@@ -12164,16 +12462,16 @@ function jbFrame(dt){
      glow sprites take the same colour, so the fixtures themselves read as
      gelled, not just the walls under them. */
   if(!JB.gels){
-    JB.gels=[[-0.900,2.0,-3.477],[0.371,2.0,-3.477],[1.642,2.0,-3.477]].map(function(p){
+    JB.gels=BAR_GLOBES.map(function(gx){
       const l=new THREE.PointLight(0xffffff,0,5.5,2);
-      l.position.set(p[0],p[1],p[2]);scene.add(l);return l;
+      l.position.set(gx,2.0,-3.477);scene.add(l);return l;
     });
     JB.gelW=0;
   }
   JB.gelW=damp(JB.gelW,on?1:0,.10,dt);
-  for(let gi=0;gi<3;gi++){
+  for(let gi=0;gi<JB.gels.length;gi++){
     const l=JB.gels[gi];
-    l.color.setHSL(((RM?0:t*.16)+gi/3)%1,1,.55);
+    l.color.setHSL(((RM?0:t*.16)+gi/JB.gels.length)%1,1,.55);
     l.intensity=JB.gelW*(.85+1.5*JB.levelSlow);
     const pd=pendants[gi];
     if(pd&&pd.glow){
@@ -12640,6 +12938,71 @@ function mapSimon(eyeS){
   J.head.getWorldPosition(simonHead.position);
 }
 
+/* ---------------- VIENNOISERIE ----------------
+   A croissant was three squashed spheres in a row — from the chair, three
+   beige eggs on a plate (DA audit, 2026-09-29). A real one is a crescent
+   of rolled dough: pointed tips that droop to the plate, five or six rolls
+   separated by narrow grooves that spiral a little, the tops baked dark
+   under the egg wash and the grooves and the underside pale. Swept here
+   along an arc, section by section; the bake is vertex colour, so every
+   croissant in the café is ONE material and the vitrine one draw call. */
+function croissantGeo(len,r,seed){
+  const R=rng(seed||1),NU=40,NV=18,ARC=2.25+R()*.3,Rs=len/(2*Math.sin(ARC/2)),K=5+(R()<.5?1:0);
+  const pos=[],col=[],idx=[];
+  const cBake=new THREE.Color(0x8a4a17).convertSRGBToLinear(),
+        cGold=new THREE.Color(0xc98a3e).convertSRGBToLinear(),
+        cPale=new THREE.Color(0xe3bd7e).convertSRGBToLinear(),c=new THREE.Color();
+  for(let i=0;i<=NU;i++){
+    const u=i/NU,th=(u-.5)*ARC;
+    const sx=Rs*Math.sin(th),sz=-Rs*(1-Math.cos(th));
+    const nx=Math.sin(th),nz=Math.cos(th);           /* outward, in plane */
+    const droop=-.3*r*Math.pow(Math.abs(2*u-1),3);
+    for(let j=0;j<=NV;j++){
+      const v=j/NV*Math.PI*2;
+      const groove=Math.pow(.5+.5*Math.cos(Math.PI*2*(K*u+.12*Math.sin(v))),10);
+      const rr=r*Math.pow(Math.sin(Math.PI*u),.75)*(1-.15*groove)*(1+.08*(R()-.5));
+      let cy=Math.sin(v)*rr*.8,cr=Math.cos(v)*rr;
+      const floor=-.42*r*Math.pow(Math.sin(Math.PI*u),.75);
+      if(cy<floor)cy=floor;                           /* it sits on its belly */
+      pos.push(sx+nx*cr,droop+cy+.42*r,sz+nz*cr);
+      const top=Math.max(0,Math.sin(v));
+      c.copy(cPale).lerp(cGold,Math.min(1,.35+top*.9)).lerp(cBake,top*top*.55*(1-groove));
+      c.lerp(cPale,groove*.55);
+      col.push(c.r,c.g,c.b);
+    }
+  }
+  for(let i=0;i<NU;i++)for(let j=0;j<NV;j++){
+    const a=i*(NV+1)+j,b=a+NV+1;
+    idx.push(a,b,a+1,b,b+1,a+1);
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute("color",new THREE.Float32BufferAttribute(col,3));
+  g.setIndex(idx);g.computeVertexNormals();
+  g.translate(0,0,Rs*(1-Math.cos(ARC/2))*.5);      /* centred on its footprint */
+  return g.toNonIndexed();
+}
+/* a pain au chocolat: a laminated block, the two bars showing at the ends */
+function painAuChocGeo(seed){
+  const R=rng(seed||2),w=.105+R()*.01,d=.066,h=.034;
+  const g=softSlab(w,d,h,.018,.012);
+  const n=g.attributes.position.count,col=new Float32Array(n*3);
+  const cBake=new THREE.Color(0x9a5a22).convertSRGBToLinear(),
+        cPale=new THREE.Color(0xdcb074).convertSRGBToLinear(),
+        cChoc=new THREE.Color(0x2a150a).convertSRGBToLinear(),c=new THREE.Color();
+  const p=g.attributes.position;
+  for(let i=0;i<n;i++){
+    const y=p.getY(i)/h,x=Math.abs(p.getX(i))/(w/2);
+    c.copy(cPale).lerp(cBake,Math.max(0,Math.min(1,y*1.1-.1)));
+    /* the chocolate: a dark band low on each end face */
+    if(x>.93&&y>.25&&y<.6)c.copy(cChoc);
+    col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b;
+  }
+  g.setAttribute("color",new THREE.BufferAttribute(col,3));
+  return g;
+}
+const PASTRY_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.46,envMapIntensity:.5});
+
 /* Simon's cup + saucer + steam + pen + croissant */
 const saucer=new THREE.Mesh(new THREE.CylinderGeometry(.085,.07,.014,20),
   new THREE.MeshStandardMaterial({color:0xe6ddcf,roughness:.5}));
@@ -12655,12 +13018,41 @@ const handle=new THREE.Mesh(new THREE.TorusGeometry(.03,.008,8,18),
   new THREE.MeshStandardMaterial({color:0xebe4d8,roughness:.48}));
 handle.position.x=.055;cup.add(handle);
 cup.position.set(.44,.865,-.62);scene.add(cup);
-const steam=[];
-for(let i=0;i<5;i++){
-  const s=new THREE.Mesh(new THREE.SphereGeometry(.015,8,8),
-    new THREE.MeshBasicMaterial({color:0xe8e3da,transparent:true,opacity:0,depthWrite:false}));
-  s.userData.phase=i*.5;scene.add(s);steam.push(s);
-}
+/* Steam is a ribbon, not beads. Five translucent spheres climbing out of
+   the cup read as soap bubbles from the chair — the DA audit's #4 tell,
+   right beside Simon's face. A real plume is one thin column that leaves
+   the surface narrow and nearly invisible, curls, widens and thins out
+   within 20 cm. So: one upright quad turned to the lens every frame,
+   painted by a noise field advected upward — a few per cent of opacity at
+   its densest, which is all a coffee gives off in a warm room. Unlit and
+   additive-free on purpose: it sits in front of the olive wall and the
+   pale counter alike, and a plain alpha of a warm off-white reads on both. */
+const steamMat=new THREE.ShaderMaterial({
+  uniforms:{uT:{value:0},uCol:{value:new THREE.Color(.78,.76,.72)}},
+  transparent:true,depthWrite:false,side:THREE.DoubleSide,
+  vertexShader:`varying vec2 vUv;
+    void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`
+    uniform float uT; uniform vec3 uCol; varying vec2 vUv;
+    float h2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+    float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+      return mix(mix(h2(i),h2(i+vec2(1,0)),f.x),mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x),f.y);}
+    float fb(vec2 p){float s=0.,a=.5;for(int i=0;i<4;i++){s+=a*vn(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return s;}
+    void main(){
+      float y=vUv.y;
+      /* the column wanders more the higher it gets, and so does its width */
+      float cx=.5+(fb(vec2(y*2.2-uT*.35,uT*.11))-.5)*.55*y+sin(y*7.-uT*1.4)*.06*y;
+      float w=.06+.34*y;
+      float core=exp(-pow((vUv.x-cx)/w,2.)*2.2);
+      float wisp=fb(vec2(vUv.x*5.+y*1.5,y*4.-uT*.9));
+      float d=core*smoothstep(.28,.75,wisp+.18*(1.-y));
+      d*=smoothstep(0.,.1,y)*(1.-smoothstep(.45,1.,y));
+      gl_FragColor=vec4(uCol,d*.24);
+    }`});
+const steamRibbon=new THREE.Mesh(new THREE.PlaneGeometry(.12,.3),steamMat);
+steamRibbon.position.set(.44,.912+.15,-.62);   /* its foot on the coffee */
+steamRibbon.renderOrder=2;scene.add(steamRibbon);
+const steam=[steamRibbon];    /* the beer and closing code hide "steam" */
 /* beers for the off-record moment (hidden until "about") */
 const beers=new THREE.Group();
 function beerGlass(x,z){
@@ -12695,11 +13087,10 @@ const plate=new THREE.Mesh(new THREE.CylinderGeometry(.11,.095,.014,20),
   new THREE.MeshStandardMaterial({color:0xe2d9c9,roughness:.52}));
 plate.position.set(-.45,.81,-.62);plate.castShadow=true;scene.add(plate);
 const croissant=[];
-for(let i=0;i<3;i++){
-  const seg=new THREE.Mesh(new THREE.SphereGeometry(.036-.007*Math.abs(i-1),10,8),
-    new THREE.MeshStandardMaterial({color:0xc98a3e,roughness:.7}));
-  seg.position.set(-.45+(i-1)*.045,.845,-.62+(Math.abs(i-1))*.012);
-  seg.scale.set(1,.75,.8);seg.castShadow=true;scene.add(seg);croissant.push(seg);
+{
+  const c=new THREE.Mesh(croissantGeo(.15,.034,77),PASTRY_MAT);
+  c.position.set(-.45,.817,-.625);c.rotation.y=.5;c.castShadow=true;
+  scene.add(c);croissant.push(c);
 }
 
 /* ---------------- RÉSUMÉ SHEET ---------------- */
@@ -13907,12 +14298,13 @@ function closeCafe(){
      floor. A blue-night hemisphere keeps their silhouettes. */
   hemi.color.setHex(0x44557a);hemi.groundColor.setHex(0x1c1510);
   hemi.intensity=.26;
+  const lastOn=pendants.length-1;              /* the one at the fridge end */
   pendants.forEach((p,i)=>{
-    p.lit=i===2;p.dim=true;                    /* the one over the machine */
+    p.lit=i===lastOn;p.dim=true;
     applyPendant(p);   /* records are eager; the bulb mesh itself may still
                           be in flight — the loader re-applies on arrival */
   });
-  closedLamp=pendants[2].point;
+  closedLamp=pendants[lastOn].point;
   /* Two shadow maps for a room lit by a single 0.34 point light is pure
      cost — at this exposure the shadows are below the noise floor. */
   keySpot.castShadow=false;winDir.castShadow=false;
@@ -13980,7 +14372,10 @@ const SHOTS={
      counter, the chalkboard, the window and every extra in the place.
      A range this wide means NOTHING blurs by distance; the only rack
      focus left is the deliberate one, when you hover the resume. */
-  gameplay: {pos:[.42,1.42,2.6], look:[0,1.02,-.95], fov:52,focus:3.5, range:14, roll:.006, shake:1},
+  /* ≈ 30 mm, not 21 (DA audit, 2026-09-29): at fov 52 the floor took a
+     third of the frame and Simon's face 7% of its height. applyStaging()
+     owns the real numbers; these are its desktop values. */
+  gameplay: {pos:[.5,1.32,2.45], look:[-.25,1.10,-.95], fov:40,focus:3.6, range:14, roll:.006, shake:1},
   /* Third-person chase for the walk in — the arrays below are rewritten
      every frame by updateFollowShot(). Nothing else changes: the same
      damping that used to blend between fixed setups now trails the
@@ -14211,6 +14606,7 @@ const zoomNow=document.getElementById("zoomNow");
 const zoomSeg=document.getElementById("zoomSeg");
 const zoomEnd=document.getElementById("zoomEnd");
 const readHint=document.getElementById("readHint");
+const JB_HINT={get mesh(){return jbScreen;},title:"Silent disco",verb:"play a record"};
 const ZOOM_BUFFER=1.15;               /* seconds of "connecting to the live" */
 let zoomItem=null,zoomT0=0,hintItem=null,hintT=0;
 /* chapter marks on the scrub bar, one per story */
@@ -14252,6 +14648,13 @@ function updateReadHint(dt){
     const d=Math.hypot(_rdV.x-guest.pos.x,_rdV.z-guest.pos.z);
     if(d<bd){bd=d;best=READABLES[i];}
   }
+  /* the jukebox takes the same hint: its LED says "PICK A RECORD" in the
+     box's own words, this says how */
+  if(jbScreen&&!JB.on){
+    jbScreen.getWorldPosition(_rdV);
+    const d=Math.hypot(_rdV.x-guest.pos.x,_rdV.z-guest.pos.z);
+    if(d<bd){bd=d;best=JB_HINT;}
+  }
   if(!best||bd>3.4){readHint.classList.remove("on");hintItem=null;return;}
   best.mesh.getWorldPosition(_rdV);
   const gh=best.mesh.geometry.parameters;
@@ -14266,7 +14669,7 @@ function updateReadHint(dt){
   if(best!==hintItem){
     hintItem=best;
     readHint.innerHTML=(TOUCH?"<b>Tap</b>":"<b>Click</b>")+
-      " to open — "+best.title;
+      " to "+(best.verb||"open")+" — "+best.title;
   }
   readHint.classList.add("on");
 }
@@ -14563,7 +14966,8 @@ addEventListener("wheel",e=>{
   e.preventDefault();
   CAM.dist=Math.max(CAM.minDist,Math.min(CAM.maxDist,CAM.dist+Math.sign(e.deltaY)*.28));
 },{passive:false});
-let shot=SHOTS.gameplay,shotName="gameplay",hardCut=false;
+let shot=SHOTS.gameplay,shotName="gameplay",hardCut=false,levelK=1;
+const _level=new THREE.Vector3();
 const camPos=new THREE.Vector3().fromArray(SHOTS.gameplay.pos);
 const camLook=new THREE.Vector3().fromArray(SHOTS.gameplay.look);
 let camFov=SHOTS.gameplay.fov,camRoll=SHOTS.gameplay.roll;
@@ -14629,7 +15033,24 @@ function updateCamera(dt,t){
     camera.position.y+=fbm1(t,.31,1.9)*.0045*sh;
     camera.position.z+=fbm1(t,.27,3.3)*.003*sh;
   }
-  camera.lookAt(camLook);
+  /* Verticals stay vertical. The interview shot looks DOWN at Simon, and
+     a tilted lens converges every upright in the room — window mullions,
+     the counter's flutes, the fridge — the tell of a game camera, never of
+     an interior photograph. So on that shot the lens stays level and the
+     frame is SHIFTED down instead (a shift lens: setViewOffset), which
+     keeps the same framing with square verticals. The chase keeps a real
+     tilt: its pitch runs to 30°, and a shift that large stretches the
+     frame's edges. levelK blends the two, so the cut between them glides. */
+  levelK=damp(levelK,shotName==="gameplay"?1:0,.06,dt);
+  const lh=Math.hypot(camLook.x-camera.position.x,camLook.z-camera.position.z);
+  const pitch=Math.atan2(camLook.y-camera.position.y,lh);
+  _level.set(camLook.x,camera.position.y+Math.tan(pitch*(1-levelK))*lh,camLook.z);
+  camera.lookAt(_level);
+  const shift=-Math.tan(pitch*levelK)/Math.tan(camera.fov*Math.PI/360);
+  /* setViewOffset REWRITES camera.aspect as fullWidth/fullHeight: pass the
+     frame's own aspect or the picture is squeezed square */
+  if(Math.abs(shift)>1e-4)camera.setViewOffset(camera.aspect,1,0,shift/2,camera.aspect,1);
+  else if(camera.view&&camera.view.enabled)camera.clearViewOffset();
   /* roll AFTER lookAt — lookAt rebuilds the whole rotation */
   camera.rotation.z+=camRoll+(RM?0:fbm1(t,.23,5.1)*.0038*shot.shake);
   if(Math.abs(camera.fov-camFov)>.01){
@@ -14652,13 +15073,20 @@ function updateCamera(dt,t){
 }
 function applyStaging(){
   const portrait=camera.aspect<0.75;
-  camBase.set(0,portrait?1.46:1.42,portrait?2.5:2.6);
-  camTarget.set(0,portrait?1.06:1.12,-.95);
-  /* the gameplay shot follows the staging; portrait recenters (a 0.42 m
+  /* Desktop: a 40° lens (≈ 30 mm) instead of 52° (≈ 21 mm), 10 cm lower
+     and 15 cm in, aimed 25 cm left of Simon. The guest's shoulder and the
+     section panel own the left third, so Simon moves to the right of centre
+     where the frame is free; the whole board stays in (it is read from
+     here) and the floor drops from a third of the frame to a fifth.
+     Portrait keeps its framing: a 66° vertical is a ~33° horizontal on a
+     phone held upright — already a normal lens across. */
+  camBase.set(0,portrait?1.46:1.32,portrait?2.5:2.45);
+  camTarget.set(portrait?0:-.25,portrait?1.06:1.10,-.95);
+  /* the gameplay shot follows the staging; portrait recenters (a lateral
      offset would push Simon out of a narrow frame) */
-  SHOTS.gameplay.pos=[portrait?0:.42,camBase.y,camBase.z];
+  SHOTS.gameplay.pos=[portrait?0:.5,camBase.y,camBase.z];
   SHOTS.gameplay.look=[camTarget.x,camTarget.y,camTarget.z];
-  SHOTS.gameplay.fov=portrait?66:52;
+  SHOTS.gameplay.fov=portrait?66:40;
   if(shotName==="gameplay"){
     camPos.fromArray(SHOTS.gameplay.pos);
     camLook.fromArray(SHOTS.gameplay.look);
@@ -14684,7 +15112,7 @@ function applyStaging(){
      sheet still fills 86% of it); on anything wider than A4, which is every
      desktop and a phone on its side, the height still wins and nothing moves. */
   {
-    const fov=(portrait?66:52)*Math.PI/180,fill=portrait?.86:.8;
+    const fov=SHOTS.gameplay.fov*Math.PI/180,fill=portrait?.86:.8;
     const from=new THREE.Vector3().fromArray(SHOTS.gameplay.pos);
     const dir=new THREE.Vector3().fromArray(SHOTS.gameplay.look).sub(from).normalize();
     const k=2*Math.tan(fov/2);
@@ -14793,12 +15221,11 @@ function animate(){
      into the chair still has half a second left to spend */
   updateWalkMarker(dt);
 
-  for(const s of steam){
-    const ph=(t*.5+s.userData.phase)%1.6;
-    s.position.set(.44+Math.sin((ph+s.userData.phase)*4)*.02,.95+ph*.35,-.62);
-    s.material.opacity=ph<1.3?(.5*(1-ph/1.3)):0;
-    s.scale.setScalar(1+ph*1.4);
-  }
+  /* the plume turns to the lens about its own upright; slower under
+     reduced motion, never frozen (a still wisp reads as a smudge) */
+  steamMat.uniforms.uT.value=t*(RM?.35:1);
+  steamRibbon.rotation.y=Math.atan2(camera.position.x-steamRibbon.position.x,
+                                    camera.position.z-steamRibbon.position.z);
   /* the dust drift that used to run here went with the motes themselves */
   /* One tween, two destinations. The pose can only be swapped while the
      sheet is flat on the table — swapping it mid-travel would teleport
@@ -14853,6 +15280,7 @@ function animate(){
   if(RT_AO&&RT_HDR.depthTexture){
     const th=Math.tan(camera.fov*Math.PI/360);
     aoMat.uniforms.uTanFov.value.set(th*camera.aspect,th);
+    aoMat.uniforms.uOff.value.set(camera.projectionMatrix.elements[8],camera.projectionMatrix.elements[9]);
     aoMat.uniforms.tDepth.value=aoBlurMat.uniforms.tDepth.value=RT_HDR.depthTexture;
     aoMat.uniforms.cameraNear.value=aoBlurMat.uniforms.cameraNear.value=camera.near;
     aoMat.uniforms.cameraFar.value=aoBlurMat.uniforms.cameraFar.value=camera.far;

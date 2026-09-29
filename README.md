@@ -418,8 +418,9 @@ and a click opens the whole card full size, like the plaque and the press
 an item until store.ts learns it).
 
 **The jukebox calls you over.** An amber LED strip under its marquee blinks
-CLICK TO PLAY ME (TAP TO PLAY ME on a phone) while it waits and says NOW
-PLAYING, steady, once it is on; a string of 27 marquee bulbs round the arch
+PICK A RECORD while it waits — the box's own words; the "click"/"tap" lives
+in the HUD hint that also labels the frames — and says NOW PLAYING, steady,
+once it is on; a string of 27 marquee bulbs round the arch
 and down the brass stiles runs a fairground chase — one in four lit and
 marching, the whole string flashing twice every 6.5 s with the arch's neon —
 and breathes with the track on air. One instanced mesh; the lit bulbs are HDR
@@ -502,6 +503,46 @@ What it changed, and the mechanisms behind it:
 Cost, scene pass: 771 draw calls against 758, 238k triangles against 215k on
 desktop; 489 / 214k against 476 / 189k on a phone, where the big textures and
 the light maps are painted at half size.
+
+### DA audit, phase 1 (2026-09-29)
+
+The quick wins of a ten-axis art-direction audit, applied:
+
+- **The interview shot is a ~30 mm, not a ~21 mm.** fov 40 (was 52), camera
+  at 1.32 m (was 1.42), 15 cm closer and aimed 25 cm left of Simon, so he
+  sits right of centre where the guest's shoulder and the section panel
+  leave the frame free; the whole menu stays in. The lens is **level with a
+  shift** (`setViewOffset`) instead of tilted down, so verticals stay
+  vertical; `levelK` blends that off for the chase camera. Portrait keeps
+  its framing (and gets the shift). The Superman stop was re-probed from the
+  new shot: 13/13 joints visible at x −10.2 / z −12.5, unchanged.
+- **Two bar globes frame the menu** instead of three cutting it
+  (`BAR_GLOBES`, x −.10 and 2.95: the only slots where a globe clears both
+  the left TV and the board from every gameplay camera). The model's cables
+  are hidden, each globe's stem runs to the rail, the bulbs follow.
+- **Steam is one noise ribbon** turned to the lens, not five spheres.
+- **The espresso machine faces the barista.** It stood with its groups on
+  the customer side; the parser now bakes a half-turn into those objects
+  (`MACHINE_TURN`) so they still merge by material. Brushed stainless
+  (roughness map + a painted reflection panorama, `STEEL_ENV`), upturned
+  cups on the warmer, a brass maker's plate on the room side.
+- **Viennoiserie**: a swept, rolled, vertex-baked croissant
+  (`croissantGeo`) on Simon's plate, and the empty glass case on the counter
+  holds two slate trays of croissants and pains au chocolat.
+- **The fridge** is anthracite inside, lit by LED strips (jambs, top, every
+  shelf edge), with juice bottles on its floor and a dielectric reflection
+  over its door.
+- **Roughness maps** where there were none: floor, travertine and walnut
+  derive theirs from their own paint plus a wear field
+  (`roughFromCanvas`, idle-time like the normals); leather and steel get
+  painted ones. Opal globes darken at the limb and show a hot centre; the
+  raft's felt is a warm grey, each slat ±5%.
+- **The reader** at the window bar sits three-quarters to the room.
+
+Cost, scene pass from the interview shot (`perf.js`, 1440×810): 292 draw
+calls against 333 (the tighter lens culls more), 770k triangles against
+747k, one light fewer, 78 shader programs against 68. Phone (390×844):
+257 / 591k against 269 / 564k.
 
 ## The switch — "is the bar open?"
 
