@@ -664,6 +664,27 @@ Les gains rapides de l'audit de direction artistique en dix axes :
 - **Coût** (plan de jeu) : 323 appels de rendu contre 300, 849 k triangles
   contre 829 k ; téléphone 292 / 646 k contre 263 / 625 k.
 
+### Audit DA, phase 3 (2026-09-29)
+
+Avec des outils gratuits seulement (Character Creator, MetaHuman,
+Marvelous Designer et la capture de mouvement prévus par l'audit sont
+payants) :
+
+- **Yeux** : cornée brillante (clearcoat) sur un iris enfin en sRGB — les
+  fenêtres et les globes font le reflet.
+- **Peau** : terminateur doux et chaud, zone T plus brillante.
+- **Mains** : doigts fléchis au repos ; les paumes de Simon enfin à plat.
+- **Cheveux** : racines sombres sur le crâne, contour effiloché.
+- **Vêtements** : blazer en laine tissée avec revers et bouton (il était
+  rendu comme un gilet côtelé), patte de chemise boutonnée, côtes du tricot
+  qui suivent le corps, plis statiques aux coudes, à la taille, sur les
+  cuisses et derrière les genoux.
+- **Machine à espresso** modélisée : carrosserie inox arrondie sur pieds,
+  plateau chauffe-tasses et rambarde, panneau arrière poli qui reflète la
+  salle.
+- **Pas faits, volontairement** : unités de lumière physiques (tout, cuisson
+  comprise, est calibré dans les unités de three.js) et SMAA (le FXAA reste).
+
 ## 6 ter. La rue (2026-09-28)
 
 Le dehors lisait comme un écran, pour trois raisons, toutes supprimées :

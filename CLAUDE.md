@@ -237,6 +237,10 @@ mechanics that bite:
   A-board stand outside the storefront, measured off the courier's lanes
   (bikes 2.8 m, terrace 1.4 m, A-board 2.1 m) and out of the door's swing.
   The street's sun is the room's sun now (west, late afternoon).
+- **The espresso machine is built in code** (`buildMachine`): the model's
+  body, lid and facade are HIDE'd; its groups, portafilters, wand and gauge
+  stay (MACHINE_TURN). Steel (`inox`, the machine's polished panel) reflects
+  the photographed room box-projected, not STEEL_ENV, once the bake is on.
 - **Scanned materials** (`applyScans`, `tex/scan/`, 1.3 MB): oak, walnut,
   travertine, limewash/tadelakt and leather take a CC0 scan's normal and
   roughness, and its detail OVERLAID on the painted colour (luminance
@@ -291,6 +295,27 @@ mesh not in the repo — see `people/README.md`).
   symmetry comes out lopsided, and a lopsided head reads as a face that is
   off-centre. Do not mirror the collapse either — against the protected head
   it threw a shard of skin from the chin across the chest.
+- **Garment kinds** (DA audit phase 3): the file says blazer = sweater (2)
+  and shirt = tee (1); `dressGeometry` gives the blazer **7** and the shirt
+  **8** so they shade as woven wool (lapels, button) and as a shirt (placket,
+  buttons). realShader tests kinds with `K(n)`, never `vKind>5.5` — any new
+  kind would have been taken for hair. Knit ribs follow the body
+  (`ribPh`: arc length round the torso or the sleeve); a sine through a
+  plane in rest space draws contour rings on a chest — the knit and the
+  twill both read as wood grain until they were rewritten.
+- **Hands are curled at dress time** (`REAL_CURL`, default .7 rad, Simon
+  .3): a constant-curvature bend of every wrist-led vertex past the
+  knuckles (y .805 rest), the thumb (z > -.02) left straight. The rig has
+  no finger bones; a new pose that needs open fingers needs a per-rig curl.
+- **`solveArm(…, palmDown)`** also turns the forearm so the palm faces the
+  table; without it Simon's "flat" hands stood on their edge.
+- **The scalp takes the hair colour** within 2 cm of the style's shell
+  (dressGeometry, hashed grid); the shell's silhouette is frayed by a
+  hashed discard in rest space. Ears and face below the hairline keep skin.
+- **Skin wraps its direct light** (`SKIN_WRAP`, a patched
+  `lights_physical_pars_fragment` for this material only) and its roughness
+  follows the T-zone. The eyes are `MeshPhysicalMaterial` with a clearcoat
+  cornea and an sRGB iris canvas (it was read as linear: grey eyes).
 - Simon's old primitives are hidden, never deleted: `mapSimon()` reads the
   animate loop's writes to `simonHead` / `eyeGroups` / `mouthMesh` /
   `rShoulder` back onto the real rig, and puts `simonHead` on the real head

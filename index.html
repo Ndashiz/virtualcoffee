@@ -3837,7 +3837,7 @@ function boxUV(geo,tile){
        gone — they take the treeline's foliage and its street light */
     [/^feuillage\./,"feuillu_2","verdure"]
   ];
-  const HIDE=/^(comptoir_plateau|plateau_table_haute|meuble_arriere|meuble_arriere_plateau|moulin_base|moulin_couvercle|moulin_tremie|pile_tasses_\d|vitrine_socle|etagere|cable|assise|latte_dossier|pied_chaise|barreau|montant|plateau_table|bord_table|fut_table|socle_table|assise_tabouret|fut_tabouret|socle_tabouret|repose_pied|abat_jour|abat_jour_applique|bras_applique|ampoule_applique|cadre_carte|carte_prix|comptoir_panneau|tapis_rond|pot|pot_col|caisse_(socle|corps|tiroir|tiroir_poignee|plaque_clavier|cloche)|touche_\d+_\d+|ecran_boitier|ecran_afficheur)\.|^feuillage\.[0-6]$|^(sol_naturel|clairiere_sous_bois|etage_resineux|houppier|branche|touffe|glissiere_securite|poteau_glissiere|tronc|feuillage|chassis|caisse_haute|nez|pavillon|lunette|vitre_g|vitre_d|arriere|becquet|retroviseur)\.|^(capot|pare_brise|phare|pneu|jante|cabine|calandre|pare_choc|vitre_cabine_g|vitre_cabine_d)\.|^feu_arriere\.[01]$/;
+  const HIDE=/^(machine_corps|machine_chapeau|machine_facade|comptoir_plateau|plateau_table_haute|meuble_arriere|meuble_arriere_plateau|moulin_base|moulin_couvercle|moulin_tremie|pile_tasses_\d|vitrine_socle|etagere|cable|assise|latte_dossier|pied_chaise|barreau|montant|plateau_table|bord_table|fut_table|socle_table|assise_tabouret|fut_tabouret|socle_tabouret|repose_pied|abat_jour|abat_jour_applique|bras_applique|ampoule_applique|cadre_carte|carte_prix|comptoir_panneau|tapis_rond|pot|pot_col|caisse_(socle|corps|tiroir|tiroir_poignee|plaque_clavier|cloche)|touche_\d+_\d+|ecran_boitier|ecran_afficheur)\.|^feuillage\.[0-6]$|^(sol_naturel|clairiere_sous_bois|etage_resineux|houppier|branche|touffe|glissiere_securite|poteau_glissiere|tronc|feuillage|chassis|caisse_haute|nez|pavillon|lunette|vitre_g|vitre_d|arriere|becquet|retroviseur)\.|^(capot|pare_brise|phare|pneu|jante|cabine|calandre|pare_choc|vitre_cabine_g|vitre_cabine_d)\.|^feu_arriere\.[01]$/;
   const CAPTURE=/^(assise|latte_dossier|plateau_table|plateau_table_haute|assise_tabouret|abat_jour|pot|caisse_socle|cadre_carte|comptoir_corps|comptoir_plateau|meuble_arriere|meuble_arriere_plateau|vitrine_socle|etagere)\./;
   /* texel size, in metres per tile, for every material mapped by boxUV */
   const BOXUV={chene_sol:2.4,platre:2.6,mur_avant_teinte:2.6,platre_vert:2.6,
@@ -4366,7 +4366,8 @@ function dressLife(mats){
   function glass(x,y,z,full){b.add(glassM,tumbler,mtx(x,y,z));if(full)b.add(waterM,water,mtx(x,y,z));}
   /* Simon's table: a carafe on the guest's side, a glass each */
   b.add(glassM,carafe,mtx(-.58,TOP,.18));b.add(waterM,carafeW,mtx(-.58,TOP,.18));
-  glass(-.45,TOP,.43,true);glass(.2,TOP,-.62,true);
+  /* his glass right of his cup: at (.2,-.62) it stood under his right hand */
+  glass(-.45,TOP,.43,true);glass(.52,TOP,-.40,true);
   /* a teaspoon on his saucer, a sugar stick beside it, torn */
   const spoon=new THREE.BoxGeometry(.1,.003,.012);
   b.add(steelM,spoon,mtx(.44,.8195,-.54,0,.4));
@@ -4561,12 +4562,55 @@ function bevelSlabs(REB,mats){
   b.build(scene).forEach(function(m){ATL.colliders.push(m);});
 }
 
+/* ---- THE MACHINE (DA audit phase 3) ----
+   The model's machine was a box and a lid: at the chair it read as a white
+   fridge on the counter, and the machine is the one object a café is
+   recognised by. Rebuilt on the same footprint (body x .81..1.73, z -4.10..
+   -3.51, working face to the barista since MACHINE_TURN): a steel body with
+   rounded edges standing on four feet — the dark line under it is what
+   makes it an appliance and not furniture —, a recessed cup-warmer tray
+   under a tubular rail, a polished back panel framed by the body (the side
+   the room sees), steam knobs on the shoulders. The model's group heads,
+   portafilters, wand and gauge stay, turned with it. */
+function buildMachine(mats){
+  const b=new Batch(),X=1.27,Z=-3.805,W=.92,D=.58,Y0=1.26,Y1=1.755;
+  const polished=new THREE.MeshStandardMaterial({color:0xc9ccce,metalness:1,roughness:.12,envMapIntensity:1});
+  const rubber=new THREE.MeshStandardMaterial({color:0x121213,roughness:.7});
+  const tray=new THREE.MeshStandardMaterial({color:0x2a2b2d,metalness:.6,roughness:.35});
+  MACHINE.mats=[polished];
+  /* the body */
+  b.add(mats.inox,softSlab(W,D,Y1-Y0,.035,.014),mtx(X,Y0,Z));
+  /* feet: 4 cm of shadow under it */
+  for(const sx of[-1,1])for(const sz of[-1,1])
+    b.add(rubber,new THREE.CylinderGeometry(.018,.022,Y0-1.22,12),mtx(X+sx*(W/2-.07),(Y0+1.22)/2,Z+sz*(D/2-.07)));
+  /* the cup warmer: a dark tray let into the top, a steel rail round it */
+  b.add(tray,softSlab(W-.08,D-.08,.012,.01,.003),mtx(X,Y1+.003,Z));
+  const ry=Y1+.03,rx=W/2-.035,rz=D/2-.035;
+  b.add(polished,rodGeo([X-rx,ry,Z-rz],[X+rx,ry,Z-rz],.007,.007,8));
+  b.add(polished,rodGeo([X-rx,ry,Z+rz],[X+rx,ry,Z+rz],.007,.007,8));
+  b.add(polished,rodGeo([X-rx,ry,Z-rz],[X-rx,ry,Z+rz],.007,.007,8));
+  b.add(polished,rodGeo([X+rx,ry,Z-rz],[X+rx,ry,Z+rz],.007,.007,8));
+  for(const sx of[-1,1])for(const sz of[-1,1])
+    b.add(polished,rodGeo([X+sx*rx,Y1,Z+sz*rz],[X+sx*rx,ry,Z+sz*rz],.006,.006,8));
+  /* the room side: a polished panel inside a 3 cm steel frame */
+  b.add(polished,new THREE.BoxGeometry(W-.1,Y1-Y0-.1,.006),mtx(X,(Y0+Y1)/2+.01,Z+D/2+.001));
+  /* steam knobs on the shoulders, barista side */
+  for(const sx of[-1,1]){
+    const kx=X+sx*(W/2+.012);
+    b.add(rubber,new THREE.CylinderGeometry(.026,.026,.03,16),mtx(kx,Y1-.06,Z-D/2+.09,0,0,Math.PI/2));
+    b.add(polished,new THREE.CylinderGeometry(.008,.008,.02,8),mtx(X+sx*(W/2+.001),Y1-.06,Z-D/2+.09,0,0,Math.PI/2));
+  }
+  b.build(scene);
+}
+const MACHINE={mats:[]};
+
 /* ---- THE BAR, DRESSED (DA audit, 2026-09-29) ----
    Three things on and behind the counter read as placeholders from the
    chair: a machine with nothing on it, a glass case with nothing in it, a
    fridge that was a lamp. Everything here merges by material (Batch), so
    the whole dressing costs a handful of draw calls. */
 function dressBar(mats){
+  buildMachine(mats);
   /* THE MACHINE, room side. Turned (MACHINE_TURN), the room sees its steel
      back — so give the back what a real one carries: the cup warmer on top
      stacked with upturned espresso cups and two nested towers, and a brass
@@ -4934,6 +4978,11 @@ function setupReflections(){
   /* the floor: the one big glossy surface everybody looks at */
   const fl=CAFE.floor&&CAFE.floor.material;
   if(fl){boxProject(fl);PROBE.mats.push(fl);}
+  /* the steel: it mirrored a painted panorama (STEEL_ENV) because the old
+     environment was too even; the photographed room is not — the dark
+     counter, the olive wall, the bright glazing — so it reflects the room */
+  [CAFE.mats&&CAFE.mats.inox].concat(MACHINE.mats).forEach(function(m){
+    if(m){boxProject(m);PROBE.mats.push(m);}});
   /* the glass: a reflection-only layer over every pane (dielectric: black,
      additive — a few per cent head on, much more at a grazing angle) */
   const glass=CAFE.meshes.get("m:verre");
@@ -5388,6 +5437,8 @@ const REAL_TOPS={standA:"sweater",standB:"shirt",standC:"shirt",barista:"tee",
 const REAL_SHOES=[[0x2b2019,0x17120f],[0x18181b,0x0f0f11],[0x4a3526,0x21190f],[0x2f3542,0xd9d5cc]];
 const REAL_HAIR={standA:"short",standB:"bun",standC:"short",barista:"pony",worker:"short",
   drinker:"bob",reader:"long",waiter:"fade",courier:"buzz",simon:"curly"};
+/* finger curl at rest, radians over the whole finger (dressGeometry) */
+const REAL_CURL={simon:.3};
 /* stubble, 0..1, on the faces that have it (1 = a trimmed beard) */
 const REAL_BEARD={standA:1,worker:.35,courier:.55,waiter:.2,simon:.08};
 /* Skin and hair, as the colours they should LOOK (the cast sheet, PLAN.md
@@ -5649,9 +5700,84 @@ function dressGeometry(rig,lod){
       /* the courier's gloves: every vertex the wrist bone leads */
       if(C===SKIN&&out.gloves){const b=m.si[i*4];if(b===WL||b===WR)C=GLOVE;}
       const q=(v0+i)*3;col[q]=C[0];col[q+1]=C[1];col[q+2]=C[2];
-      kin[v0+i]=p.kind==="hair"?6:C===SOLE?5:KIND[p.kind];
+      /* 7 blazer and 8 shirt get their own shading (realShader): the file
+         files the blazer with the sweater and the shirt with the tee, and a
+         tailored jacket in rib-knit read as a cardigan (DA audit phase 3) */
+      kin[v0+i]=p.kind==="hair"?6:C===SOLE?5:p.kind==="blazer"?7:p.kind==="shirt"?8:KIND[p.kind];
     }
     v0+=cnt;i0+=p.F.length;
+  }
+  /* RELAXED HANDS (DA audit phase 3). The base mesh's fingers hang dead
+     straight and a little spread — a mannequin's hand, the first thing an
+     eye catches on a hand on a table. A hand at rest has its fingers bent,
+     more toward the little finger. The rig has no finger bones, so the bend
+     is modelled once, here: every vertex the wrist leads past the knuckle
+     line (y .805 in the rest pose, hands hanging, palms to the thighs) is
+     wrapped round an arc of constant curvature toward the palm, the thumb
+     (the hand's front, z > -.02) left out and blended in over 2.5 cm.
+     Simon's hands lie flat on his table, so his curl is small: his finger
+     tips just touch the wood. */
+  const curl=rig.id in REAL_CURL?REAL_CURL[rig.id]:.7;
+  if(curl>0){
+    const WLb=REAL.hdr.bones.indexOf("wristL"),WRb=REAL.hdr.bones.indexOf("wristR");
+    const YK=.805,L=.095;
+    let vv=0;
+    for(const p of parts){
+      const cnt=p.m.pos.length/3;
+      if(p.kind==="body")for(let i=0;i<cnt;i++){
+        const v=vv+i;let w=0,side=0;
+        for(let k=0;k<4;k++){const bn=si[v*4+k];
+          if(bn===WLb){w+=sw[v*4+k]/255;side=-1;}else if(bn===WRb){w+=sw[v*4+k]/255;side=1;}}
+        if(w<.5)continue;
+        const d=YK-pos[v*3+1];if(d<=0)continue;
+        const tw=smooth01(-.02,-.045,pos[v*3+2])*Math.min(1,(w-.5)*4);
+        if(tw<=0)continue;
+        /* a touch more toward the little finger (the back of the hand, -z) */
+        const th=curl*tw*(1+.35*smooth01(-.08,-.14,pos[v*3+2]));
+        const xn=side*.2,e=(pos[v*3]-xn)*side,R=L/th,phi=d/R,r=R+e;
+        pos[v*3]=xn-side*R+side*r*Math.cos(phi);
+        pos[v*3+1]=YK-r*Math.sin(phi);
+      }
+      vv+=cnt;
+    }
+  }
+  /* THE SCALP UNDER THE HAIR (DA audit phase 3). The hair is a shell over
+     a bald, skin-coloured head, so wherever the shell thins — the parting,
+     the hairline, a silhouette the shader now frays — skin showed through
+     as a pale line: the helmet's edge. Real hair has dark roots on a scalp
+     that takes their colour. Every head vertex within 2 cm of this style's
+     shell (a hashed grid, 2 cm cells) takes the hair colour, darkened;
+     the ears and the face below the hairline keep their skin. */
+  {
+    let vv=0,hs=-1,he=-1,bs=-1,be=-1;
+    for(const p of parts){const cnt=p.m.pos.length/3;
+      if(p.kind==="hair"){hs=vv;he=vv+cnt;}else if(p.kind==="body"){bs=vv;be=vv+cnt;}
+      vv+=cnt;}
+    if(hs>=0&&bs>=0){
+      const G=new Map(),C=.02,key=(x,y,z)=>x+","+y+","+z;
+      for(let i=hs;i<he;i++){
+        const k=key(Math.floor(pos[i*3]/C),Math.floor(pos[i*3+1]/C),Math.floor(pos[i*3+2]/C));
+        let a=G.get(k);if(!a){a=[];G.set(k,a);}a.push(i);
+      }
+      const HB=REAL.hdr.bones.indexOf("head");
+      const hc=[HAIR[0]*.55|0,HAIR[1]*.55|0,HAIR[2]*.55|0];
+      for(let i=bs;i<be;i++){
+        const x=pos[i*3],y=pos[i*3+1],z=pos[i*3+2];
+        if(y<1.6)continue;
+        if(Math.abs(x)>.066&&y<1.675)continue;                  /* the ears */
+        if(z>.07&&y<1.71)continue;                              /* the face */
+        let hw=0;for(let k=0;k<4;k++)if(si[i*4+k]===HB)hw+=sw[i*4+k]/255;
+        if(hw<.5)continue;
+        const cx=Math.floor(x/C),cy=Math.floor(y/C),cz=Math.floor(z/C);
+        let near=false;
+        for(let a=-1;a<=1&&!near;a++)for(let b=-1;b<=1&&!near;b++)for(let c2=-1;c2<=1&&!near;c2++){
+          const L=G.get(key(cx+a,cy+b,cz+c2));if(!L)continue;
+          for(const j of L){const dx=pos[j*3]-x,dy=pos[j*3+1]-y,dz=pos[j*3+2]-z;
+            if(dx*dx+dy*dy+dz*dz<.0004){near=true;break;}}
+        }
+        if(near){col[i*3]=hc[0];col[i*3+1]=hc[1];col[i*3+2]=hc[2];}
+      }
+    }
   }
   const g=new THREE.BufferGeometry();
   /* the person's own shape (traits), on every vertex at once */
@@ -5900,6 +6026,15 @@ function realShader(shader){
     shader.vertexShader.replace("#include <begin_vertex>",
       "#include <begin_vertex>\n  vKind=kind;vRest=base;vRestN=normal;");
   shader.fragmentShader="uniform sampler2D faceMap;\nvarying float vKind;\nvarying vec3 vRest;\nvarying vec3 vRestN;\n"+
+    /* kinds: 0 skin, 1 tee/apron, 2 sweater, 3 trousers, 4 shoes, 5 soles,
+       6 hair, 7 blazer, 8 shirt */
+    "#define K(n) (abs(vKind-float(n))<.5)\n"+
+    /* a knit's ribs run DOWN the garment: phase = arc length round the body
+       (or round the sleeve), not a plane through space — planes cut a
+       curved chest in contour lines, and the jumper read as wood grain */
+    "float ribPh(vec3 p){float ax=abs(p.x);"+
+    "if(ax>.15&&p.y<1.43&&p.y>.7)return atan(ax-.197,p.z+.053)*.045*1050.;"+
+    "return atan(p.x,p.z)*.16*1050.;}\n"+
     "float vhash(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}\n"+
     "float vnoise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);"+
     "return mix(mix(mix(vhash(i),vhash(i+vec3(1,0,0)),f.x),mix(vhash(i+vec3(0,1,0)),vhash(i+vec3(1,1,0)),f.x),f.y),"+
@@ -5914,12 +6049,35 @@ function realShader(shader){
     float cv=vnoise(vRest*28.),cr=vnoise(vRest*64.+7.);
     diffuseColor.rgb*=1.+(cv-.5)*.08;
     diffuseColor.rgb*=vec3(1.+(cr-.5)*.05,1.,1.-(cr-.5)*.03);
-  }else if(vKind>1.5&&vKind<2.5){
+  }else if(K(2)){
     /* knit: vertical ribs, 6 mm apart — what says "jumper" and not "skin"
-       when the wool is camel */
-    float rb=.5+.5*sin((vRest.x*.8+vRest.z*.6)*1050.);
-    diffuseColor.rgb*=.9+.13*rb;
-  }else if(vKind>5.5){
+       when the wool is camel. Faded out by their own screen frequency: past
+       ~2 px a rib, the sine aliased into a moiré that read as wood grain */
+    float rph=ribPh(vRest);
+    float rb=.5+.5*sin(rph),rfade=1.;
+#if defined(GL_OES_standard_derivatives) || __VERSION__ >= 300
+    rfade=1.-smoothstep(.6,1.6,fwidth(rph));
+#endif
+    diffuseColor.rgb*=1.+(.13*rb-.065)*rfade;
+  }else if(K(7)){
+    /* the blazer: a woven wool, not a knit. Its lapels roll back from the
+       opening — the V the shirt shows through, from the collar at ~1.50 m
+       to the button at ~1.03 — as a band 6.5 cm wide, a shade darker and
+       smoother; one horn button where the V closes. */
+    float ax=abs(vRest.x),vy=clamp((vRest.y-1.03)/.47,0.,1.);
+    float vx=.012+.083*vy;                        /* half-width of the V here */
+    float lap=vRest.z>0.&&vRest.y>1.02&&vRest.y<1.53?1.-smoothstep(.058,.068,ax-vx):0.;
+    diffuseColor.rgb*=1.-.1*lap;
+    float bt=1.-smoothstep(.009,.011,length(vec2(vRest.x,vRest.y-1.005)));
+    if(vRest.z>0.)diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.02,.015,.012),bt);
+  }else if(K(8)){
+    /* the shirt: a placket down the centre with its buttons, 9 cm apart */
+    float pk=1.-smoothstep(.013,.016,abs(vRest.x));
+    if(vRest.z>.02)diffuseColor.rgb*=1.-.06*pk*(1.-smoothstep(.006,.0075,abs(vRest.x)));
+    float by=mod(vRest.y-1.02,.09)-.045;
+    float bt=1.-smoothstep(.0035,.005,length(vec2(vRest.x,by)));
+    if(vRest.z>.02&&vRest.y<1.47)diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*.78,bt);
+  }else if(K(6)){
     /* combed strands: long thin cells along the fall of the hair */
     vec3 d=vRest-vec3(0.,1.665,.012);
     float az=atan(d.x,d.z),el=d.y/max(length(d),1e-4);
@@ -5927,7 +6085,13 @@ function realShader(shader){
     float s2=fract(sin(floor(az*70.+el*3.)*39.346+floor(el*3.)*11.135)*24634.6345);
     diffuseColor.rgb*=.86+.16*s1+.10*s2;
   }`).replace("#include <roughnessmap_fragment>",`#include <roughnessmap_fragment>
-  roughnessFactor=vKind<.5?.62:vKind<1.5?.86:vKind<2.5?.96:vKind<3.5?.82:vKind<4.5?.48:vKind<5.5?.78:.5;`);
+  roughnessFactor=K(0)?.62:K(1)?.86:K(2)?.96:K(3)?.82:K(4)?.48:K(5)?.78:K(6)?.5:K(7)?.8:.74;
+  /* skin shines where it is oiliest — forehead, nose, the top of the
+     cheekbones (the T) — and is matte elsewhere */
+  if(K(0)&&vRest.y>1.55){
+    float tz=max(1.-smoothstep(.012,.03,abs(vRest.x))*step(vRest.y,1.66),smoothstep(1.655,1.69,vRest.y));
+    roughnessFactor=mix(.6,.44,tz*step(.06,vRest.z));
+  }`);
   /* skin keeps its sheen from the lights but takes less of the room's
      reflection: at .45 of it a face stops reading as wax */
   /* micro relief as a bump: height from 3D noise on the REST position (so it
@@ -5937,10 +6101,27 @@ function realShader(shader){
   shader.fragmentShader=shader.fragmentShader.replace("#include <normal_fragment_maps>",
     "#include <normal_fragment_maps>\n"+
     "#if defined(GL_OES_standard_derivatives) || __VERSION__ >= 300\n"+
-    "  if(vKind<3.5){\n"+
-    "    float bs=vKind<.5?.00011:vKind>1.5&&vKind<2.5?.00016:.00005;\n"+
-    "    float hh=vKind<.5?vnoise(vRest*620.)*.7+vnoise(vRest*1500.)*.3:vKind>1.5&&vKind<2.5?"+
-    "(.5+.5*sin((vRest.x*.8+vRest.z*.6)*1050.))*.6+vnoise(vRest*vec3(700.,1800.,700.))*.4:vnoise(vRest*vec3(900.,1400.,900.));\n"+
+    "  if(vKind<3.5||K(7)||K(8)){\n"+
+    "    float bs=K(0)?.00011:K(2)?.00016:K(7)?.00009:.00005;\n"+
+    /* the blazer: a woven wool — a fine irregular tooth, no cords (a
+       sine through space cut the chest in rings, like the knit did) */
+    "    float hh=K(0)?vnoise(vRest*620.)*.7+vnoise(vRest*1500.)*.3:K(2)?"+
+    "(.5+.5*sin(ribPh(vRest)))*.6+vnoise(vRest*vec3(700.,1800.,700.))*.4:"+
+    "K(7)?vnoise(vRest*vec3(1400.,2200.,1400.))*.55+vnoise(vRest*520.)*.45:vnoise(vRest*vec3(900.,1400.,900.));\n"+
+    /* cloth hangs in folds: the crook of the elbow, the waist where a shirt
+       bunches over a belt, the lap, the back of the knee — laid on the rest
+       pose, so they ride the body like a baked fold map would (DA audit
+       phase 3: without a pleat, a garment reads as paint on a body) */
+    "    if(K(1)||K(2)||K(3)||K(7)||K(8)){\n"+
+    "      float ax=abs(vRest.x);\n"+
+    "      float fe=smoothstep(.07,.0,length(vec2(ax-.197,vRest.y-1.13)*vec2(1.,.8)))*step(-.06,vRest.z);\n"+
+    "      float fw=smoothstep(.07,.0,abs(vRest.y-1.0))*step(0.,vRest.z)*(1.-step(.17,ax));\n"+
+    "      float fk=smoothstep(.06,.0,abs(vRest.y-.52))*step(vRest.z,0.);\n"+
+    "      float fl=smoothstep(.12,.0,abs(vRest.y-.8))*step(.0,vRest.z)*(1.-step(.16,ax));\n"+
+    "      float fold=sin(vRest.y*260.+vnoise(vRest*40.)*6.)*fe+sin(vRest.y*190.+ax*40.)*fw*.8"+
+    "+sin(vRest.y*230.+ax*25.)*fk+sin(ax*120.+vRest.y*60.)*fl*.6;\n"+
+    "      hh+=fold*9.;bs=max(bs,.00012);\n"+
+    "    }\n"+
     "    vec3 dpx=dFdx(-vViewPosition),dpy=dFdy(-vViewPosition);\n"+
     "    vec2 dh=vec2(dFdx(hh),dFdy(hh))*bs;\n"+
     /* bR1/bR2, never r1/r2: three's cube-UV chunk #defines r1 as 0.8 */
@@ -5950,12 +6131,19 @@ function realShader(shader){
     "    normal=normalize(abs(bDet)*normal-bGr);\n"+
     "  }\n"+
     "#endif");
+  shader.fragmentShader=shader.fragmentShader.replace("#include <lights_physical_pars_fragment>",SKIN_WRAP);
   shader.fragmentShader=shader.fragmentShader.replace("#include <aomap_fragment>",
-    "#include <aomap_fragment>\n  if(vKind<.5)reflectedLight.indirectSpecular*=.45;\n"+
+    "#include <aomap_fragment>\n  if(K(0))reflectedLight.indirectSpecular*=.45;\n"+
     /* hair: the ring of sheen where the strands run across the view (a
        Kajiya-Kay lobe, lit from the eye), scaled by the room's light so it
        dims with it at closing time */
-    "  if(vKind>5.5){\n"+
+    "  if(K(6)){\n"+
+    /* the silhouette frays into strands instead of ending as a shell:
+       cells long along the fall of the hair, dropped more the more the
+       surface turns away from the eye (stable — hashed in rest space) */
+    "    float hnv=abs(dot(normal,normalize(vViewPosition)));\n"+
+    "    float hfr=1.-smoothstep(.06,.42,hnv);\n"+
+    "    if(vhash(floor(vRest*vec3(700.,160.,700.)))<hfr*.9)discard;\n"+
     "    vec3 upV=normalize((viewMatrix*vec4(0.,1.,0.,0.)).xyz);\n"+
     "    vec3 Th=normalize(upV-dot(upV,normal)*normal+1e-5);\n"+
     "    float tv=dot(Th,normalize(vViewPosition)),sh=sqrt(max(0.,1.-tv*tv));\n"+
@@ -5963,6 +6151,18 @@ function realShader(shader){
     "    reflectedLight.indirectSpecular+=(pow(sh,70.)*.24+pow(sh,10.)*.04)*min(diffuseColor.rgb*2.2+.04,vec3(1.))*irr;\n"+
     "  }");
 }
+/* Skin lets light through: the terminator on a face is soft and warm, not
+   the hard grey line of a painted surface (DA audit phase 3 — "peau en
+   cire"). Wrapped diffuse per channel, red wrapping furthest, on the direct
+   lights only; specular keeps the true angle. The patch is applied to the
+   physical lighting chunk this material alone compiles. */
+const SKIN_WRAP=THREE.ShaderChunk.lights_physical_pars_fragment
+  .replace("vec3 irradiance = dotNL * directLight.color;",
+    "vec3 irradiance = dotNL * directLight.color;\n\tvec3 irrD=irradiance;\n"+
+    "\tif(K(0)){float nlw=dot(geometry.normal,directLight.direction);vec3 wr=vec3(.3,.2,.16);"+
+    "irrD=clamp((vec3(nlw)+wr)/(1.+wr),0.,1.)*directLight.color;}")
+  .replace("reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseColor );",
+    "reflectedLight.directDiffuse += irrD * BRDF_Lambert( material.diffuseColor );");
 function realMaterial(rig){
   if(!rig.faceTex)paintFace(rig);
   const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0,envMapIntensity:.35});
@@ -6000,7 +6200,14 @@ function irisMaterial(hex){
     c.beginPath();c.moveTo(64+Math.cos(a)*r0,64+Math.sin(a)*r0);c.lineTo(64+Math.cos(a)*r1,64+Math.sin(a)*r1);c.stroke();
   }
   c.fillStyle="#0b0908";c.beginPath();c.arc(64,64,R*.36,0,7);c.fill();
-  const m=new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(cv),roughness:.2,metalness:0,envMapIntensity:.4});
+  /* The eye was dull (DA audit phase 3: "yeux éteints"): the canvas went in
+     as LINEAR, so the iris and the white came out washed to grey, and one
+     roughness did for the whole ball. It is two layers now, as an eye is:
+     the painted ball under a clear, wet cornea (clearcoat) that mirrors the
+     room — the windows and the globes become the catchlight. */
+  const tx=new THREE.CanvasTexture(cv);tx.encoding=THREE.sRGBEncoding;
+  const m=new THREE.MeshPhysicalMaterial({map:tx,roughness:.45,metalness:0,envMapIntensity:.5,
+    clearcoat:1,clearcoatRoughness:.03});
   IRIS_CACHE.set(hex,m);
   return m;
 }
@@ -13501,14 +13708,24 @@ const SIMON_POSE={spine:{x:.04},chest:{x:.10},neck:{x:-.06},head:{x:-.03}};
 /* Two-bone reach by coordinate descent on the rig itself: slow (a few hundred
    world-matrix updates) but run once, and it answers the only question that
    matters here — where the wrist and the fingertips actually land. */
-function solveArm(rig,S,wristAt,tipAt){
+function solveArm(rig,S,wristAt,tipAt,palmDown){
   const J=rig.J,sh=J["shoulder"+S],el=J["elbow"+S],wr=J["wrist"+S];
   const tip=new THREE.Object3D();tip.position.set(0,-.19,0);wr.add(tip);
+  /* the palm: in the rest pose it faces the thigh, i.e. the body's middle
+     (-x for the right hand). Without this term nothing turned the forearm
+     over, and hands "flat on the table" stood on their edge, fingers
+     clawing at the wood (DA audit phase 3). */
+  const palm=new THREE.Object3D();palm.position.set(S==="R"?-.06:.06,-.06,0);wr.add(palm);
+  const palmAt=palmDown?wristAt.clone().add(new THREE.Vector3(0,-.06,0))
+    .add(tipAt.clone().sub(wristAt).setY(0).normalize().multiplyScalar(.06)):null;
+  const c=new THREE.Vector3();
   const V=[[sh.rotation,"x",-2.2,.3],[sh.rotation,"y",-1,1],[sh.rotation,"z",-.7,.7],
     [el.rotation,"x",-2.3,0],[wr.rotation,"x",-1,1],[wr.rotation,"y",-1.8,1.8]];
   const a=new THREE.Vector3(),b=new THREE.Vector3();
   const err=()=>{simon.updateMatrixWorld(true);wr.getWorldPosition(a);tip.getWorldPosition(b);
-    return a.distanceToSquared(wristAt)+.5*b.distanceToSquared(tipAt);};
+    let e=a.distanceToSquared(wristAt)+.5*b.distanceToSquared(tipAt);
+    if(palmAt){palm.getWorldPosition(c);e+=.4*c.distanceToSquared(palmAt);}
+    return e;};
   let e=err(),step=.25;
   for(let it=0;it<600&&step>2e-4;it++){
     let better=false;
@@ -13523,7 +13740,7 @@ function solveArm(rig,S,wristAt,tipAt){
     }
     if(!better)step*=.5;
   }
-  wr.remove(tip);
+  wr.remove(tip);wr.remove(palm);
   return Math.sqrt(e);
 }
 function realizeSimon(){
@@ -13545,8 +13762,8 @@ function realizeSimon(){
   J.elbowL.rotation.x=J.elbowR.rotation.x=-1.1;
   /* hands flat on the table, 16 cm in from its edge (z -.865), fingers
      toward the visitor and a little inward — where the old hands rested */
-  const eL=solveArm(simonRig,"L",new THREE.Vector3(-.17,.835,-.70),new THREE.Vector3(-.12,.814,-.53));
-  const eR=solveArm(simonRig,"R",new THREE.Vector3(.17,.835,-.70),new THREE.Vector3(.12,.814,-.53));
+  const eL=solveArm(simonRig,"L",new THREE.Vector3(-.17,.835,-.70),new THREE.Vector3(-.12,.814,-.53),true);
+  const eR=solveArm(simonRig,"R",new THREE.Vector3(.17,.835,-.70),new THREE.Vector3(.12,.814,-.53),true);
   if(eL>.03||eR>.03)console.warn("[vc] simon's hands miss the table by",eL.toFixed(3),eR.toFixed(3));
   simonRig.shR=J.shoulderR.rotation.z;
   simonGlasses(J,simonRig.restJ.head);

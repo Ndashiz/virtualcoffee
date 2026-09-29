@@ -576,6 +576,31 @@ calls against 333 (the tighter lens culls more), 770k triangles against
   the painted colours so the palette does not move; the floor keeps its point
   de Hongrie with real oak grain cut into every plank.
 
+### DA audit, phase 3 (2026-09-29)
+
+The premium phase, with free tools only (the audit's Character Creator,
+MetaHuman, Marvelous Designer and mocap are paid; none was bought):
+
+- **Eyes**: a clearcoat cornea over an sRGB iris (it was read as linear —
+  grey, dull eyes); the room's windows and globes are the catchlight.
+- **Skin**: wrapped, warm terminator on the direct lights; oilier T-zone.
+- **Hands**: fingers curled at rest (a bend modelled at dress time — the rig
+  has no finger bones); Simon's palms now lie flat on his table (the arm
+  solver turns the forearm).
+- **Hair**: dark roots on the scalp under every style, a frayed silhouette
+  instead of a shell's edge.
+- **Clothes**: the blazer is woven wool with lapels and a button (it shaded
+  as a rib-knit cardigan), the shirt has its placket, knit ribs follow the
+  body (they drew contour rings), static folds at the elbows, waist, lap and
+  knees.
+- **The espresso machine** is modelled: rounded steel body on feet,
+  cup-warmer tray and rail, polished back panel, steam knobs; steel reflects
+  the room.
+
+Not done, on purpose: physically correct light units (the baked GI and
+every light were calibrated in three's units; switching would re-light the
+room for no visible gain) and SMAA (the FXAA pass stays).
+
 Cost, scene pass from the interview shot: 323 draw calls against 300,
 849k triangles against 829k on desktop; 292 / 646k against 263 / 625k on a
 phone.
