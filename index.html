@@ -7661,6 +7661,7 @@ function drawTV(t){
     metalness:.5,envMapIntensity:.8});
   const armMat=new THREE.MeshStandardMaterial({color:0x1a1c20,roughness:.65});
   const screenMat=new THREE.MeshBasicMaterial({map:tex});
+  TV.screenMats=[screenMat];          /* THE STUDIO swaps its feed in here */
   /* Two sets, one feed — which is what a café with two screens does.
      · the small one over the far end of the counter: 1.30 m is the whole
        width there (the canvas stops at -1.995, the menu board starts at
@@ -7740,6 +7741,7 @@ function drawTV(t){
        same key: they show the same feed, and "did anyone watch the television" is one
        question, not two. */
     addReadable(screen,"HENRY TV — live","tv",512,288,function(gg){
+      if(TVS.ready){tvReadInto(gg);return;}
       const keep=TV.ctx;TV.ctx=gg;drawTV(clock.elapsedTime);TV.ctx=keep;
     },true);
     /* the bracket now has to reach: the bezel's back face is at -.025 and
@@ -7758,13 +7760,580 @@ function drawTV(t){
 }
 
 function updateTV(dt){
+  if(!TVS.ready&&REAL.ready)tvBuild();   /* the studio, once people.bin is in */
   if(RM)return;                     /* reduced motion: a still frame */
   TV.acc+=dt;
-  if(TV.acc<1/15)return;            /* 15 Hz is plenty for a 1 m screen */
-  TV.acc=0;
+  if(TV.acc<(QUALITY.mobile?1/8:1/15))return;   /* 15 Hz is plenty for a 1 m screen */
+  const step=TV.acc;TV.acc=0;
+  if(TVS.ready){tvRender(clock.elapsedTime,step);return;}
   drawTV(clock.elapsedTime);
   TV.tex.needsUpdate=true;
 }
+/* ---------------- HENRY TV, THE STUDIO ----------------
+   Simon, 2026-09-29: "retravaille le contenu de la télé — présentateur plus
+   réaliste, illustration plus réaliste". The feed used to be a canvas of
+   primitives: a disc for a head, a triangle for a suit, a lectern and a
+   chief executive built from the same. It is a small studio now, rendered
+   into a texture 15 times a second:
+     · the presenter is a real person — the café's own skinned-body
+       pipeline, a burgundy blazer, a bob — sitting behind a lacquered desk
+       under a three-point light (warm key, cool fill, blue rim), talking
+       (the mouth Simon talks with), blinking, turning her head, glancing
+       down at her notes, in front of a studio set painted out of focus;
+     · over her shoulder a video wall carries the story: broadcast market
+       charts for the tape (a line that draws itself in, its area, its
+       previous close, its price flag), and for the three stories that are
+       pictures, real scenes — NdaBank's chief executive at a lectern in
+       front of the step-and-repeat, microphones and camera flashes; the
+       EU's flags stirring in front of a glass facade; a trading floor at
+       night for tonight's programme;
+     · the channel furniture (bug, LIVE, lower third, ticker) stays crisp
+       2D, laid over the render.
+   Until people.bin lands (and if it never does) the old painted feed runs;
+   the swap is one texture. */
+const TVS={ready:false,rt:null,scene:null,cam:null,ov:null,ovCam:null,ovCtx:null,ovTex:null,
+  wallCtx:null,wallTex:null,wallMat:null,ill:null,illRT:null,illCams:{},sets:{},
+  anchor:null,aMouth:null,ceo:null,cMouth:null,blink:[2,0],cBlink:[3,0],flash:null,flags:[],
+  uT:{value:0},px:null,pc:null};
+const TV_W=QUALITY.mobile?512:768,TV_H=TV_W*9/16;
+function tvRT(w,h){
+  const r=new THREE.WebGLRenderTarget(w,h,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,
+    format:THREE.RGBAFormat,encoding:THREE.sRGBEncoding,depthBuffer:true,stencilBuffer:false});
+  return r;
+}
+function tvCanvasTex(w,h,fn){
+  const c=document.createElement("canvas");c.width=w;c.height=h;
+  if(fn)fn(c.getContext("2d"),w,h);
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=ANISO;
+  return t;
+}
+/* soft discs: shadowBlur, because ctx.filter is not everywhere */
+function tvBokeh(x,cx,cy,r,col,a){
+  x.save();x.globalAlpha=a;x.shadowColor=col;x.shadowBlur=r*1.2;x.fillStyle=col;
+  x.beginPath();x.arc(cx,cy,r*.55,0,7);x.fill();x.restore();
+}
+/* the set behind her, as a long lens sees it: out of focus */
+function tvPaintSet(x,w,h){
+  const g=x.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,"#07111f");g.addColorStop(.55,"#0d2236");g.addColorStop(1,"#081523");
+  x.fillStyle=g;x.fillRect(0,0,w,h);
+  const R=rng(314);
+  /* the city through the studio glass, blurred to lights */
+  for(let i=0;i<70;i++){
+    const bx=R()*w,bh=h*(.18+R()*.34),bw=18+R()*50;
+    x.fillStyle="rgba(30,52,78,"+(.35+R()*.3)+")";x.fillRect(bx,h*.78-bh,bw,bh);
+  }
+  for(let i=0;i<120;i++)tvBokeh(x,R()*w,h*(.35+R()*.45),5+R()*16,R()<.7?"#f3c784":"#7fb4ff",.12+R()*.2);
+  /* the light panels of the set */
+  for(let i=0;i<5;i++){
+    const lx=w*(.08+i*.21);
+    x.save();x.shadowColor="#3f86d8";x.shadowBlur=40;x.fillStyle="rgba(90,150,230,.22)";
+    x.fillRect(lx,h*.06,w*.05,h*.7);x.restore();
+  }
+  /* the channel, in the glass, soft */
+  x.save();x.globalAlpha=.14;x.fillStyle="#e0343f";x.shadowColor="#e0343f";x.shadowBlur=30;
+  x.font='700 '+(h*.28|0)+'px "Space Grotesk", sans-serif';x.textAlign="center";
+  x.fillText("HENRY",w*.62,h*.46);x.restore();
+  const v=x.createRadialGradient(w/2,h*.45,h*.2,w/2,h*.45,w*.7);
+  v.addColorStop(0,"rgba(0,0,0,0)");v.addColorStop(1,"rgba(0,0,0,.55)");x.fillStyle=v;x.fillRect(0,0,w,h);
+}
+/* ---- broadcast market chart, for the video wall ---- */
+const TV_PATHS={};
+function tvPath(st){
+  if(TV_PATHS[st.tag])return TV_PATHS[st.tag];
+  const R=rng(st.tag.length*977+st.tag.charCodeAt(0)),n=64,p=[];
+  const target=st.down?-.8:(parseFloat(String(st.val).replace(/[^0-9.\-]/g,""))||5)/10;
+  let v=0;
+  for(let i=0;i<n;i++){v+=(R()-.5)*.22+target/n*1.6;p.push(v);}
+  const k=target/(p[n-1]||1);
+  TV_PATHS[st.tag]=p.map(function(y,i){return y*(i/n*.5+.5)*Math.abs(k)*(k<0?-1:1);});
+  return TV_PATHS[st.tag];
+}
+function tvWallChart(x,w,h,st,t){
+  const down=!!st.down,up="#35d08a",dn="#ff5a6a",col=down?dn:up;
+  const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,"#0a1a2b");g.addColorStop(1,"#06101b");
+  x.fillStyle=g;x.fillRect(0,0,w,h);
+  const L=34,Rr=w-64,T=64,B=h-34;
+  x.strokeStyle="rgba(130,170,210,.13)";x.lineWidth=1;
+  x.font='500 11px "Inter", sans-serif';x.fillStyle="rgba(190,210,230,.55)";
+  for(let i=0;i<=4;i++){const y=T+(B-T)*i/4;x.beginPath();x.moveTo(L,y);x.lineTo(Rr,y);x.stroke();}
+  ["09:00","11:00","13:00","15:00","17:30"].forEach(function(s,i){
+    x.textAlign="center";x.fillText(s,L+(Rr-L)*i/4,h-14);});
+  const p=tvPath(st),n=p.length,mn=Math.min(0,...p),mx=Math.max(0,...p),sp=(mx-mn)||1;
+  const Y=v=>B-(v-mn)/sp*(B-T)*.92-(B-T)*.04,X=i=>L+(Rr-L)*i/(n-1);
+  /* yesterday's close, dotted */
+  x.setLineDash([4,5]);x.strokeStyle="rgba(220,230,240,.35)";
+  x.beginPath();x.moveTo(L,Y(0));x.lineTo(Rr,Y(0));x.stroke();x.setLineDash([]);
+  /* the line draws itself in over the story's first two seconds */
+  const ph=(t%TV_SEG)/2,m=Math.max(2,Math.min(n,Math.floor(n*Math.min(1,ph))));
+  const ag=x.createLinearGradient(0,T,0,B);
+  ag.addColorStop(0,down?"rgba(255,90,106,.34)":"rgba(53,208,138,.34)");ag.addColorStop(1,"rgba(0,0,0,0)");
+  x.beginPath();x.moveTo(X(0),B);
+  for(let i=0;i<m;i++)x.lineTo(X(i),Y(p[i]));
+  x.lineTo(X(m-1),B);x.closePath();x.fillStyle=ag;x.fill();
+  x.save();x.shadowColor=col;x.shadowBlur=10;x.strokeStyle=col;x.lineWidth=2.6;x.lineJoin="round";
+  x.beginPath();for(let i=0;i<m;i++)x[i?"lineTo":"moveTo"](X(i),Y(p[i]));x.stroke();x.restore();
+  /* the price flag at the head of the line */
+  const hx=X(m-1),hy=Y(p[m-1]);
+  x.fillStyle=col;x.beginPath();x.arc(hx,hy,4,0,7);x.fill();
+  x.globalAlpha=.25+.25*Math.sin(t*6);x.beginPath();x.arc(hx,hy,9,0,7);x.fill();x.globalAlpha=1;
+  x.fillStyle=col;x.fillRect(Rr+6,hy-11,54,22);
+  x.fillStyle="#04101a";x.font='700 12px "Space Grotesk", sans-serif';x.textAlign="center";
+  x.fillText(st.val,Rr+33,hy+4);
+  /* the header: name, the move, and its arrow */
+  x.textAlign="left";x.fillStyle="#eef3f8";x.font='700 22px "Space Grotesk", sans-serif';
+  x.fillText(st.tag,L,36);
+  const tw=x.measureText(st.tag).width;
+  x.fillStyle=col;x.beginPath();
+  if(down){x.moveTo(L+tw+16,26);x.lineTo(L+tw+30,26);x.lineTo(L+tw+23,38);}
+  else{x.moveTo(L+tw+16,38);x.lineTo(L+tw+30,38);x.lineTo(L+tw+23,26);}
+  x.closePath();x.fill();
+  x.font='700 22px "Space Grotesk", sans-serif';x.fillText(st.val,L+tw+38,36);
+  x.fillStyle="rgba(190,210,230,.6)";x.font='500 11px "Inter", sans-serif';
+  x.fillText("INTRADAY · LIVE",L,54);
+}
+/* ---- the channel furniture, drawn over the render ---- */
+function tvOverlay(x,w,h,st,t){
+  x.clearRect(0,0,w,h);
+  const s=w/512;x.save();x.scale(s,s);
+  const W=512,SH=214,down=!!st.down;
+  /* bug */
+  const bx=16,by=14,bs=30,br=8;
+  const lg=x.createLinearGradient(bx,by,bx+bs,by+bs);lg.addColorStop(0,"#e0343f");lg.addColorStop(1,"#8d1a22");
+  x.fillStyle=lg;x.beginPath();
+  x.moveTo(bx+br,by);x.arcTo(bx+bs,by,bx+bs,by+bs,br);x.arcTo(bx+bs,by+bs,bx,by+bs,br);
+  x.arcTo(bx,by+bs,bx,by,br);x.arcTo(bx,by,bx+bs,by,br);x.closePath();x.fill();
+  x.fillStyle="#fff";x.font='700 20px "Space Grotesk", sans-serif';x.textAlign="center";x.textBaseline="middle";
+  x.fillText("H",bx+bs/2,by+bs/2+1);x.textBaseline="alphabetic";x.textAlign="left";
+  x.font='700 15px "Space Grotesk", sans-serif';x.fillStyle="#eef2f6";x.fillText("HENRY",54,28);
+  const hw=x.measureText("HENRY").width;x.fillStyle="#f0b64a";x.fillText("TV",54+hw+6,28);
+  x.fillStyle="#d8242e";x.beginPath();x.arc(59,39,4,0,7);x.fill();
+  x.fillStyle="rgba(238,242,246,.8)";x.font='700 10px "Space Grotesk", sans-serif';x.fillText("LIVE",67,43);
+  /* the clock, top right, Brussels time */
+  const d=new Date(),hh=String(d.getHours()).padStart(2,"0"),mm=String(d.getMinutes()).padStart(2,"0");
+  x.fillStyle="rgba(6,12,20,.55)";x.fillRect(W-88,14,72,20);
+  x.fillStyle="#eef2f6";x.font='700 12px "Space Grotesk", sans-serif';x.textAlign="center";
+  x.fillText(hh+":"+mm+" BXL",W-52,28);x.textAlign="left";
+  /* lower third */
+  const sg=x.createLinearGradient(0,0,W,0);
+  sg.addColorStop(0,down?"#8d1a22":"#b0202a");sg.addColorStop(1,down?"#5a1016":"#7c141c");
+  x.fillStyle=sg;x.fillRect(0,SH,W,26);
+  x.fillStyle="#f0b64a";x.fillRect(0,SH,4,26);
+  x.fillStyle="#f7f3ea";
+  let hs=15;x.font='700 '+hs+'px "Space Grotesk", sans-serif';
+  while(hs>10&&x.measureText(st.head).width>W-28){hs-=.5;x.font='700 '+hs+'px "Space Grotesk", sans-serif';}
+  x.fillText(st.head,14,SH+18);
+  x.fillStyle="rgba(8,16,26,.92)";x.fillRect(0,SH+26,W,18);
+  x.fillStyle="rgba(222,232,242,.9)";
+  let fs=12;x.font='italic 500 12px "Space Grotesk", sans-serif';
+  while(fs>9&&x.measureText(st.sub).width>W-28){fs-=.5;x.font='italic 500 '+fs+'px "Space Grotesk", sans-serif';}
+  x.fillText(st.sub,14,SH+39);
+  /* ticker */
+  const TY=SH+44,TH=288-TY;
+  x.fillStyle="#060b12";x.fillRect(0,TY,W,TH);
+  x.fillStyle="#b0202a";x.fillRect(0,TY,64,TH);
+  x.fillStyle="#fff";x.font='700 12px "Space Grotesk", sans-serif';x.fillText("MARKETS",8,TY+TH/2+4);
+  x.save();x.beginPath();x.rect(64,TY,W-64,TH);x.clip();
+  x.font='600 15px "Space Grotesk", sans-serif';
+  let total=0;const wid=[];
+  for(let i=0;i<TV_TICKER.length;i++){wid.push(x.measureText(TV_TICKER[i]).width+48);total+=wid[i];}
+  const off=(t*42)%total;
+  for(let pass=0;pass<3;pass++){
+    let ppx=W-off+pass*total-total;
+    for(let i=0;i<TV_TICKER.length;i++){
+      if(ppx>-wid[i]&&ppx<W){
+        const sT=TV_TICKER[i],upT=sT.indexOf("+")>0,dnT=sT.indexOf("-")>0;
+        x.fillStyle=dnT?"#ff6b78":upT?"#4fe0a0":"#d8dee6";
+        x.fillText((upT?"▲ ":dnT?"▼ ":"")+sT,ppx,TY+TH/2+5);
+      }
+      ppx+=wid[i];
+    }
+  }
+  x.restore();
+  x.restore();
+}
+/* ---- a person for the studio: the café's pipeline, dressed by hand ---- */
+function tvPerson(id,o,out,tr){
+  const rig=buildPerson(o);rig.id=id;rig.outfit=out;rig.traits=tr;
+  realizeRig(rig);
+  if(!rig.real)return null;
+  const m=rig.body.material;
+  m.envMapIntensity=.32;
+  return rig;
+}
+/* Simon's mouth, moved to where THIS face's lips are: simonMouthMesh()
+   places it for an unmorphed head, and a shorter or narrower face (the
+   height and fem traits) put it on the bridge of her nose */
+function tvMouth(rig){
+  const m=simonMouthMesh(rig.J,rig.restJ.head),H=rig.restJ.head;
+  const lip=morphPoint([0,1.5745,zLip(0)+.0012],{arm:0,hand:0,leg:0,foot:0,head:1},false,traitsFor(rig),REAL.hdr.joints,false);
+  m.position.set(lip[0]-H[0],lip[1]-H[1],lip[2]-H[2]);
+  return m;
+}
+/* A tie, laid on the body's own shirt front: the surface is sampled from
+   the dressed rest geometry (the frontmost vertex in thin slices down the
+   centre line), so it lies on this build's chest and belly, not in the air */
+function tvTie(rig,hex){
+  const P=rig.body.geometry.attributes.position,H=rig.restJ.chest;
+  const Y0=1.1,Y1=1.5,N=14,zs=new Array(N+1).fill(-1);
+  for(let i=0;i<P.count;i++){
+    const x=P.getX(i),y=P.getY(i),z=P.getZ(i);
+    if(Math.abs(x)>.045||y<Y0-.02||y>Y1+.02)continue;
+    const k=Math.round((y-Y0)/(Y1-Y0)*N);if(k>=0&&k<=N&&z>zs[k])zs[k]=z;
+  }
+  for(let k=0;k<=N;k++)if(zs[k]<0)zs[k]=zs[Math.max(0,k-1)]>0?zs[Math.max(0,k-1)]:.11;
+  const pos=[],idx=[];
+  for(let k=0;k<=N;k++){
+    const y=Y0+(Y1-Y0)*k/N,u=k/N;
+    /* the knot at the collar, the blade widening to 8.5 cm, the point */
+    const hw=u>.93?.022:u>.86?.014:(.0425-.02*u);
+    pos.push(-hw,y,zs[k]+.009, hw,y,zs[k]+.009);
+  }
+  /* the point: the bottom row meets in a V */
+  pos.push(0,Y0-.04,zs[0]+.009);
+  for(let k=0;k<N;k++){const a=k*2;idx.push(a,a+1,a+3,a,a+3,a+2);}
+  const tipI=(N+1)*2;idx.push(1,0,tipI);
+  const g=new THREE.BufferGeometry();
+  g.setAttribute("position",new THREE.Float32BufferAttribute(pos.map(function(v,i){return v-[H[0],H[1],H[2]][i%3];}),3));
+  g.setIndex(idx);g.computeVertexNormals();
+  const m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:lin(hex),roughness:.45,side:THREE.DoubleSide,envMapIntensity:.4}));
+  rig.J.chest.add(m);
+  return m;
+}
+function tvBlink(rig,b,dt){
+  b[0]-=dt;if(b[0]<=0){b[1]=1;b[0]=Math.random()<.15?.25:jit(3.6,.5);}
+  let k=0;if(b[1]>0){b[1]-=dt*8;k=Math.sin(Math.max(0,b[1])*Math.PI);}
+  return k;
+}
+function tvBuild(){
+  if(TVS.ready||!REAL.ready)return;
+  /* ---------- the studio ---------- */
+  const S=new THREE.Scene();S.background=new THREE.Color(0x061018);
+  /* a studio's reflections: three soft boxes and a dark room, through PMREM
+     (basic materials only — a ShaderMaterial in PMREM comes out NaN) */
+  {
+    const es=new THREE.Scene(),tmp=[];
+    const room=new THREE.Mesh(new THREE.SphereGeometry(10,16,8),new THREE.MeshBasicMaterial({color:0x0a1420,side:THREE.BackSide}));
+    es.add(room);tmp.push(room.geometry,room.material);
+    [[-4,3,5,6,4,1.1],[5,2,4,4,3,.45],[0,4,-6,8,3,.8]].forEach(function(b){
+      const bm=new THREE.MeshBasicMaterial({color:new THREE.Color(1,.96,.9).multiplyScalar(b[5])});
+      const bx=new THREE.Mesh(new THREE.PlaneGeometry(b[3],b[4]),bm);bx.position.set(b[0],b[1],b[2]);bx.lookAt(0,1.4,0);
+      es.add(bx);tmp.push(bx.geometry,bm);
+    });
+    const pm=new THREE.PMREMGenerator(renderer);const rt=pm.fromScene(es,.02);pm.dispose();
+    tmp.forEach(function(o){o.dispose();});
+    S.environment=rt.texture;
+  }
+  const key=new THREE.DirectionalLight(0xffe4c4,1.45);key.position.set(-2.2,2.5,1.5);key.target.position.set(0,1.4,0);
+  const fill=new THREE.DirectionalLight(0xcfe0ff,.22);fill.position.set(1.8,1.6,2.2);fill.target.position.set(0,1.4,0);
+  const rim=new THREE.DirectionalLight(0x9cc6ff,1.8);rim.position.set(.8,2.6,-2.4);rim.target.position.set(0,1.5,0);
+  S.add(key,key.target,fill,fill.target,rim,rim.target,new THREE.HemisphereLight(0x3a5577,0x0a0c10,.35));
+  const set=new THREE.Mesh(new THREE.PlaneGeometry(7.2,4.05),new THREE.MeshBasicMaterial({map:tvCanvasTex(1024,576,tvPaintSet)}));
+  set.position.set(.2,1.55,-2.6);S.add(set);
+  /* the video wall over her shoulder */
+  const wc=document.createElement("canvas");wc.width=512;wc.height=288;
+  TVS.wallCtx=wc.getContext("2d");
+  TVS.wallTex=new THREE.CanvasTexture(wc);TVS.wallTex.encoding=THREE.sRGBEncoding;
+  TVS.wallMat=new THREE.MeshBasicMaterial({map:TVS.wallTex,toneMapped:false});
+  const wall=new THREE.Mesh(new THREE.PlaneGeometry(.64,.36),TVS.wallMat);
+  wall.position.set(.43,1.66,-.25);wall.rotation.y=-.1;S.add(wall);
+  const wf=new THREE.Mesh(new THREE.BoxGeometry(.665,.385,.01),new THREE.MeshBasicMaterial({color:0x1b2b3d}));
+  wf.position.set(.43,1.66,-.26);wf.rotation.y=-.1;S.add(wf);
+  /* the desk: lacquer, a red line of light along its edge, the channel on its front */
+  const lac=new THREE.MeshStandardMaterial({color:0x0e1116,roughness:.18,metalness:.25,envMapIntensity:1.2});
+  const desk=new THREE.Mesh(new THREE.BoxGeometry(1.9,.06,.8),lac);desk.position.set(0,1.1,.42);S.add(desk);
+  const front=new THREE.Mesh(new THREE.BoxGeometry(1.9,1.1,.04),lac);front.position.set(0,.55,.82);S.add(front);
+  const strip=new THREE.Mesh(new THREE.BoxGeometry(1.9,.012,.012),new THREE.MeshBasicMaterial({color:new THREE.Color(2.4,.35,.4)}));
+  strip.position.set(0,1.07,.825);S.add(strip);
+  /* her notes, and a pen */
+  const notes=new THREE.Mesh(new THREE.BoxGeometry(.21,.004,.297),new THREE.MeshStandardMaterial({color:0xf2efe8,roughness:.8}));
+  notes.position.set(-.08,1.133,.42);notes.rotation.y=.15;S.add(notes);
+  /* the presenter */
+  const a=tvPerson("anchor",{shirt:0xece8e0,pants:0x1c1d22,skin:0xd29d7a,hair:0x2a1a12,eye:0x6b5230,fem:true},
+    {top:"shirt",outer:"blazer",outerC:0x1c0306,bottom:"trousers",shoes:"shoes",hair:"bun",beard:0,
+     shoe:[0x18181b,0x0f0f11],gloves:false,apronC:0,goatee:false,skin:0xd29d7a,hairC:0x2a1a12},
+    {fem:1,heavy:-.2,up:.93,face:{nose:.96,lips:1.06}});
+  if(!a)return;
+  a.root.position.set(-.3,0,0);a.root.rotation.y=.12;S.add(a.root);
+  TVS.anchor=a;TVS.aMouth=tvMouth(a);
+  /* a medium close-up, the way news frames a presenter: head and shoulders
+     fill the left of the frame, the story box floats over her shoulder */
+  const cam=new THREE.PerspectiveCamera(30,16/9,.1,30);cam.position.set(.02,1.56,1.36);cam.lookAt(.14,1.5,0);
+  TVS.scene=S;TVS.cam=cam;
+  /* ---------- the overlay ---------- */
+  const oc=document.createElement("canvas");oc.width=TV_W;oc.height=TV_H;
+  TVS.ovCtx=oc.getContext("2d");TVS.ovTex=new THREE.CanvasTexture(oc);TVS.ovTex.encoding=THREE.sRGBEncoding;
+  TVS.ov=new THREE.Scene();
+  const oq=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({map:TVS.ovTex,transparent:true,depthTest:false,depthWrite:false,toneMapped:false}));
+  TVS.ov.add(oq);TVS.ovCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  /* ---------- the stories that are pictures ---------- */
+  const I=new THREE.Scene();I.background=new THREE.Color(0x0a0f16);I.environment=S.environment;
+  I.add(new THREE.HemisphereLight(0xdfe8f2,0x2a2622,.5));
+  /* 1. NdaBank's chief executive at the lectern (Simon, 2026-09-29: "le CEO
+     ne ressemble à rien" — v1 was a lilac cardigan with an open V, three
+     ball-on-a-stick microphones, a raised claw of a hand, all against a
+     white wall that burnt out his face). The picture every channel runs
+     over a fine: a navy step-and-repeat, a charcoal suit, a white shirt
+     and a tie, both hands on a walnut lectern, two gooseneck microphones
+     and the press pack's mics in front, a modelling key from the left and
+     a rim to lift him off the wall, a long lens framing him from the chest.
+     Between sentences one hand comes up, open, for the line he is saying. */
+  {
+    const g=new THREE.Group();I.add(g);
+    const rep=tvCanvasTex(512,512,function(x,w,h){
+      x.fillStyle="#12264a";x.fillRect(0,0,w,h);
+      /* staggered like a real step-and-repeat, and drawn wrapped, so no
+         logo is ever cut at the seam of the tile */
+      for(let j=0;j<4;j++)for(let i=0;i<2;i++)for(const ox of[-w,0,w]){
+        const cx=(i+.5+(j%2)*.5)*w/2+ox,cy=(j+.5)*h/4;
+        x.fillStyle="#f2f0ea";x.font='700 40px "Space Grotesk", sans-serif';x.textAlign="center";
+        x.fillText("NdaBank",cx,cy+6);x.fillStyle="#c9a45a";x.font='600 14px "Space Grotesk", sans-serif';
+        x.fillText("PRIVATE WEALTH",cx,cy+28);
+      }
+    });
+    rep.wrapS=rep.wrapT=THREE.RepeatWrapping;rep.repeat.set(3,1.75);
+    const back=new THREE.Mesh(new THREE.PlaneGeometry(5.2,3),new THREE.MeshStandardMaterial({map:rep,roughness:.85,envMapIntensity:.3}));
+    back.position.set(0,1.5,-1.2);g.add(back);
+    /* the lectern: a walnut box with a slanted top, the name on a brass plate */
+    /* colours through lin(): a raw hex reads as linear and the walnut came out sand */
+    const lecM=new THREE.MeshStandardMaterial({color:lin(0x3a2616),roughness:.42,metalness:.05,envMapIntensity:.6});
+    const lec=new THREE.Mesh(new THREE.BoxGeometry(.66,1.08,.44),lecM);lec.position.set(0,.54,.46);g.add(lec);
+    const top=new THREE.Mesh(new THREE.BoxGeometry(.74,.035,.52),lecM);top.position.set(0,1.1,.44);top.rotation.x=-.2;g.add(top);
+    const plate=new THREE.Mesh(new THREE.PlaneGeometry(.46,.12),new THREE.MeshStandardMaterial({
+      map:tvCanvasTex(256,68,function(x,w,h){x.fillStyle="#b89250";x.fillRect(0,0,w,h);x.fillStyle="#1a2a1f";
+        x.font='700 36px "Space Grotesk", sans-serif';x.textAlign="center";x.fillText("NdaBank",w/2,46);}),roughness:.3,metalness:.6}));
+    plate.position.set(0,.99,.681);g.add(plate);
+    /* two goosenecks off the lectern, foam heads aimed at his mouth */
+    const mic=new THREE.MeshStandardMaterial({color:0x121214,roughness:.55,metalness:.5});
+    const foam=new THREE.MeshStandardMaterial({color:0x0c0c0d,roughness:.95});
+    for(const sx of[-1,1]){
+      const cv=new THREE.CatmullRomCurve3([new THREE.Vector3(sx*.07,1.14,.36),new THREE.Vector3(sx*.07,1.3,.33),
+        new THREE.Vector3(sx*.05,1.39,.26),new THREE.Vector3(sx*.035,1.43,.2)]);
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(cv,16,.005,6),mic));
+      const hd=new THREE.Mesh(new THREE.CylinderGeometry(.014,.014,.06,10),foam);
+      hd.position.set(sx*.03,1.445,.18);hd.rotation.x=-1.1;hd.rotation.z=sx*.2;g.add(hd);
+    }
+    /* the press pack: three hand-held mics with their channels' flags */
+    const FLAG=["#c8102e","#0b5fa5","#f0b64a"];
+    FLAG.forEach(function(fc,i){
+      const x0=-.13+i*.13,y0=1.3+(i%2)*.035;
+      const body=new THREE.Mesh(new THREE.CylinderGeometry(.013,.011,.16,8),mic);
+      body.position.set(x0,y0,.34);body.rotation.x=-1.25;g.add(body);
+      const head=new THREE.Mesh(new THREE.SphereGeometry(.021,10,8),foam);head.position.set(x0,y0+.03,.26);g.add(head);
+      const flag=new THREE.Mesh(new THREE.BoxGeometry(.05,.05,.05),new THREE.MeshStandardMaterial({color:srgbL(parseInt(fc.slice(1),16)),roughness:.5}));
+      flag.position.set(x0,y0+.01,.3);flag.rotation.x=-1.25;g.add(flag);
+    });
+    const c=tvPerson("ceo",{shirt:0xf3f1ec,pants:0x1c1f26,skin:0xdcae92,hair:0x5a544e,eye:0x4a2f1c},
+      {top:"shirt",outer:"blazer",outerC:lin(0x262b35),bottom:"trousers",shoes:"shoes",hair:"short",beard:.2,
+       shoe:[0x18181b,0x0f0f11],gloves:false,apronC:0,goatee:false,skin:0xdcae92,hairC:0x5a544e},
+      {fem:0,heavy:.25,up:1.02,face:{nose:1.05}});
+    if(c){c.root.position.set(0,0,0);g.add(c.root);TVS.ceo=c;TVS.cMouth=tvMouth(c);tvTie(c,0x4a1420);}
+    const k=new THREE.DirectionalLight(0xfff0e0,1.25);k.position.set(-1.7,2.3,2.1);k.target.position.set(0,1.45,0);
+    const fl=new THREE.DirectionalLight(0xdce6ff,.3);fl.position.set(1.8,1.7,2.2);fl.target.position.set(0,1.45,0);
+    const rm=new THREE.DirectionalLight(0xe8f0ff,1.6);rm.position.set(1.2,2.5,-1.6);rm.target.position.set(0,1.45,0);
+    g.add(k,k.target,fl,fl.target,rm,rm.target);
+    /* the press pack's flashes */
+    TVS.flash=new THREE.PointLight(0xffffff,0,6,2);TVS.flash.position.set(.9,1.6,2.2);g.add(TVS.flash);
+    /* level with him, a long lens: head room above, the lectern's brass
+       plate along the bottom of the frame */
+    const cc=new THREE.PerspectiveCamera(24,16/9,.1,40);cc.position.set(.32,1.5,2.45);cc.lookAt(.02,1.49,0);
+    TVS.illCams.ceo=cc;TVS.sets.ceo=g;
+  }
+  /* 2. the EU: flags stirring in front of a glass facade */
+  {
+    const g=new THREE.Group();g.position.x=50;I.add(g);
+    const sky=new THREE.Mesh(new THREE.PlaneGeometry(40,18),new THREE.MeshBasicMaterial({map:tvCanvasTex(512,256,function(x,w,h){
+      const s=x.createLinearGradient(0,0,0,h);s.addColorStop(0,"#4f7fb8");s.addColorStop(1,"#c7d6e4");
+      x.fillStyle=s;x.fillRect(0,0,w,h);const R=rng(77);
+      for(let i=0;i<40;i++)tvBokeh(x,R()*w,R()*h*.6,20+R()*40,"#ffffff",.25);})}));
+    sky.position.set(0,8,-16);g.add(sky);
+    const glass=tvCanvasTex(512,512,function(x,w,h){
+      const s=x.createLinearGradient(0,0,0,h);s.addColorStop(0,"#9fb8cf");s.addColorStop(.6,"#5d7790");s.addColorStop(1,"#2d3f52");
+      x.fillStyle=s;x.fillRect(0,0,w,h);const R=rng(12);
+      for(let j=0;j<16;j++)for(let i=0;i<8;i++){
+        x.fillStyle="rgba("+(R()<.5?"255,255,255,":"20,30,45,")+(R()*.12)+")";x.fillRect(i*64,j*32,64,32);}
+      x.strokeStyle="rgba(210,220,230,.8)";x.lineWidth=3;
+      for(let i=0;i<=8;i++){x.beginPath();x.moveTo(i*64,0);x.lineTo(i*64,h);x.stroke();}
+      x.lineWidth=5;for(let j=0;j<=16;j++){x.beginPath();x.moveTo(0,j*32);x.lineTo(w,j*32);x.stroke();}
+    });
+    glass.wrapS=glass.wrapT=THREE.RepeatWrapping;glass.repeat.set(3,2);
+    const fac=new THREE.Mesh(new THREE.PlaneGeometry(26,16),new THREE.MeshStandardMaterial({map:glass,roughness:.15,metalness:.5,envMapIntensity:1.2}));
+    fac.position.set(0,7.5,-7);g.add(fac);
+    const plaza=new THREE.Mesh(new THREE.PlaneGeometry(40,20),new THREE.MeshStandardMaterial({color:0x9a968e,roughness:.8}));
+    plaza.rotation.x=-Math.PI/2;g.add(plaza);
+    const flagTex=tvCanvasTex(300,200,function(x,w,h){
+      x.fillStyle="#003399";x.fillRect(0,0,w,h);x.fillStyle="#ffcc00";
+      for(let i=0;i<12;i++){const a=-Math.PI/2+i*Math.PI/6,R=h*.33,s=h*.055;
+        x.save();x.translate(w/2+Math.cos(a)*R,h/2+Math.sin(a)*R);x.beginPath();
+        for(let k=0;k<10;k++){const r=k%2?s*.42:s,ka=-Math.PI/2+k*Math.PI/5;x[k?"lineTo":"moveTo"](Math.cos(ka)*r,Math.sin(ka)*r);}
+        x.closePath();x.fill();x.restore();}
+    });
+    const pole=new THREE.MeshStandardMaterial({color:0xc9ccd0,metalness:.9,roughness:.3});
+    for(let i=0;i<5;i++){
+      const px=-3+i*1.5;
+      const p=new THREE.Mesh(new THREE.CylinderGeometry(.03,.04,4.2,8),pole);p.position.set(px,2.1,-1-i*.3);g.add(p);
+      const fm=new THREE.MeshStandardMaterial({map:flagTex,side:THREE.DoubleSide,roughness:.7});
+      fm.onBeforeCompile=function(s){
+        s.uniforms.uT=TVS.uT;
+        s.vertexShader="uniform float uT;\n"+s.vertexShader.replace("#include <begin_vertex>",
+          "#include <begin_vertex>\nfloat u=position.x+.75;transformed.z+=sin(position.x*3.2-uT*3.4+"+i.toFixed(1)+")*.09*u;"+
+          "transformed.y-=u*u*.05;");
+      };
+      fm.customProgramCacheKey=function(){return "tvflag";};
+      const f=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1,18,8),fm);
+      f.position.set(px+.78,3.62,-1-i*.3);g.add(f);
+    }
+    const sun=new THREE.DirectionalLight(0xfff1dc,1.6);sun.position.set(4,8,6);g.add(sun);sun.target.position.set(0,3,0);g.add(sun.target);
+    const cc=new THREE.PerspectiveCamera(40,16/9,.1,60);cc.position.set(50-2.2,1.7,4.2);cc.lookAt(50+.3,3.1,-1.4);
+    TVS.illCams.eu=cc;TVS.sets.eu=g;
+  }
+  /* 3. tonight's programme: a trading floor, after hours */
+  {
+    const g=new THREE.Group();g.position.x=100;I.add(g);
+    const screens=[0,1,2,3].map(function(v){return tvCanvasTex(256,160,function(x,w,h){
+      x.fillStyle="#050b12";x.fillRect(0,0,w,h);
+      if(v===3){
+        x.fillStyle="#0f2233";x.fillRect(10,12,w-20,h-24);
+        x.fillStyle="#2b6cb0";x.fillRect(22,24,150,26);x.fillStyle="#1e3a2c";x.fillRect(80,60,160,26);
+        x.fillStyle="#2b6cb0";x.fillRect(22,96,120,26);
+        x.fillStyle="#e8eef4";x.font='600 11px "Inter", sans-serif';
+        x.fillText("Can I refinance my loan?",28,41);x.fillText("Here are 3 offers for you",86,77);x.fillText("Show me the cheapest",28,113);
+        return;
+      }
+      const R=rng(v*31+5);let y=h*.6;
+      x.strokeStyle="rgba(120,160,200,.18)";for(let i=0;i<5;i++){x.beginPath();x.moveTo(0,i*h/5);x.lineTo(w,i*h/5);x.stroke();}
+      for(let i=0;i<34;i++){
+        const o=y,c=y+(R()-.48)*18,hi=Math.min(o,c)-R()*8,lo=Math.max(o,c)+R()*8,up=c<o;
+        x.strokeStyle=x.fillStyle=up?"#35d08a":"#ff5a6a";
+        x.beginPath();x.moveTo(8+i*7+2,hi);x.lineTo(8+i*7+2,lo);x.stroke();
+        x.fillRect(8+i*7,Math.min(o,c),5,Math.max(2,Math.abs(c-o)));y=c;
+      }
+    });});
+    const deskM=new THREE.MeshStandardMaterial({color:0x14171c,roughness:.5});
+    const R=rng(9);
+    for(let r=0;r<4;r++)for(let d=-2;d<=2;d++){
+      const z=-r*2.4,x0=d*1.9;
+      const desk=new THREE.Mesh(new THREE.BoxGeometry(1.7,.05,.8),deskM);desk.position.set(x0,.74,z);g.add(desk);
+      for(let m=0;m<3;m++){
+        const mon=new THREE.Mesh(new THREE.PlaneGeometry(.5,.3),new THREE.MeshBasicMaterial({map:screens[(r*7+d*3+m+30)%4],
+          color:new THREE.Color(1,1,1).multiplyScalar(.9+R()*.6)}));
+        mon.position.set(x0-.52+m*.52,1.02,z-.28);mon.rotation.y=(m-1)*.18;g.add(mon);
+      }
+    }
+    for(let r=0;r<6;r++){
+      const l=new THREE.Mesh(new THREE.BoxGeometry(12,.03,.12),new THREE.MeshBasicMaterial({color:new THREE.Color(1.6,1.7,1.9)}));
+      l.position.set(0,3.2,-r*2.4+1);g.add(l);
+    }
+    const fl=new THREE.Mesh(new THREE.PlaneGeometry(20,20),new THREE.MeshStandardMaterial({color:0x0c0e12,roughness:.3,metalness:.2}));
+    fl.rotation.x=-Math.PI/2;fl.position.z=-5;g.add(fl);
+    const pl=new THREE.PointLight(0x6fa8ff,1.2,14,2);pl.position.set(0,2.4,-3);g.add(pl);
+    const cc=new THREE.PerspectiveCamera(46,16/9,.1,60);cc.position.set(100,1.65,3.2);cc.lookAt(100,1.0,-4);
+    TVS.illCams.topic=cc;TVS.sets.topic=g;
+  }
+  I.fog=new THREE.FogExp2(0x0a0f16,.045);
+  TVS.ill=I;
+  TVS.rt=tvRT(TV_W,TV_H);TVS.illRT=tvRT(512,288);
+  TVS.ready=true;
+  /* both sets switch to the studio feed */
+  TV.screenMats.forEach(function(m){m.map=TVS.rt.texture;m.needsUpdate=true;});
+  tvRender(clock.elapsedTime,0);
+}
+function tvRender(t,dt){
+  const st=TV_STORIES[((t/TV_SEG)|0)%TV_STORIES.length];
+  TVS.uT.value=t;
+  const ill=st.art==="ceo"||st.art==="eu"||st.art==="topic";
+  /* --- the presenter: talking, blinking, looking up from her notes --- */
+  const a=TVS.anchor,J=a.J;
+  const talk=Math.sin(t*.43)>-.6;
+  const jaw=talk?(.18+.62*Math.abs(Math.sin(t*8.7))*(.55+.45*Math.sin(t*2.3+1))):.05;
+  TVS.aMouth.scale.y=.0004+jaw*.0046;
+  /* the teeth only once the lips part — shut, under a key light, they drew
+     a white line across her mouth */
+  TVS.aMouth.children[0].visible=jaw>.3;
+  const notes=((t%11.5)>9.8);
+  J.neck.rotation.set(-.02+(notes?.1:0),Math.sin(t*.47)*.05,Math.sin(t*.31)*.02);
+  J.head.rotation.set(-.04+(notes?.18:0)+Math.sin(t*1.9)*.012*(talk?1:0),Math.sin(t*.61+1)*.07,Math.sin(t*.37)*.025);
+  J.spine.rotation.set(.04,0,0);J.chest.rotation.set(.06+Math.sin(t*1.5)*.006,0,0);
+  for(const s of["L","R"]){
+    const sg=s==="L"?-1:1;
+    J["shoulder"+s].rotation.set(-.42,0,sg*.1);
+    J["elbow"+s].rotation.set(-1.3,0,0);
+    J["wrist"+s].rotation.set(.1,0,-sg*.25);
+  }
+  if(talk){const gk=Math.max(0,Math.sin(t*.9));J.elbowR.rotation.x=-1.3-.25*gk;J.wristR.rotation.z=-.25-.3*gk;}
+  const bk=tvBlink(a,TVS.blink,dt||0);
+  a.eyes.forEach(function(e){e.lid.rotation.x=bk*.93+(notes?.55:0);e.eg.rotation.x=notes?.35:0;});
+  /* --- the wall --- */
+  if(ill&&TVS.ceo&&st.art==="ceo"){
+    const c=TVS.ceo,CJ=c.J;
+    const cj=.2+.55*Math.abs(Math.sin(t*7.9))*(.5+.5*Math.sin(t*1.7));
+    TVS.cMouth.scale.y=.0004+cj*.0046;TVS.cMouth.children[0].visible=cj>.3;
+    CJ.head.rotation.set(-.02+Math.sin(t*.8)*.03,Math.sin(t*.5)*.1,0);
+    CJ.neck.rotation.set(0,Math.sin(t*.5)*.05,0);
+    /* hands on the lectern's edge; every few seconds the right one comes
+       up, palm in, for the line he is saying */
+    for(const s of["L","R"]){const sg=s==="L"?-1:1;
+      CJ["shoulder"+s].rotation.set(-.42,0,sg*.1);CJ["elbow"+s].rotation.set(-.95,0,0);CJ["wrist"+s].rotation.set(.35,0,0);}
+    const gk=smooth01(.2,.8,Math.sin(t*.9));
+    CJ.shoulderR.rotation.set(-.42-.25*gk,0,.1+.12*gk);CJ.elbowR.rotation.set(-.95-.75*gk,-.3*gk,0);CJ.wristR.rotation.set(.35-.25*gk,0,.5*gk);
+    CJ.spine.rotation.set(.04,0,0);CJ.chest.rotation.set(.05,0,0);
+    const cb=tvBlink(c,TVS.cBlink,dt||0);c.eyes.forEach(function(e){e.lid.rotation.x=cb*.93;});
+    TVS.flash.intensity=(Math.sin(t*3.7)>.985||Math.sin(t*2.3+1)>.992)?2.6:0;
+  }
+  if(ill){
+    for(const k in TVS.sets)TVS.sets[k].visible=k===st.art;
+    const cam=TVS.illCams[st.art];
+    if(st.art==="topic"){cam.position.x=100+Math.sin(t*.12)*.6;cam.lookAt(100+Math.sin(t*.12)*.3,1.0,-4);}
+    if(st.art==="eu"){cam.position.x=50-2.2+Math.sin(t*.15)*.3;}
+    renderer.setRenderTarget(TVS.illRT);
+    const tm0=renderer.toneMapping;renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    renderer.render(TVS.ill,cam);renderer.toneMapping=tm0;
+    if(TVS.wallMat.map!==TVS.illRT.texture){TVS.wallMat.map=TVS.illRT.texture;TVS.wallMat.needsUpdate=true;}
+  }else{
+    tvWallChart(TVS.wallCtx,512,288,st,t);TVS.wallTex.needsUpdate=true;
+    if(TVS.wallMat.map!==TVS.wallTex){TVS.wallMat.map=TVS.wallTex;TVS.wallMat.needsUpdate=true;}
+  }
+  /* --- the overlay, the frame --- */
+  tvOverlay(TVS.ovCtx,TV_W,TV_H,st,t);
+  /* the programme card rides over the wall picture */
+  if(st.art==="topic"||st.art==="eu"){
+    const x=TVS.ovCtx,s=TV_W/512;x.save();x.scale(s,s);
+    x.fillStyle="rgba(8,16,26,.82)";x.fillRect(300,150,196,30);
+    x.fillStyle="#f0b64a";x.fillRect(300,150,4,30);
+    x.fillStyle="#eef2f6";x.font='700 13px "Space Grotesk", sans-serif';x.fillText(st.tag,312,170);
+    if(st.val){x.fillStyle="#f0b64a";x.font='700 11px "Space Grotesk", sans-serif';x.textAlign="right";x.fillText(st.val,490,170);x.textAlign="left";}
+    x.restore();
+  }
+  TVS.ovTex.needsUpdate=true;
+  renderer.setRenderTarget(TVS.rt);
+  /* a camera's curve, not a clip: without it the key light burnt her face
+     white and her burgundy came out pink */
+  const tm=renderer.toneMapping,te=renderer.toneMappingExposure;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.95;
+  /* THE CUT. A news channel does not leave its pictures in a box over the
+     presenter's shoulder: she introduces the story, the gallery cuts to the
+     footage full frame, and back to her for the link. So for the three
+     stories that are pictures, from 2.2 s to 6.6 s of the 8 the screen IS
+     the picture — which is also the only way a man at a lectern reads at
+     the size of a café television. */
+  const ph=t%TV_SEG;
+  if(ill&&ph>2.2&&ph<6.6)renderer.render(TVS.ill,TVS.illCams[st.art]);
+  else renderer.render(TVS.scene,TVS.cam);
+  renderer.toneMapping=tm;renderer.toneMappingExposure=te;
+  const ac=renderer.autoClear;renderer.autoClear=false;
+  renderer.render(TVS.ov,TVS.ovCam);
+  renderer.autoClear=ac;
+  renderer.setRenderTarget(null);
+}
+/* the zoom overlay reads the studio's own frame back (sRGB bytes, bottom row
+   first) — only while it is open, 15 times a second */
+function tvReadInto(g){
+  if(!TVS.px){TVS.px=new Uint8Array(TV_W*TV_H*4);TVS.pc=document.createElement("canvas");TVS.pc.width=TV_W;TVS.pc.height=TV_H;}
+  renderer.readRenderTargetPixels(TVS.rt,0,0,TV_W,TV_H,TVS.px);
+  const cx=TVS.pc.getContext("2d"),img=cx.createImageData(TV_W,TV_H);img.data.set(TVS.px);cx.putImageData(img,0,0);
+  g.save();g.translate(0,288);g.scale(1,-1);g.drawImage(TVS.pc,0,0,512,288);g.restore();
+}
+
 
 /* COUNTER ZONE, TABLES, CHAIRS, STOOLS, PLANT: the counter (espresso
    machine and pastry case at z≈-3.7), the window bar and the trophy

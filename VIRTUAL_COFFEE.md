@@ -176,7 +176,16 @@ Reste aussi le petit cadre : **« Employee of the Month — Tonio Salfari »**,
 décerné pour services rendus derrière un comptoir où personne ne l'a jamais vu.
 Peint en canvas comme la carte (`drawEotm()`), repeint sur `VC.fontsReady`.
 
-**Deux télés, un seul flux : HENRY TV.** La petite au-dessus du bout du
+**Deux télés, un seul flux : HENRY TV** — depuis le 2026-09-29 un vrai petit
+plateau en 3D rendu dans une texture : une présentatrice issue de la chaîne
+des vrais personnages (blazer bordeaux, bureau laqué, éclairage trois
+points), qui parle, cligne des yeux et baisse le regard vers ses notes ; un
+écran derrière elle avec un graphique de bourse qui se trace, ou une vraie
+scène — le PDG de NdaBank en costume anthracite et cravate, au pupitre en
+noyer devant le mur de logos bleu marine, micros de presse et flashs ; les
+drapeaux européens devant une façade de verre ; une salle des marchés de
+nuit. Pour ces trois sujets, la régie coupe sur l'image plein écran au milieu
+du sujet, puis revient à la présentatrice, comme au journal. La petite au-dessus du bout du
 comptoir, entre la toile et la carte — depuis la chaise, elle tombe juste
 par-dessus l'épaule de Simon ; la grande sur le pan vert nu à droite du frigo,
 sous l'étagère à bocaux, là où la salle sonnait creux. Son coupé, bug de chaîne

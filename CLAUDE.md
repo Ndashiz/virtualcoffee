@@ -257,6 +257,13 @@ mesh not in the repo — see `people/README.md`).
   of his joints find nothing in the way there (at x -12.6 a mullion cut him
   in half). Move the shot, re-run `.work/exterior/probe_hero.js` (a `PROBE=`
   script for `shoot.js`) and move the stop.
+- **HENRY TV is a render-to-texture studio** (`TVS`, `tvBuild`, `tvRender`):
+  its people are `buildPerson` + `realizeRig` rigs re-parented into the
+  studio scenes (not agents — they never walk and never take part in the
+  wardrobe or the gaze lottery). Their mouths go through `tvMouth()`, which
+  moves Simon's mouth mesh onto THEIR morphed lips (a fem / short face put it
+  on the nose). Both renders force ACES tone mapping and restore it: the
+  café's own renderer runs NoToneMapping into the HDR target.
 - **Clothes are allocated, not rolled** (`pickDistinct()`, NO TWO ALIKE):
   any new cast member or rack colour must keep ΔE ≥ 16 (cast) / ≥ 12
   (extras) against everything worn, measured on the DISPLAYED colour

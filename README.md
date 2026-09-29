@@ -222,9 +222,25 @@ rotated 180°.
 **Two televisions, one feed** — HENRY TV, sound off: six stories on an
 eight-second loop (a 48-second "video", which is what the player's scrub bar
 actually measures), a presenter whose mouth moves, and a ticker carrying only
-real quotes. Three stories run a graph; three run a picture instead — the EU
-ring of stars for the AMLR file, a keyword card for tonight's programme, and a
-chief executive at a lectern for the fine.
+real quotes. Since 2026-09-29 the feed is a small 3D studio rendered into a
+texture (`tvBuild()` / `tvRender()`, 768×432, 15 Hz — 512×288 and 8 Hz on a
+phone): the presenter is a real person from the café's own skinned-body
+pipeline, in a burgundy blazer behind a lacquered desk under a three-point
+light, talking with Simon's mouth, blinking, glancing down at her notes, in
+front of an out-of-focus set; the story box over her shoulder carries a
+broadcast chart that draws itself in (area, previous close, price flag) for
+the three market stories, and a real scene for the other three — NdaBank's
+chief executive in a charcoal suit and tie at a walnut lectern, in front of a
+navy step-and-repeat, with gooseneck mics, the press pack's flagged mics and
+their flashes; EU flags stirring in front of a glass facade; a trading floor
+at night for tonight's programme. For those three the gallery CUTS to the
+picture full frame from 2.2 s to 6.6 s of the story, then back to her — the
+way news runs footage, and the only way a man at a lectern reads at the size
+of a café television. The channel furniture (bug, clock, lower
+third, ticker) stays crisp 2D over the render, and the render is filmic
+(ACES) so the key light does not burn her face. The painted feed (`drawTV`)
+still runs until people.bin lands, and the zoom reads the studio's own frame
+back (`tvReadInto`).
 
 Walk up to a screen or the plaque and a bubble says it opens; click and
 `openZoom()` re-runs the painter at 2× into a full-screen canvas rather than
