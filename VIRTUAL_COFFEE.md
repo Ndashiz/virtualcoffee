@@ -656,6 +656,11 @@ Les gains rapides de l'audit de direction artistique en dix axes :
 - **Dehors** : une seule météo (soleil de fin d'après-midi à l'ouest, pour la
   rue comme pour la salle), trois passants sur le trottoir du café, des vélos,
   une terrasse, un chevalet.
+- **Matières scannées** (CC0, Poly Haven et ambientCG, 1,3 Mo) : chêne,
+  noyer, travertin, chaux et cuir prennent le relief, la brillance et le
+  détail de vrais scans, fondus dans les couleurs peintes pour que la palette
+  ne bouge pas ; le parquet garde son point de Hongrie avec le vrai fil du
+  chêne dans chaque lame.
 - **Coût** (plan de jeu) : 323 appels de rendu contre 300, 849 k triangles
   contre 829 k ; téléphone 292 / 646 k contre 263 / 625 k.
 

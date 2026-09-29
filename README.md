@@ -571,6 +571,11 @@ calls against 333 (the tighter lens culls more), 770k triangles against
   in the west), three passers-by on the café's pavement, bikes, a terrace
   and an A-board.
 
+- **Scanned materials**: oak, walnut, travertine, limewash and leather take
+  the relief, the sheen and the fine detail of CC0 scans (1.3 MB), overlaid on
+  the painted colours so the palette does not move; the floor keeps its point
+  de Hongrie with real oak grain cut into every plank.
+
 Cost, scene pass from the interview shot: 323 draw calls against 300,
 849k triangles against 829k on desktop; 292 / 646k against 263 / 625k on a
 phone.
@@ -1084,5 +1089,10 @@ had opened for anyone with sound off or hard of hearing — the **text resume**
 remains the full readable version, and carries the "Off the clock" content too.
 
 ## Credits
+
+- Scanned surfaces (`tex/scan/`), all **CC0**: oak veneer 02, black walnut
+  veneer 02, brown leather and white plaster 02 from
+  [Poly Haven](https://polyhaven.com); Travertine 009 from
+  [ambientCG](https://ambientcg.com). Prepared by `tex/scan/prep_scans.py`.
 
 three.js — MIT. Space Grotesk, Inter, Caveat — SIL Open Font License 1.1.

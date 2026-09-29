@@ -237,6 +237,17 @@ mechanics that bite:
   A-board stand outside the storefront, measured off the courier's lanes
   (bikes 2.8 m, terrace 1.4 m, A-board 2.1 m) and out of the door's swing.
   The street's sun is the room's sun now (west, late afternoon).
+- **Scanned materials** (`applyScans`, `tex/scan/`, 1.3 MB): oak, walnut,
+  travertine, limewash/tadelakt and leather take a CC0 scan's normal and
+  roughness, and its detail OVERLAID on the painted colour (luminance
+  normalised to .5, so the palette does not move). The wood scans' normal
+  and roughness are pre-rotated so the grain runs along v (boxUV); their
+  detail maps are rotated by the page. Normal/roughness ride the MAP's uv
+  transform (one per material in r134), so they are tiled in canvases to
+  match the colour. A scanned material is flagged `userData.scanned` and
+  the idle Sobel/roughness jobs skip it. The floor keeps its painted
+  point de Hongrie; `paintChevron(…, grain)` cuts each plank from the oak
+  scan. `?noscan` shows the painted room.
 - **Roughness maps**: `roughFromCanvas()` (paint luminance + a tileable wear
   field, written to G, linear) runs in the same idle queue as the normals
   (`RGH`); a material that gets one is set to `roughness:1`, the map carries

@@ -2328,7 +2328,7 @@ function paintLime(x,w,h,base,seed,amp){
    one leaving the bottom. At 2.4 m a tile the planks land at ~10.6 x 42
    cm, a real chevron size, and the tone range is narrow on purpose:
    smoked oak is one colour with a grain, not a patchwork. */
-function paintChevron(x,w,h,seed){
+function paintChevron(x,w,h,seed,grain){
   const COLS=8,S=w/COLS,P=S/2,ROWS=Math.round(h/P);
   const Lp=S*Math.SQRT2,Wp=P/Math.SQRT2;
   x.fillStyle="#2c2017";x.fillRect(0,0,w,h);
@@ -2351,8 +2351,18 @@ function paintChevron(x,w,h,seed){
       gr.addColorStop(.45+R()*.3,"rgb("+(r0|0)+","+(g0|0)+","+(b0|0)+")");
       gr.addColorStop(1,"rgb("+(r0*.94|0)+","+(g0*.93|0)+","+(b0*.93|0)+")");
       x.fillStyle=gr;x.fillRect(-Lp,-Wp,Lp*3,Wp*3);
+      /* the real grain, once the scan is in (applyScans): each plank is cut
+         from a different part of an oak veneer, along its length, and laid
+         over the plank's own tone — the painted lines below then only add
+         the odd darker streak */
+      if(grain){
+        const gw=grain.width,gh=grain.height,sl=gw*.6,sw2=sl*Wp/Lp;
+        x.globalCompositeOperation="overlay";x.globalAlpha=.9;
+        x.drawImage(grain,R()*(gw-sl),R()*(gh-sw2),sl,sw2,-Lp*.05,0,Lp*1.1,Wp);
+        x.globalCompositeOperation="source-over";x.globalAlpha=1;
+      }
       /* grain: long, near-parallel, a little wavy — never rings */
-      for(let g=0;g<11;g++){
+      for(let g=0;g<(grain?3:11);g++){
         const v=R()*Wp,am=.6+R()*1.6,ph=R()*6.28,fr=.01+R()*.02;
         x.strokeStyle="rgba("+(40+R()*25|0)+","+(26+R()*14|0)+",14,"+(.1+R()*.18)+")";
         x.lineWidth=.5+R()*1.4;
@@ -2460,10 +2470,10 @@ const limeTex =tileTex(512,512,(x,w,h)=>paintLime(x,w,h,"#e4ddd1",4101,1));
 /* the olive is a tadelakt, burnished: the same cloud as the limewash at a
    third of the stroke — at full strength the strokes read as camouflage */
 const oliveTex=tileTex(512,512,(x,w,h)=>paintLime(x,w,h,"#4a5140",4202,.32));
-const oakTex  =tileTex(TEX_HI,TEX_HI,(x,w,h)=>paintWood(x,w,h,3301,{staves:7,var:.07,
-  r:198,g:163,b:121,lines:26,ink:"120,84,48",a0:.1,a1:.18,rays:24,joint:.18}));
-const walnutTex=tileTex(TEX_HI,TEX_HI,(x,w,h)=>paintWood(x,w,h,3402,{staves:5,var:.1,
-  r:98,g:66,b:47,lines:30,ink:"40,24,14",a0:.14,a1:.24,figure:.6,joint:.3}));
+const OAK_PAINT={staves:7,var:.07,r:198,g:163,b:121,lines:26,ink:"120,84,48",a0:.1,a1:.18,rays:24,joint:.18};
+const WALNUT_PAINT={staves:5,var:.1,r:98,g:66,b:47,lines:30,ink:"40,24,14",a0:.14,a1:.24,figure:.6,joint:.3};
+const oakTex  =tileTex(TEX_HI,TEX_HI,(x,w,h)=>paintWood(x,w,h,3301,OAK_PAINT));
+const walnutTex=tileTex(TEX_HI,TEX_HI,(x,w,h)=>paintWood(x,w,h,3402,WALNUT_PAINT));
 const travTex =tileTex(TEX_HI,TEX_HI,(x,w,h)=>paintTravertine(x,w,h,5150));
 const BRUSH_TEX=linTileTex(256,256,paintBrushed);
 /* What the steel mirrors. Metal has no colour of its own — it IS its
@@ -3920,6 +3930,7 @@ function boxUV(geo,tile){
     /* the furniture, the lamps and the bar front — see THE ATELIER */
     try{buildAtelier(REB);}catch(e){console.warn("[vc] atelier build failed —",e);}
     giApply();                     /* the bake, over the painted maps, if it is in */
+    applyScans();                  /* and the scanned surfaces, if they are */
     /* no bake (offline, ?nogi): reflect the painted room all the same */
     setTimeout(function(){if(!PROBE.mats.length)setupReflections();},4000);
     /* late links: pendant records exist since parse time, their bulb
@@ -3943,6 +3954,7 @@ function boxUV(geo,tile){
       const job=NRM.shift();
       if(!job)return;
       idle(function(){
+        if(job[0].userData.scanned){nextNormal();return;}   /* the scan's own (applyScans) */
         try{
           const n=normalFromCanvas(job[1].userData.canvas,job[2],2);
           job[0].normalMap=n;job[0].normalScale.set(job[3],job[3]);
@@ -3958,6 +3970,7 @@ function boxUV(geo,tile){
       const job=RGH.shift();
       if(!job)return;
       idle(function(){
+        if(job[0].userData.scanned){nextRough();return;}
         try{
           const r=roughFromCanvas(job[1].userData.canvas,job[2],job[3],job[4],job[5],job[6],2);
           r.repeat.copy(job[1].repeat);
@@ -4931,6 +4944,120 @@ function setupReflections(){
     const sheen=new THREE.Mesh(glass.geometry,m);sheen.renderOrder=4;scene.add(sheen);PROBE.sheen=sheen;
   }
   captureProbe();
+}
+/* ---------------- SCANNED MATERIALS (DA audit, phase 2) ----------------
+   Every material in the room was painted in canvas and every relief was a
+   Sobel of that paint: the eye knows a surface by its irregularities, and an
+   invented irregularity shows. Five CC0 scans (Poly Haven, ambientCG — see
+   README, Credits) now give the relief and the sheen of the oak, the walnut,
+   the travertine, the limewash and the leather, and their fine detail —
+   OVERLAID on the painted colour, so the palette of the design pass does
+   not move by a hex. tex/scan/<m>_detail|_nor|_rough.jpg, prepared once by
+   tex/scan/prep_scans.py (Blender, numpy): luminance normalised to a mean of .5 (overlay-neutral), the
+   wood's normal and roughness already turned so the grain runs along v as
+   boxUV lays it. The floor keeps its point de Hongrie: each plank gets a
+   different cut of the oak scan along its own length. Everything goes
+   through canvases (one tile layout per material, half size on a phone),
+   one surface per idle slot. ?noscan shows the painted room. */
+const SCAN={dir:"tex/scan/",img:{},n:0,done:false,failed:false,
+  files:["oak","walnut","trav","plaster","leather"].reduce(function(a,m){
+    return a.concat([m+"_detail",m+"_nor",m+"_rough"]);},[])};
+if(!/[?&]noscan\b/.test(location.search))SCAN.files.forEach(function(f){
+  const im=new Image();
+  im.onload=function(){SCAN.img[f]=im;if(++SCAN.n===SCAN.files.length)applyScans();};
+  im.onerror=function(){SCAN.failed=true;};        /* one missing: the room stays painted */
+  im.src=SCAN.dir+f+".jpg";
+});
+function scanCanvas(img,size,k,rot){
+  const c=document.createElement("canvas");c.width=c.height=size;
+  const x=c.getContext("2d"),s=size/k;
+  for(let i=0;i<k;i++)for(let j=0;j<k;j++){
+    if(!rot){x.drawImage(img,i*s,j*s,s,s);continue;}
+    x.save();x.translate(i*s+s/2,j*s+s/2);x.rotate(Math.PI/2);x.drawImage(img,-s/2,-s/2,s,s);x.restore();
+  }
+  return c;
+}
+function scanLinear(img,size,k){
+  const t=new THREE.CanvasTexture(scanCanvas(img,size,k,false));
+  t.encoding=THREE.LinearEncoding;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=ANISO;
+  return t;
+}
+function scanOverlay(tex,img,k,alpha,rot){
+  const c=tex.userData.canvas,x=c.getContext("2d");
+  x.save();x.globalCompositeOperation="overlay";x.globalAlpha=alpha;
+  x.drawImage(scanCanvas(img,c.width,k,rot),0,0);x.restore();
+  tex.needsUpdate=true;
+}
+/* normal + roughness on a material and its GI clones (splitForGI). The
+   maps ride the MAP's uv transform (three r134 uses one per material), so
+   they are laid out tile for tile like the colour. */
+function scanMaps(mats,key,size,k,ns){
+  const nor=scanLinear(SCAN.img[key+"_nor"],size,k),rgh=scanLinear(SCAN.img[key+"_rough"],size,k);
+  mats.forEach(function(m){
+    if(!m)return;
+    [m].concat(m.userData.clones||[]).forEach(function(q){
+      q.normalMap=nor;q.normalScale.set(ns,ns);q.roughnessMap=rgh;q.roughness=1;
+      q.userData.scanned=true;q.needsUpdate=true;
+    });
+  });
+}
+function applyScans(){
+  if(SCAN.done||!CAFE.ready||SCAN.n<SCAN.files.length||SCAN.failed)return;
+  SCAN.done=true;
+  const M=CAFE.mats,I=SCAN.img,HI=TOUCH?512:1024,LO=TOUCH?256:512;
+  const idle=window.requestIdleCallback||function(fn){setTimeout(fn,200);};
+  const jobs=[
+    function(){   /* oak: the painted staves' tones and joints, the scan's grain */
+      const c=oakTex.userData.canvas;
+      paintWood(c.getContext("2d"),c.width,c.height,3301,Object.assign({},OAK_PAINT,{lines:0,rays:0}));
+      scanOverlay(oakTex,I.oak_detail,2,.9,true);
+      scanMaps([M.chene],"oak",HI,2,.5);
+    },
+    function(){
+      const c=walnutTex.userData.canvas;
+      paintWood(c.getContext("2d"),c.width,c.height,3402,Object.assign({},WALNUT_PAINT,{lines:0,figure:0}));
+      /* two tiles, half strength: at one tile and .85 a table top read as
+         zebrawood — walnut's figure is quiet */
+      scanOverlay(walnutTex,I.walnut_detail,2,.42,true);
+      scanMaps([M.noyer_fonce],"walnut",HI,2,.35);
+    },
+    function(){   /* travertine: the scan's veins over the stone's own tone */
+      const c=travTex.userData.canvas,x=c.getContext("2d");
+      x.fillStyle="#d6c9b1";x.fillRect(0,0,c.width,c.height);
+      scanOverlay(travTex,I.trav_detail,1,.95,false);
+      scanMaps([M.travertin],"trav",HI,1,.6);
+    },
+    function(){   /* limewash and tadelakt: trowel marks, the painted clouds kept */
+      scanOverlay(limeTex,I.plaster_detail,1,.5,false);ceilTex.needsUpdate=true;
+      scanOverlay(oliveTex,I.plaster_detail,1,.3,false);
+      scanMaps([M.platre,M.mur_avant_teinte,ceilMat],"plaster",LO,1,.5);
+      scanMaps([M.platre_vert,M.olive_panneau],"plaster",LO,1,.28);
+    },
+    function(){   /* cognac leather: it had no map at all */
+      const lin=M.cuir.color.clone(),t=ctex(LO,LO,function(x,w,h){
+        x.fillStyle="#"+lin.clone().convertLinearToSRGB().getHexString();x.fillRect(0,0,w,h);});
+      t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(2,2);
+      scanOverlay(t,I.leather_detail,1,.55,false);
+      M.cuir.map=t;M.cuir.color.set(0xffffff);M.cuir.bumpMap=null;
+      scanMaps([M.cuir],"leather",LO,1,.45);
+      M.cuir.envMapIntensity=.4;          /* the scan's sheen is livelier than the old flat .62 */
+    },
+    function(){   /* the floor: point de Hongrie, real oak in every plank */
+      const c=floorTex.userData.canvas;
+      paintChevron(c.getContext("2d"),c.width,c.height,20260,I.oak_detail);
+      floorTex.needsUpdate=true;
+      const m=M.chene_sol;
+      /* gentler than the painted floor's (2.4 / .75): real grain is fine and
+         dense, and at that strength it sparkled at grazing angles */
+      m.normalMap=normalFromCanvas(c,1.2,2);m.normalScale.set(.4,.4);
+      const r=roughFromCanvas(c,.36,.66,1,.5,811,2);r.repeat.copy(floorTex.repeat);
+      m.roughnessMap=r;m.roughness=1;m.userData.scanned=true;m.needsUpdate=true;
+    }
+  ];
+  (function next(){
+    const j=jobs.shift();if(!j)return;
+    idle(function(){try{j();}catch(e){console.warn("[vc] scan skipped —",e);}next();});
+  })();
 }
 function giApply(){
   if(!CAFE.ready)return;
