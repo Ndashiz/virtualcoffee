@@ -44,26 +44,31 @@ def decimate(d, ratio, face_safe=False):
         # the rest of the head, halved WITHOUT symmetry, came out with one
         # cheek and one side of the jaw wider than the other, and from across
         # the room a lopsided head reads as a face that is off-centre. So the
-        # whole head AND the neck are kept exactly as LOD0 (a small share of
-        # the triangles — pp_body already spent its budget there), the collar
-        # line eases out, and everything below is decimated hard. NOT mirrored:
-        # a mirrored collapse against a protected region threw a shard of skin
-        # from the chin across the chest; with the head untouched there is
-        # nothing left for symmetry to fix.
-        EX, EY = .032, 1.646
-        keep = o.vertex_groups.new(name="__keep")
-        for v in o.data.vertices:
+        # whole head AND the neck are kept exactly as LOD0, and so are the
+        # hands (pp_body already took them to x.24; any further and the
+        # fingers go to spikes).
+        # They are kept OUT OF THE SELECTION, not weighted: the collapse only
+        # sees the rest of the body and `ratio` is a share of THAT. The first
+        # version weighted them inside one global collapse — and the head alone
+        # is more than .34 of the body's triangles, so to reach the target the
+        # collapse ate everything it was allowed to touch: every arm, leg and
+        # foot in the room went to a few slivers past 6 m (2026-09-30, "le
+        # livreur n'a pas de bras"). Symmetric, like every other part: the
+        # head it once threw a shard from is not in the selection any more.
+        bm = bmesh.new(); bm.from_mesh(o.data); bm.verts.ensure_lookup_table()
+        skI = d["skI"]
+        for v in bm.verts:
             x, y, z = v.co
-            eye = abs(abs(x) - EX) < .024 and abs(y - EY) < .016 and z > .06
-            mouth = abs(x) < .038 and 1.55 < y < 1.605 and z > .085
-            nose = abs(x) < .022 and 1.595 < y < 1.66 and z > .10
-            hand = bones[int(d["skI"][v.index, 0])] in ("wristL", "wristR")   # fingers go to spikes otherwise
-            head = bones[int(d["skI"][v.index, 0])] == "head" or (y > 1.53 and abs(x) < .13)
-            w = 1.0 if (eye or mouth or nose or head or y > 1.45) else (.7 if y > 1.36 else (.45 if hand else 0.0))
-            if w: keep.add([v.index], w, 'REPLACE')
-        m = o.modifiers.new("d", 'DECIMATE'); m.decimate_type = 'COLLAPSE'; m.ratio = ratio
-        m.vertex_group = "__keep"; m.invert_vertex_group = True; m.vertex_group_factor = 12.0
-        bpy.ops.object.modifier_apply(modifier="d")
+            lead = bones[int(skI[v.index, 0])]
+            v.select = not (lead in ("head", "neck", "wristL", "wristR") or y > 1.45 or (y > 1.53 and abs(x) < .13))
+        for e in bm.edges: e.select = all(v.select for v in e.verts)
+        for f in bm.faces: f.select = all(v.select for v in f.verts)
+        nsel = sum(1 for f in bm.faces if f.select)
+        bm.to_mesh(o.data); bm.free()
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.decimate(ratio=ratio, use_symmetry=True, symmetry_axis='X')
+        bpy.ops.object.mode_set(mode='OBJECT')
+        log("body: collapsed", nsel, "of", len(F), "faces at", ratio, "->", len(o.data.polygons) - (len(F) - nsel))
     else:
         m = o.modifiers.new("d", 'DECIMATE'); m.decimate_type = 'COLLAPSE'; m.ratio = ratio
         m.use_symmetry = True; m.symmetry_axis = 'X'
@@ -91,6 +96,12 @@ for n in names:
     d = load(n)
     r = RATIO["body"] if n == "body" else RATIO["hair"] if n.startswith("hair") else RATIO.get(n, RATIO["default"])
     res[n] = decimate(d, r, face_safe=(n == "body"))
+    # a limb the collapse ate is invisible in the numbers above (the head
+    # holds most of the body's triangles), so count what each bone still leads
+    lead = lambda I, W: np.bincount(I[np.arange(len(I)), W.argmax(1)], minlength=len(bones))
+    l0, l1 = lead(d["skI"], d["skW"]), lead(res[n]["skI"], res[n]["skW"])
+    lost = [bones[b] for b in range(len(bones)) if l0[b] >= 20 and l1[b] < .15 * l0[b]]
+    if lost: raise SystemExit("[lod] %s: the collapse ate %s" % (n, ", ".join(lost)))
     np.savez(os.path.join(OUT, "lod1_" + n + ".npz"), **res[n])
     log(n, len(d["tri"]), "->", len(res[n]["tri"]))
 # body mask: each LOD1 face takes the mask of the LOD0 face nearest its centre

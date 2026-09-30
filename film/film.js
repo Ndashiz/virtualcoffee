@@ -19,9 +19,9 @@ function inject(h){
   if(window.__cam&&window.__cam.p){const c=window.__cam;camera.clearViewOffset();camera.position.set(c.p[0],c.p[1],c.p[2]);camera.up.set(0,1,0);camera.lookAt(c.l[0],c.l[1],c.l[2]);if(c.fov)camera.fov=c.fov;camera.updateProjectionMatrix();if(c.focus!==undefined){dofMat.uniforms.uFocus.value=c.focus;dofMat.uniforms.uRange.value=c.range||14;}}`;
   if(!h.includes('updateCamera(dt,t);'))throw new Error('no updateCamera');
   h=h.replace('updateCamera(dt,t);',cam);
-  const clk='const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;';
+  const clk='const raw=clock.getDelta(),dt=Math.min(raw,.05),t=clock.elapsedTime;';
   if(!h.includes(clk))throw new Error('no clock line');
-  h=h.replace(clk,'let dt=Math.min(clock.getDelta(),.05);if(window.__fdt){dt=window.__fdt;clock.elapsedTime+=0;window.__ft=(window.__ft||clock.elapsedTime)+dt;clock.elapsedTime=window.__ft;}const t=clock.elapsedTime;');
+  h=h.replace(clk,'const raw=clock.getDelta();let dt=Math.min(raw,.05);if(window.__fdt){dt=window.__fdt;clock.elapsedTime+=0;window.__ft=(window.__ft||clock.elapsedTime)+dt;clock.elapsedTime=window.__ft;}const t=clock.elapsedTime;');
   const names=['renderer','camera','scene','CAFE','QUALITY','THREE','openDoor','DOOR','dofMat','REAL','agents','GI','PROBE','SCAN'];
   const probe='window.__vc={};'+names.map(n=>`try{window.__vc.${n}=typeof ${n}!=="undefined"?${n}:null;}catch(e){}`).join('')+'\nanimate();\n})();';
   const tail='animate();\n})();',i=h.lastIndexOf(tail);
@@ -70,7 +70,7 @@ function interp(keys,t){
   const ev=async(x,aw)=>{const r=await S('Runtime.evaluate',{expression:x,awaitPromise:!!aw,returnByValue:true});
     if(r.result.exceptionDetails)throw new Error(JSON.stringify(r.result.exceptionDetails).slice(0,400));return r.result.result.value;};
   const t0=Date.now();
-  await S('Page.navigate',{url:`http://127.0.0.1:${sport}/index.html`});
+  await S('Page.navigate',{url:`http://127.0.0.1:${sport}/index.html?fullres`});   // full resolution, whatever the frame rate
   for(;;){await sleep(500);let ok=false;try{ok=await ev('!!(window.__vc&&__vc.CAFE&&__vc.CAFE.ready)');}catch(e){}if(ok)break;if(Date.now()-t0>300000)throw new Error('never ready');}
   console.log('ready',((Date.now()-t0)/1000).toFixed(0)+'s');
   await sleep(+(process.env.WARM||30000));          // let bake, scans, people land (free-running loop)

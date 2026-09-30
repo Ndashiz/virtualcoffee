@@ -396,8 +396,9 @@ remplacées à l'arrivée du fichier (`realizeRig()`) ; si le téléchargement
   (`mapSimon()`), et sa voix ouvre une vraie bouche.
 - **Coût.** Un `MeshStandardMaterial` par personne (programme partagé) avec un
   `onBeforeCompile` pour la peinture, le micro-relief de la peau et des tissus
-  et le reflet des cheveux. LOD1 (~35 % des triangles) au-delà de 6 m, et
-  partout sur les appareils tactiles sauf Simon. Appels de rendu 772 → 319
+  et le reflet des cheveux. LOD1 au-delà de 6 m (tête, cou et mains comme
+  le LOD0, le reste à ~35 %), et partout sur les appareils tactiles sauf
+  Simon. Appels de rendu 772 → 319
   (bureau), triangles 242 k → ~435 k dans la passe principale.
 
 **Le cast capsule a eu sa passe d'anatomie** (2026-08-22) : des **mains à
@@ -694,8 +695,8 @@ payants) :
 - **Le son de la salle**, entièrement synthétisé : fond de salle, rue
   derrière la vitre, murmure de conversations, et le comptoir calé sur la
   barista (moulin, porte-filtre, pompe, vapeur, tasse servie), clochette de
-  la porte, voitures, tasses posées. Spatialisé, s'efface sous la voix de
-  Simon et le juke-box, coupé avec la page.
+  la porte, voitures, tasses posées. *Retiré de la page le lendemain (voir
+  ci-dessous) : il ne sert plus qu'au film-annonce.*
 - **Film-annonce et image de partage** ([`film/`](film/README.md)) : la vraie
   scène filmée image par image, sonorisée avec la même synthèse, montée et
   titrée dans Blender ; `og.jpg` refaite (elle montrait encore les
@@ -703,6 +704,44 @@ payants) :
 - **Pas faits** : capture d'une vraie rue bruxelloise (Gaussian splatting) et
   revue sur photos d'un vrai café — il faut quelqu'un sur place avec un
   appareil.
+
+### Correctifs du 2026-09-30
+
+Quatre retours de Simon sur la prod :
+
+- **« Le livreur n'a pas de bras »** — ni personne au-delà de 6 m. Le corps
+  allégé (LOD1, `pp_lod.py`) gardait tête et cou intacts mais décimait TOUT
+  le corps à .34, tête simplement pondérée : la tête pèse à elle seule plus
+  d'un tiers des triangles, la décimation a donc mangé bras, mains, jambes
+  et pieds pour tenir sa cible. Les vêtements cachaient les jambes, un
+  t-shirt montrait les avant-bras manquants. La décimation porte désormais
+  sur une sélection (tout sauf tête, cou et mains) à .34 de celle-ci —
+  corps LOD1 15,9 k → 11,5 k triangles, chaque os mène de nouveau ses
+  sommets — et le build échoue si un os perd plus de 85 % des siens.
+- **« Le fond du camion a un bug »** : portes ouvertes, une étoile blanche sur
+  la cloison (le capot arrière de la nouvelle cabine dans le même plan) et
+  un plancher bleu vif 36 cm au-dessus du vrai : le bandeau bas
+  (`bandeau_bas.0`) était une boîte pleine sur toute la largeur. Cloison à
+  5 cm de la cabine, bandeau sans face supérieure, plancher de charge à
+  y .84 au-dessus des roues jumelées comme sur un vrai fourgon caisse, la
+  face arrière du bandeau faisant la marche.
+- **« Plus de bruit de fond »** : le son de la salle quitte la page (le
+  synthétiseur vit dans `film/sound.js`, pour le film seulement) ; la
+  sourdine redevient « Mute Simon's voice ».
+- **« Latence »** : l'image est limitée par le remplissage. Sur un M4,
+  pixelRatio 2 en 1024×768 : 39 i/s, 1,5 : 61, 1 : 105 — environ 8 ms par
+  mégapixel. Une fenêtre Retina plein écran (3024×1720) tournait à 24 i/s,
+  une image sur dix au-delà de 80 ms, et une page limitée par le GPU met ses
+  images en file : les gestes s'affichaient en retard. La chaîne de rendu
+  tourne maintenant à une échelle du canevas choisie par un **régulateur de
+  résolution** d'après le débit mesuré (plancher 45 i/s, paliers
+  .85/.72/.61/.52, jamais sous un pixel par pixel CSS, un palier raté à la
+  montée n'est jamais retenté) ; le FXAA agrandit dans le canevas, qui ne
+  change jamais de taille (le redimensionner gelait la page 0,6 à 1,1 s).
+  Même fenêtre : 24 → 48 i/s, images au-delà de 100 ms 24 → 2 en 20 s.
+  `?fullres` le coupe, l'automatisation aussi (`navigator.webdriver`), et
+  `film.js` / `cdp.js` le passent. L'habillage de la TV ne reconstruit plus
+  15 fois par seconde des mipmaps qu'il ne lit jamais.
 
 ## 6 ter. La rue (2026-09-28)
 
@@ -831,8 +870,9 @@ lourd. Prévoir tout de même dif en 768 px et ~12 k triangles.
 
 **Sur la table, non fait** :
 - l'ambiance sonore (murmure de salle, babil des conversations, sifflement du
-  percolateur) — le code prévoit la dégradation silencieuse, il manque les
-  boucles audio ;
+  percolateur) : faite en phase 4, puis **retirée de la page à la demande de
+  Simon le 2026-09-30** (« je ne veux plus de bruit de fond ») — ne pas la
+  remettre sans lui demander ;
 - les cheveux longs (la lectrice) tombent encore comme une capuche, et les
   coupes restent des coques pleines : des mèches à bord alpha feraient mieux ;
 - **la fenêtre côté rue est faite** (parking, van, lisière d'arbres derrière la

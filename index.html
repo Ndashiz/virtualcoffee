@@ -674,7 +674,7 @@
           aria-label="Stop the music and exit the jukebox"
           title="Stop the music and exit the jukebox">⏏ Stop the music</button>
   <button class="pill icon" id="muteBtn" hidden aria-pressed="false"
-          aria-label="Mute the sound" title="Mute the sound (M)">
+          aria-label="Mute Simon's voice" title="Mute the voice (M)">
     <svg class="on" viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none"
          stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <path d="M4 7.6h2.6L10 4.6v10.8L6.6 12.4H4z"/>
@@ -2023,6 +2023,63 @@ applyGrade("atelier");
 
 let RT_HDR=null,RT_BRIGHT=null,RT_DOF=null,RT_LDR=null,RT_AO=null,RT_AO2=null,MIPS=[];
 const BLOOM_MIPS=4;
+/* ---------------- THE RESOLUTION GOVERNOR ----------------
+   Simon, 2026-09-30: "on a un souci de latence". The frame is fill-bound.
+   Measured on an M4 (Chrome, Metal) in a 1024x768 window: pixelRatio 2
+   (3.1 Mpx) 39 fps, 1.5 61, 1.25 80, 1 105 — about 8 ms a megapixel
+   through the whole chain (the lit room, SSAO, DOF, bloom, FXAA). A Retina
+   window at full screen is ~5 Mpx: 24 fps, a frame in ten over 80 ms, and
+   a GPU-bound page queues its frames, so a click or a key waited 100 ms
+   and more to show on screen.
+   So the chain renders at a SCALE of the canvas, and the scale follows the
+   machine. Every 48 frames the frame rate is read as the plain mean
+   interval, each one capped at 100 ms: a GPU-bound page can alternate
+   quick and blocked frames (a median read 1.5 ms on a page doing 25 fps),
+   and the cap keeps one shader compile from reading as a slow GPU.
+   Slower than 45 fps, the scale drops as far as the fill cost says it must
+   (pixels go with its square); holding the display's own rate for six
+   windows in a row, it climbs one step, on trial for ten — and a step that
+   fails its trial is never tried again, so the picture cannot keep
+   sharpening and softening. It never goes under one pixel per CSS pixel.
+   The canvas itself never changes size: resizing its drawing buffer froze
+   the page 0.6 to 1.1 s each time (measured), where reallocating the
+   targets is free. The last pass, FXAA, reads the scaled image and writes
+   the full canvas — it is the upscaler. Nothing is decided until the room
+   has loaded (the first seconds are the parser and the idle queue, not
+   the GPU).
+   ?fullres turns it off, and so does automation: the harnesses render in
+   software at a few frames a second, and a film or an og.jpg must not come
+   out at half resolution. */
+const RES_K=[1,.85,.72,.61,.52];
+const RES={on:!/[?&]fullres\b/.test(location.search)&&!navigator.webdriver,
+  s:1,L:null,lv:0,floor:0,win:[],hold:4000,up:0,trial:0};
+function resSet(lv){
+  RES.lv=lv;RES.s=RES.L[lv];RES.win.length=0;RES.up=0;RES.hold=400;
+  allocTargets();
+}
+function resTick(ms){
+  if(!RES.on||!CAFE.ready||ms>1000)return;  /* a hidden tab says nothing about fill */
+  if(RES.hold>0){RES.hold-=ms;return;}
+  if(!RES.L){
+    const lo=Math.min(1,1/renderer.getPixelRatio());
+    RES.L=RES_K.filter(k=>k>=lo-1e-6);
+    if(RES.L.length<2){RES.on=false;return;}
+  }
+  const w=RES.win;w.push(Math.min(ms,100));if(w.length<48)return;
+  let avg=0;for(let i=0;i<48;i++)avg+=w[i];avg/=48;w.length=0;
+  const onTrial=RES.trial>0;if(onTrial)RES.trial--;
+  if(avg>1000/45){
+    /* the step on trial: back to where it held, and never again */
+    if(onTrial){RES.trial=0;RES.floor=RES.lv+1;resSet(RES.lv+1);return;}
+    RES.up=0;
+    const want=RES.s*Math.sqrt(17/avg);
+    let lv=RES.lv+1;
+    while(lv<RES.L.length-1&&RES.L[lv]>want)lv++;
+    if(lv<RES.L.length)resSet(lv);
+  }else if(avg<1000/57&&RES.lv>RES.floor){
+    if(++RES.up>=6){resSet(RES.lv-1);RES.trial=10;}
+  }else RES.up=0;
+}
 function disposeTargets(){
   [RT_HDR,RT_BRIGHT,RT_DOF,RT_LDR,RT_AO,RT_AO2].forEach(rt=>{
     if(!rt)return;
@@ -2034,7 +2091,7 @@ function disposeTargets(){
 function allocTargets(){
   disposeTargets();
   const size=renderer.getDrawingBufferSize(new THREE.Vector2());
-  const w=size.x,h=size.y;
+  const w=Math.round(size.x*RES.s),h=Math.round(size.y*RES.s);   /* see THE RESOLUTION GOVERNOR */
   RT_HDR=makeRT(w,h,{depthBuffer:true});
   if(CAN_DEPTH_TEX){
     const dtx=new THREE.DepthTexture(w,h);
@@ -3284,7 +3341,7 @@ function buildDoorPivot(){
   if(!n)return;                   /* map renamed the door: it just stays shut */
   scene.add(g);DOOR.pivot=g;
 }
-function openDoor(){DOOR.t=1.6;if(typeof ambDoor==="function")ambDoor();}  /* somebody is coming through */
+function openDoor(){DOOR.t=1.6;}  /* somebody is coming through */
 function updateDoor(dt){
   if(!DOOR.pivot)return;
   if(DOOR.t>0)DOOR.t-=dt;
@@ -3433,7 +3490,11 @@ const VAN_XI=11.410,VAN_XO=11.495,        /* the doors' inner and outer face */
         north of where the export dropped them: all three vehicles are
         reparked onto the ligne_place grid, they used to straddle it */
       VAN_ZM=(VAN_Z0+VAN_Z1)/2,
-      VAN_DECK=VAN_Y0+.018,               /* what the load stands on */
+      VAN_DECK=.84,                       /* what the load stands on: over
+        the rear axle, as in any box van. At the doors' sill (.58) the twin
+        tyres and their well (placeCar, top y .81) stood up through it,
+        hidden only by the skirt's blue slab until that went (2026-09-30);
+        the skirt's rear face is the step under it now */
       VAN_SWING=1.75;                     /* 100°, folded back along the
         flanks — NOT 110: the BravoReno van is parked 2.542 m over, and at
         110° the +z leaf's tip sweeps 2 cm into its bonnet */
@@ -3522,6 +3583,30 @@ function buildIceVan(){
     g2.setAttribute("normal",new THREE.BufferAttribute(new Float32Array(nrm),3));
     cai.geometry.dispose();cai.geometry=g2;
   }
+  /* The skirt, bandeau_bas.0, is not a band either: a SOLID box the whole
+     width of the van (y .50-.94). With the leaves swung its top face was
+     the floor the eye found — a blue slab 36 cm above the deck of the day,
+     the bags sunk to their necks in it (Simon, 2026-09-30: "le fond du
+     camion a un bug"). The top goes; the rear face stops at the deck, where
+     it is the step under the load floor. The flanks, the band the street
+     sees, stay. */
+  const band=CAFE.meshes.get("bandeau_bas.0");
+  if(band){
+    const g=band.geometry,P=g.attributes.position,keep=[];
+    for(let i=0;i<P.count;i+=3){
+      if(P.getY(i)>.9&&P.getY(i+1)>.9&&P.getY(i+2)>.9)continue;
+      if(P.getX(i)<11.6&&P.getX(i+1)<11.6&&P.getX(i+2)<11.6)
+        for(let j=i;j<i+3;j++)P.setY(j,Math.min(P.getY(j),VAN_DECK));
+      keep.push(i,i+1,i+2);
+    }
+    const g2=new THREE.BufferGeometry();
+    for(const k in g.attributes){
+      const a=g.attributes[k],s=a.itemSize,arr=new a.array.constructor(keep.length*s);
+      keep.forEach(function(v,i){for(let c=0;c<s;c++)arr[i*s+c]=a.array[v*s+c];});
+      g2.setAttribute(k,new THREE.BufferAttribute(arr,s,a.normalized));
+    }
+    g.dispose();band.geometry=g2;
+  }
   /* the BravoReno van's doors never open: the same hardware, bolted on */
   {const off=2.542;
    for(const e of[[VAN_Z0+off,VAN_ZM+off],[VAN_Z1+off,VAN_ZM+off]]){
@@ -3532,18 +3617,20 @@ function buildIceVan(){
      the opening, and the walls beyond it draw only once the leaves part
      (the whole group hides while they are shut). --- */
   const bay=new THREE.Group();
-  /* depth 3.80, NOT the caisse's full 4.0: the cab (cabine.0, rear face
-     at x 15.35) noses 14 cm into the box, and a shell reaching past it
-     shows the cab's bright white back where the dark bulkhead should be */
-  const shell=new THREE.Mesh(new THREE.BoxGeometry(3.80,2.06,2.21),
+  /* depth 3.75, NOT the caisse's full 4.0: the cab noses into the box —
+     CAR_TYPES.vancab starts at x 15.30 — and a shell reaching it shows
+     the cab's back where the dark bulkhead should be. At 3.80 the two
+     met on the SAME plane and fought: the cab's rear cap, a fan, came
+     through the bulkhead as a white starburst. 5 cm clear. */
+  const shell=new THREE.Mesh(new THREE.BoxGeometry(3.75,2.06,2.21),
     new THREE.MeshStandardMaterial({color:0x0d1319,roughness:.95,
       side:THREE.BackSide,envMapIntensity:.12}));
-  shell.position.set(13.40,(VAN_Y0+VAN_Y1)/2,VAN_ZM);
+  shell.position.set(13.375,(VAN_Y0+VAN_Y1)/2,VAN_ZM);
   bay.add(shell);
-  const deck=new THREE.Mesh(new THREE.PlaneGeometry(3.76,2.19),
+  const deck=new THREE.Mesh(new THREE.PlaneGeometry(3.71,2.19),
     new THREE.MeshStandardMaterial({color:0x1a2128,roughness:.85,envMapIntensity:.25}));
   deck.rotation.x=-Math.PI/2;
-  deck.position.set(13.40,VAN_DECK,VAN_ZM);
+  deck.position.set(13.375,VAN_DECK,VAN_ZM);
   bay.add(deck);
   /* the cold strip, across the head of the opening where it backlights
      whoever stands at the sill */
@@ -3566,7 +3653,7 @@ function buildIceVan(){
   for(let i=0;i<4;i++){
     const b=makeIceBag(true);
     b.rotation.set(-Math.PI/2,0,(i*1.7)%1.2-.6);
-    b.position.set(14.65+(i%2)*.42,VAN_DECK+.10+((i/2)|0)*.19,
+    b.position.set(14.60+(i%2)*.42,VAN_DECK+.10+((i/2)|0)*.19,   /* the last ends at 15.23 */
                    VAN_ZM+(i%2?-.45:.45));
     bay.add(b);
   }
@@ -3799,7 +3886,7 @@ function boxUV(geo,tile){
     /* the ICE CUBE tailgate and its lettering: merged by material they
        are one box with the caisse and can never swing — see the van
        section above */
-    "portes_arriere.0","lettrage_ice_cube.2","caisse.0",
+    "portes_arriere.0","lettrage_ice_cube.2","caisse.0","bandeau_bas.0",
     ...DOOR_PARTS]);
 
   /* THE DESIGN PASS, APPLIED AT LOAD. The model merges by material, and its
@@ -6770,194 +6857,12 @@ if(!RM){
 /* The floating dust is GONE — Simon's call. 140 additive motes drifting
    through the room read as a dirty lens, not as sunlight. The shafts stay:
    they are daylight, and daylight without specks in it is a clean room. */
-/* ---------------- THE ROOM'S SOUND (DA audit, phase 4) ----------------
-   The café had a voice and a jukebox and nothing else: a room with eleven
-   people and an espresso machine in dead silence is the loudest "this is a
-   render" there is. Everything here is SYNTHESISED — no file to load, no
-   licence to track: a room tone and the street through the glass; a walla
-   of distant conversation (five voices: a glottal saw through two formant
-   filters, vowels and syllables at speaking rate, a breath of consonant
-   noise on each onset, all of it low-passed like talk across a room); and
-   the bar's own sounds cued by what the barista is doing — the grinder
-   while she grinds, the knock of the portafilter, the pump through the
-   pull, the steam wand, the clink of the cup she serves — plus the door's
-   bell, a car now and then, a cup set down at a table. Each event is placed
-   (gain by distance, pan by bearing from the lens). It ducks under Simon's
-   voice and under the jukebox, obeys the page's mute, and goes quiet at
-   closing time. The builder takes any context, so the same code renders
-   offline (OfflineAudioContext) for listening tests. */
-function ambBuild(ctx,dest){
-  const S={ctx:ctx,crowdOn:true};
-  const master=ctx.createGain();master.gain.value=1;master.connect(dest);
-  const duck=ctx.createGain();duck.gain.value=1;duck.connect(master);
-  const out=ctx.createGain();out.gain.value=0;out.connect(duck);
-  out.gain.setTargetAtTime(1,ctx.currentTime+.2,1.2);          /* fade in */
-  S.master=master;S.duck=duck;S.out=out;
-  function noiseBuf(sec,brown){
-    const n=ctx.sampleRate*sec|0,b=ctx.createBuffer(1,n,ctx.sampleRate),d=b.getChannelData(0);
-    let l=0;for(let i=0;i<n;i++){const w=Math.random()*2-1;if(brown){l=(l+.02*w)/1.02;d[i]=l*3.5;}else d[i]=w;}
-    return b;
-  }
-  const WHITE=noiseBuf(3,false),BROWN=noiseBuf(5,true);
-  function src(buf,t,loop){const s=ctx.createBufferSource();s.buffer=buf;s.loop=!!loop;
-    s.loopEnd=buf.duration;s.start(t||0,Math.random()*buf.duration*.9);return s;}
-  function filt(type,f,q){const b=ctx.createBiquadFilter();b.type=type;b.frequency.value=f;if(q)b.Q.value=q;return b;}
-  function place(v){                     /* {g,p} -> a gain+pan into out */
-    const g=ctx.createGain();g.gain.value=v&&v.g!==undefined?v.g:1;
-    if(ctx.createStereoPanner){const pn=ctx.createStereoPanner();pn.pan.value=v&&v.p||0;g.connect(pn);pn.connect(out);}
-    else g.connect(out);
-    return g;
-  }
-  function env(param,t,a,peak,hold,rel){
-    param.setValueAtTime(0,t);param.linearRampToValueAtTime(peak,t+a);
-    param.setValueAtTime(peak,t+a+hold);param.setTargetAtTime(0,t+a+hold,rel/4);
-  }
-  /* --- beds --- */
-  {const s=src(BROWN,0,true),f=filt("lowpass",280),g=ctx.createGain();g.gain.value=.05;s.connect(f);f.connect(g);g.connect(out);}
-  {const s=src(BROWN,0,true),f=filt("lowpass",170),g=ctx.createGain();g.gain.value=.07;s.connect(f);f.connect(g);g.connect(out);S.street=g;}
-  /* the fridge's compressor: a 50 Hz hum and its octave, barely there */
-  {const o=ctx.createOscillator(),o2=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=50;o2.frequency.value=100;
-   g.gain.value=.006;o.connect(g);o2.connect(g);g.connect(place({g:1,p:.3}));o.start();o2.start();}
-  /* --- the walla: five voices --- */
-  const VOW=[[800,1200],[500,1800],[320,2300],[520,920],[340,800],[520,1500],[660,1700]];
-  S.voices=[];
-  for(let i=0;i<5;i++){
-    const fem=i%2===1,o=ctx.createOscillator();o.type="sawtooth";
-    const f0=fem?185+Math.random()*50:98+Math.random()*30;o.frequency.value=f0;
-    const f1=filt("bandpass",500,6),f2=filt("bandpass",1500,9),mix=ctx.createGain(),lp=filt("lowpass",1300),g=ctx.createGain();
-    g.gain.value=0;o.connect(f1);o.connect(f2);f1.connect(mix);f2.connect(mix);mix.gain.value=.6;
-    mix.connect(lp);lp.connect(g);
-    const nz=src(WHITE,0,true),nf=filt("bandpass",4200,1.2),ng=ctx.createGain();ng.gain.value=0;
-    nz.connect(nf);nf.connect(ng);ng.connect(lp);
-    g.connect(place({g:.55,p:(i/4-.5)*1.2}));o.start();
-    S.voices.push({o:o,f1:f1,f2:f2,g:g,ng:ng,f0:f0,next:Math.random()*2,lvl:.018+Math.random()*.012});
-  }
-  /* syllables up to t1 (called ahead of time, realtime or offline) */
-  S.murmur=function(t0,t1){
-    if(!S.crowdOn)return;
-    S.voices.forEach(function(v){
-      let t=Math.max(v.next,t0);
-      while(t<t1){
-        const n=2+Math.random()*9|0;                      /* a phrase */
-        for(let k=0;k<n&&t<t1+2;k++){
-          const w=VOW[Math.random()*VOW.length|0],d=.11+Math.random()*.13;
-          v.f1.frequency.setTargetAtTime(w[0]*(v.f0>150?1.12:1),t,.025);
-          v.f2.frequency.setTargetAtTime(w[1]*(v.f0>150?1.1:1),t,.025);
-          v.o.frequency.setTargetAtTime(v.f0*(1+(Math.random()-.5)*.25)*(1-k*.012),t,.04);
-          env(v.g.gain,t,.03,v.lvl*(.7+Math.random()*.6),d*.5,d);
-          if(Math.random()<.6)env(v.ng.gain,t-.01,.005,.04,.02,.04);
-          t+=d+.03+Math.random()*.06;
-        }
-        t+=.4+Math.random()*2.2;                          /* breath, listening */
-      }
-      v.next=t;
-    });
-  };
-  /* --- the bar --- */
-  S.grind=function(t,dur,v){
-    const g=place(v),e=ctx.createGain();e.connect(g);env(e.gain,t,.08,.5,dur-.4,.35);
-    const o=ctx.createOscillator();o.type="sawtooth";o.frequency.setValueAtTime(90,t);
-    o.frequency.linearRampToValueAtTime(155,t+.15);const lp=filt("lowpass",700);o.connect(lp);
-    const og=ctx.createGain();og.gain.value=.35;lp.connect(og);og.connect(e);o.start(t);o.stop(t+dur+.5);
-    const n=src(WHITE,t,true),bp=filt("bandpass",2600,.9),ng=ctx.createGain();ng.gain.value=.55;
-    const lfo=src(WHITE,t,true),lf=filt("lowpass",38),lg=ctx.createGain();lg.gain.value=.9;
-    lfo.connect(lf);lf.connect(lg);lg.connect(ng.gain);
-    n.connect(bp);bp.connect(ng);ng.connect(e);n.stop(t+dur+.5);lfo.stop(t+dur+.5);
-  };
-  S.knock=function(t,v){
-    const g=place(v),o=ctx.createOscillator(),e=ctx.createGain();
-    o.frequency.setValueAtTime(140,t);o.frequency.exponentialRampToValueAtTime(48,t+.09);
-    e.gain.setValueAtTime(.9,t);e.gain.setTargetAtTime(0,t+.01,.05);o.connect(e);e.connect(g);o.start(t);o.stop(t+.4);
-    const n=src(WHITE,t,true),hp=filt("highpass",2500),ne=ctx.createGain();
-    ne.gain.setValueAtTime(.25,t);ne.gain.setTargetAtTime(0,t,.008);n.connect(hp);hp.connect(ne);ne.connect(g);n.stop(t+.1);
-  };
-  S.pump=function(t,dur,v){
-    const g=place(v),e=ctx.createGain();e.connect(g);env(e.gain,t,.3,1,dur-.8,.5);
-    const o=ctx.createOscillator();o.type="square";o.frequency.value=49;
-    const lp=filt("lowpass",220),og=ctx.createGain();og.gain.value=.05;o.connect(lp);lp.connect(og);og.connect(e);o.start(t);o.stop(t+dur+.6);
-    const n=src(WHITE,t+2,true),bp=filt("bandpass",3300,2.2),ng=ctx.createGain();ng.gain.value=0;
-    ng.gain.setValueAtTime(0,t+2);ng.gain.linearRampToValueAtTime(.011,t+3);
-    n.connect(bp);bp.connect(ng);ng.connect(e);n.stop(t+dur+.6);
-  };
-  S.steam=function(t,dur,v){
-    const g=place(v),e=ctx.createGain();e.connect(g);env(e.gain,t,.15,.13,dur-.6,.4);
-    const n=src(WHITE,t,true),hp=filt("highpass",2200),pk=filt("peaking",3600,3);pk.gain.value=8;
-    pk.frequency.setValueAtTime(3200,t);pk.frequency.linearRampToValueAtTime(5200,t+dur*.8);
-    const am=ctx.createGain();am.gain.value=.7;const lfo=ctx.createOscillator();lfo.frequency.value=17;
-    const lg=ctx.createGain();lg.gain.value=.3;lfo.connect(lg);lg.connect(am.gain);
-    n.connect(hp);hp.connect(pk);pk.connect(am);am.connect(e);lfo.start(t);lfo.stop(t+dur+.6);n.stop(t+dur+.6);
-  };
-  S.clink=function(t,v,k){
-    const g=place(v);k=k||(.9+Math.random()*.2);
-    [[2350,1,.35],[3810,.6,.22],[5230,.4,.15],[6900,.2,.08]].forEach(function(m){
-      const o=ctx.createOscillator(),e=ctx.createGain();o.frequency.value=m[0]*k;
-      e.gain.setValueAtTime(m[1]*.09,t);e.gain.setTargetAtTime(0,t,m[2]/3);o.connect(e);e.connect(g);o.start(t);o.stop(t+m[2]*2);
-    });
-    const n=src(WHITE,t,true),hp=filt("highpass",4000),ne=ctx.createGain();
-    ne.gain.setValueAtTime(.05,t);ne.gain.setTargetAtTime(0,t,.004);n.connect(hp);hp.connect(ne);ne.connect(g);n.stop(t+.05);
-  };
-  S.bell=function(t,v){
-    for(const dt of[0,.32]){
-      const g=place(v);
-      [[1320,1,1.4],[1985,.5,1],[2650,.35,.7],[3960,.15,.4]].forEach(function(m){
-        const o=ctx.createOscillator(),e=ctx.createGain();o.frequency.value=m[0]*(dt?1.01:1);
-        e.gain.setValueAtTime(m[1]*.05,t+dt);e.gain.setTargetAtTime(0,t+dt,m[2]/3);o.connect(e);e.connect(g);o.start(t+dt);o.stop(t+dt+m[2]*2);
-      });
-    }
-  };
-  S.car=function(t,v){
-    const g=place(v),e=ctx.createGain();e.connect(g);
-    const n=src(BROWN,t,true),lp=filt("lowpass",200);n.connect(lp);lp.connect(e);
-    lp.frequency.setValueAtTime(180,t);lp.frequency.linearRampToValueAtTime(620,t+2);lp.frequency.linearRampToValueAtTime(160,t+4.5);
-    e.gain.setValueAtTime(0,t);e.gain.linearRampToValueAtTime(.16,t+2);e.gain.linearRampToValueAtTime(0,t+4.5);n.stop(t+5);
-  };
-  S.doorOpen=function(t){                 /* the street comes in for a moment */
-    S.street.gain.cancelScheduledValues(t);S.street.gain.setTargetAtTime(.2,t,.15);S.street.gain.setTargetAtTime(.07,t+2.2,.6);
-  };
-  S.setDuck=function(x){duck.gain.setTargetAtTime(x,ctx.currentTime,.25);};
-  S.crowd=function(on){
-    S.crowdOn=on;
-    if(!on)S.voices.forEach(function(v){v.g.gain.cancelScheduledValues(ctx.currentTime);v.g.gain.setTargetAtTime(0,ctx.currentTime,.3);});
-  };
-  return S;
-}
-/* the live driver: built on the page's own context once a gesture has
-   woken it, fed a second ahead, cued by the scene */
-const AMB={S:null,sched:0,bMode:-1,nextCar:12,nextClink:6,nextSteam:30,closed:false};
-const _ambV=new THREE.Vector3();
-function ambAt(x,z){
-  const dx=x-camera.position.x,dz=z-camera.position.z,d=Math.hypot(dx,dz);
-  const e=camera.matrixWorld.elements;
-  return {g:1/(1+d*.32),p:Math.max(-1,Math.min(1,(dx*e[0]+dz*e[2])/Math.max(d,1)))*.8};
-}
-function ambTick(dt){
-  if(!AMB.S){
-    if(!lipCtx||lipCtx.state!=="running"||/[?&]noamb\b/.test(location.search))return;
-    AMB.S=ambBuild(lipCtx,lipCtx.destination);
-    AMB.S.master.gain.value=muted?0:1;
-    AMB.sched=lipCtx.currentTime;
-  }
-  const S=AMB.S,now=lipCtx.currentTime;
-  if(cafeClosed&&!AMB.closed){AMB.closed=true;S.crowd(false);}
-  if(AMB.sched<now)AMB.sched=now;                 /* a slow frame never leaves a hole */
-  if(now+1>AMB.sched){S.murmur(AMB.sched,AMB.sched+1.5);AMB.sched+=1.5;}
-  S.setDuck(speaking?.4:(JB.on?.35:1));
-  if(cafeClosed)return;
-  /* the barista's beats */
-  if(barista.mode!==AMB.bMode){
-    AMB.bMode=barista.mode;const at=ambAt(1.27,-3.9),t=now+.05;
-    if(barista.mode===BAR.GRIND)S.grind(t,3.2,ambAt(.3,-3.75));
-    else if(barista.mode===BAR.TAMP){S.knock(t+.4,at);S.knock(t+.62,at);}
-    else if(barista.mode===BAR.PULL)S.pump(t+.3,20,at);
-    else if(barista.mode===BAR.SERVE)S.clink(t+1.4,ambAt(1.6,-3.3));
-  }
-  AMB.nextSteam-=dt;if(AMB.nextSteam<0){AMB.nextSteam=45+Math.random()*50;S.steam(now,4.5,ambAt(1.7,-3.95));}
-  AMB.nextClink-=dt;if(AMB.nextClink<0){AMB.nextClink=5+Math.random()*12;
-    const spots=[[-2.3,-1.8],[-2.3,-.8],[3.07,1.81],[.21,2.45],[1.3,-3.2]],q=spots[Math.random()*spots.length|0];
-    S.clink(now,ambAt(q[0],q[1]),.8+Math.random()*.4);}
-  AMB.nextCar-=dt;if(AMB.nextCar<0){AMB.nextCar=18+Math.random()*30;S.car(now,ambAt(-9,Math.random()<.5?-6:6));}
-}
-function ambDoor(){if(AMB.S&&!cafeClosed){const t=AMB.S.ctx.currentTime;AMB.S.bell(t,ambAt(7,.7));AMB.S.doorOpen(t);}}
+/* NO ROOM SOUND. The synthesised room tone, walla and bar cues of the DA
+   audit's phase 4 are gone from the page — Simon, 2026-09-30: "je ne veux
+   plus de bruit de fond". Its driver scheduled audio every frame on the
+   same AudioContext as Simon's voice. The page's sound is his voice and the
+   jukebox, nothing else; the synthesiser lives on in film/sound.js, where it
+   scores the trailer offline. */
 
 /* ---------------- THE STREET ----------------
    Simon, 2026-09-28: "retravaille entièrement la zone extérieure… un
@@ -9369,6 +9274,10 @@ function tvBuild(){
   /* ---------- the overlay ---------- */
   const oc=document.createElement("canvas");oc.width=TV_W;oc.height=TV_H;
   TVS.ovCtx=oc.getContext("2d");TVS.ovTex=new THREE.CanvasTexture(oc);TVS.ovTex.encoding=THREE.sRGBEncoding;
+  /* drawn texel for pixel into a target its own size and re-uploaded 15
+     times a second: the mip chain rebuilt after every upload was one no
+     sample ever read */
+  TVS.ovTex.generateMipmaps=false;TVS.ovTex.minFilter=THREE.LinearFilter;
   TVS.ov=new THREE.Scene();
   const oq=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({map:TVS.ovTex,transparent:true,depthTest:false,depthWrite:false,toneMapped:false}));
   TVS.ov.add(oq);TVS.ovCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
@@ -14677,7 +14586,6 @@ try{muted=localStorage.getItem("vc:muted")==="1";}catch(_){}
 const muteBtn=document.getElementById("muteBtn");
 function applyMute(){
   if(lipGain)lipGain.gain.value=muted?0:1;
-  if(AMB.S)AMB.S.master.gain.value=muted?0:1;       /* the room goes quiet too */
   /* an element that never made it into the graph has to be cut directly */
   if(audioEl&&!audioRouted)audioEl.muted=muted;
   /* the mp3 path keeps playing at gain 0 so captions and lipsync live;
@@ -14690,9 +14598,8 @@ function applyMute(){
   }
   if(muteBtn){
     muteBtn.setAttribute("aria-pressed",muted?"true":"false");
-    /* the room has a sound of its own now: the toggle is the page's */
-    muteBtn.setAttribute("aria-label",muted?"Unmute the sound":"Mute the sound");
-    muteBtn.title=(muted?"Unmute the sound":"Mute the sound")+" (M)";
+    muteBtn.setAttribute("aria-label",muted?"Unmute Simon's voice":"Mute Simon's voice");
+    muteBtn.title=(muted?"Unmute the voice":"Mute the voice")+" (M)";
   }
 }
 function setMuted(v){
@@ -16262,7 +16169,8 @@ function applyStaging(){
 stagingReady=true;applyStaging();
 function animate(){
   requestAnimationFrame(animate);
-  const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;
+  const raw=clock.getDelta(),dt=Math.min(raw,.05),t=clock.elapsedTime;
+  resTick(raw*1000);
 
   if(!cafeClosed){
     guest.ctl=guestCtl();      /* read the arrows at frame rate, not tick rate */
@@ -16272,7 +16180,6 @@ function animate(){
     updateDoor(dt);
     updateVan(dt);
     updateTV(dt);
-    ambTick(dt);
     updateReadHint(dt);
     jbFrame(dt);
     if(zoomItem&&zoomItem.live){paintZoom();updateZoomChrome();}

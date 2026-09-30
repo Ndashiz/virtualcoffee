@@ -75,7 +75,7 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
   const ev = async (expr,awaitPromise)=>{const r=await S('Runtime.evaluate',{expression:expr,awaitPromise:!!awaitPromise,returnByValue:true});
     if(r.exceptionDetails) throw new Error((r.exceptionDetails.exception&&r.exceptionDetails.exception.description)||r.exceptionDetails.text); return r.result.value;};
   const t0=Date.now();
-  await S('Page.navigate',{url:`http://127.0.0.1:${sport}/index.html${process.env.QUERY||''}`});
+  await S('Page.navigate',{url:`http://127.0.0.1:${sport}/index.html${process.env.QUERY?process.env.QUERY+'&':'?'}fullres`});   // no resolution governor: 5 fps in software is not a reason to render small
   for(;;){ await sleep(500); let ok=false; try{ok=await ev('!!(window.__vc&&__vc.CAFE&&__vc.CAFE.ready)');}catch(e){} if(ok)break; if(Date.now()-t0>240000) throw new Error('model never ready'); }
   console.log('model ready in',((Date.now()-t0)/1000).toFixed(1),'s; quality',await ev('__vc.QUALITY.name'));
   if(process.env.WARM) await sleep(+process.env.WARM);

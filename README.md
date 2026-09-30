@@ -283,8 +283,8 @@ fetch leaves the old cast in place.
   back onto him every frame (`mapSimon()`), his voice opens a real mouth.
 - **Cost.** One `MeshStandardMaterial` per person (shared program) with an
   `onBeforeCompile` for the paint, fabric and skin micro-relief and a hair
-  sheen. LOD1 (~35 % of the triangles) beyond 6 m and everywhere on touch
-  devices except Simon. Draw calls went 772 → 319 (desktop), triangles
+  sheen. LOD1 beyond 6 m and everywhere on touch devices except Simon
+  (head, neck and hands as LOD0, the rest at ~35 %). Draw calls went 772 → 319 (desktop), triangles
   242 k → ~435 k in the main pass.
 
 `person.obj` is currently **retired** (`USE_PERSON_MESH=false` in the scene):
@@ -612,8 +612,8 @@ room for no visible gain) and SMAA (the FXAA pass stays).
 - **The room's sound**, all synthesised (no file): room tone, the street
   through the glass, a walla of distant talk, and the bar cued by the
   barista — grinder, portafilter knock, pump, steam, the cup she serves —
-  the door's bell, cars, cups set down. Placed, ducked under Simon and the
-  jukebox, muted with the page.
+  the door's bell, cars, cups set down. *Taken off the page the next day
+  (see below); it now only scores the trailer.*
 - **The trailer and the share image** ([`film/`](film/README.md)): the real
   scene filmed frame by frame at a fixed step, scored with the same synth
   offline, cut and titled in Blender; `og.jpg` re-rendered from today's
@@ -622,6 +622,43 @@ room for no visible gain) and SMAA (the FXAA pass stays).
 Not done, and why: a Gaussian-splat capture of a real Brussels street and a
 look-dev review against photographs of a real café both need someone on
 location with a camera.
+
+### Fixes of 2026-09-30
+
+Four reports from Simon, on the live café:
+
+- **"The courier has no arms" — and nobody else past 6 m did either.** The
+  lighter body (LOD1, `pp_lod.py`) kept the head and neck exactly as LOD0,
+  but decimated the WHOLE body at .34 with them only weighted: the head
+  alone is more than a third of the triangles, so the collapse ate every
+  arm, hand, leg and foot to reach its target. Clothes hid the legs; a
+  tee showed the missing forearms. The collapse now runs on a selection —
+  everything but the head, neck and hands — at .34 of that (body LOD1
+  15.9 k → 11.5 k triangles, every bone leading vertices again), and the
+  build fails if a bone loses more than 85 % of what it led.
+- **"The back of the van has a bug."** Doors open, the bay showed a white
+  starburst on its bulkhead — the new cab's rear cap on the same plane,
+  z-fighting — and a bright blue floor 36 cm above the deck: the skirt,
+  `bandeau_bas.0`, was a solid box the full width of the van. The bulkhead
+  stands 5 cm clear of the cab, the skirt lost its top face, and the load
+  floor sits at y .84 over the twin tyres and their well, as in any box
+  van, with the skirt's rear face as the step under it.
+- **"No more background noise."** The room's sound is off the page (the
+  synthesiser lives in `film/sound.js`, for the trailer only); the mute
+  button is "Mute Simon's voice" again.
+- **"Latency."** The frame is fill-bound: on an M4, pixelRatio 2 in a
+  1024×768 window ran 39 fps, 1.5 61, 1 105 — about 8 ms a megapixel. A
+  Retina window at full screen (3024×1720) ran 24 fps with one frame in
+  ten over 80 ms, and a GPU-bound page queues its frames, so input showed
+  late. The post chain now renders at a scale of the canvas that a
+  **resolution governor** picks from the measured frame rate (45 fps floor,
+  steps .85/.72/.61/.52, never under one pixel per CSS pixel, a failed step
+  up is never retried); FXAA upscales into the untouched canvas (resizing
+  the canvas froze the page 0.6–1.1 s a time). Same window: 24 → 48 fps,
+  frames over 100 ms 24 → 2 in 20 s. `?fullres` turns it off; so does
+  automation (`navigator.webdriver`), and `film.js` / `cdp.js` pass it. The
+  TV overlay no longer rebuilds a mip chain it never samples, 15 times a
+  second.
 
 Cost, scene pass from the interview shot: 323 draw calls against 300,
 849k triangles against 829k on desktop; 292 / 646k against 263 / 625k on a

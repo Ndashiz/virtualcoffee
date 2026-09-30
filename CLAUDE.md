@@ -248,12 +248,27 @@ mechanics that bite:
   a caster teleported) sets `renderer.shadowMap.needsUpdate=true` itself.
   Far eyelids are hidden (`cullLids`, `EYE_FAR`); on a phone small casters
   lose `castShadow`.
-- **The room has a sound** (`ambBuild`/`ambTick`, all synthesised,
-  THE ROOM'S SOUND): it starts once the page's AudioContext (`lipCtx`) is
-  running, ducks under `speaking` and `JB.on`, obeys `muted` (the mute is
-  the page's now: "Mute the sound"), and is cued by the barista's `BAR`
-  modes and `openDoor()`. `ambBuild(ctx,dest)` takes any context — render
-  it offline to listen (film/sound.js). `?noamb` turns it off.
+- **The room has NO sound, on purpose.** The synthesised room tone, walla
+  and bar cues of phase 4 ran live for one day and Simon had them taken
+  off (2026-09-30, "je ne veux plus de bruit de fond"). The page's sound is
+  Simon's voice and the jukebox; the mute is "Mute Simon's voice" again.
+  The synthesiser (`ambBuild`) lives in `film/sound.js`, for the trailer's
+  score only. Do not bring a room sound back without asking him.
+- **The post chain renders at a scale of the canvas** (THE RESOLUTION
+  GOVERNOR, `RES`, `resTick`): the frame is fill-bound (~8 ms a megapixel
+  on an M4 — a full-screen Retina window ran 24 fps), so `allocTargets()`
+  sizes every target at `RES.s` × the drawing buffer and FXAA upscales into
+  the canvas. The scale follows the mean frame interval (capped at 100 ms a
+  sample) over 48-frame windows: under 45 fps it drops, holding the
+  display's rate it climbs one step on trial, a failed step is never
+  retried. Three traps: **never resize the canvas to save pixels**
+  (`setPixelRatio` froze the page 0.6–1.1 s each time; reallocating targets
+  is free); **a new full-screen pass must work in `vUv`** at the target's
+  own size, never `gl_FragCoord`/canvas size (dither aside); and **any
+  offline render passes `?fullres`** or runs under automation
+  (`navigator.webdriver`) — at 5 fps in SwiftShader the governor would
+  shrink the film. The rAF shim harnesses, which run frames back to back,
+  read nothing like a vsync'd browser: never tune the thresholds on them.
 - **Scanned materials** (`applyScans`, `tex/scan/`, 1.3 MB): oak, walnut,
   travertine, limewash/tadelakt and leather take a CC0 scan's normal and
   roughness, and its detail OVERLAID on the painted colour (luminance
@@ -303,7 +318,12 @@ mesh not in the repo — see `people/README.md`).
 - **Faces are paint on the BASE head** (`base` attribute = the unmorphed
   position): a trait that moves the face must not move the paint with it.
 - **LOD**: `THREE.LOD` with two skinned meshes on one skeleton, swap at
-  `REAL_LOD_FAR`; touch devices build only LOD1, except Simon. LOD1 keeps
+  `REAL_LOD_FAR`; touch devices build only LOD1, except Simon. **Everybody
+  past 6 m wears LOD1** — a limb missing there is missing from the whole
+  room and every phone (it happened: the body's collapse ate every arm and
+  leg to hit a global ratio while the head was protected; now the collapse
+  runs on a selection and the build checks every bone still leads
+  vertices). LOD1 keeps
   the head and neck EXACTLY as LOD0 (`pp_lod.py`): a head decimated without
   symmetry comes out lopsided, and a lopsided head reads as a face that is
   off-centre. Do not mirror the collapse either — against the protected head
@@ -374,7 +394,13 @@ mesh not in the repo — see `people/README.md`).
   (extras) against everything worn, measured on the DISPLAYED colour
   (`shownLab` treats the hex as linear, as the café feeds it).
 - **The vans' cabs are `CAR_TYPES.vancab`** (placeCar), the model's cabs,
-  wheels and lamps are HIDE'd. The boxes and the ICE CUBE leaves are still
+  wheels and lamps are HIDE'd. The ICE CUBE bay is seen whenever the doors
+  swing, so what the cab brings must stay out of it: the cab starts at
+  x 15.30 (the bay's bulkhead stops at 15.25 — on the same plane its rear
+  cap z-fought through as a starburst), and its twin tyres and wheel well
+  top out at y .81 (the load floor, `VAN_DECK`, is .84). The skirt
+  (`bandeau_bas.0`, SPECIAL) is a solid box: its top face is dropped at
+  load, or it is a blue floor inside the bay. The boxes and the ICE CUBE leaves are still
   the model's; door hardware is `vanDoorKit()`, a child of each leaf so it
   swings with it. Mirror heads end at z 0.80 and the step bumper at x 11.30:
   both are courier-lane clearances.
