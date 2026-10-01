@@ -1172,6 +1172,81 @@ TTS fallback captions per uttered sentence. That closes the gap the recordings
 had opened for anyone with sound off or hard of hearing — the **text resume**
 remains the full readable version, and carries the "Off the clock" content too.
 
+### The face follows the words (2026-10-01)
+
+Until now the voice moved one thing: a jaw, scaled by the loudness of the
+recording. Now a line of text — and the voice playing it, when there is one —
+drives the whole face. The module is `FACE` (section "FACE DIRECTION" in
+`index.html`), one **performer** per talking face: Simon, the HENRY TV
+presenter, the chief executive on her wall. A performer turns a line into a
+**pose** every frame (one number per parameter: `jaw round wide press lowerUp
+upperUp · cornerL/R browL/R furrow cheek squint · gazeX/Y headX/Y/Z`, plus the
+`lid` it derives), in three layers summed with their own speeds:
+
+- **Affect — per sentence.** Each sentence is classified by what it says
+  (`LEX`, a weighted lexicon: greeting, enthusiasm, question/analysis,
+  explanation, announcement, humour, concern; a long unmatched sentence is
+  *attentive*, a short one *professional*) and gets the matching pose from
+  `EXPR`, jittered ±14 % so no two sentences wear the same face, crossfaded in
+  ≈.3 s and released in ≈.8 s — a smile arrives faster than it leaves. The
+  runner-up intent tints it. The person's own resting face (`base`: Simon's
+  easy smile, her professional neutral) shows through every moment.
+- **Speech — per phoneme.** The text is read into visemes by rule
+  (`wordVisemes`: digraphs first — *th sh ch ph wh oo ou ee ai oa oi igh* —
+  then letter by letter; `VIS` maps 14 shapes to the mouth dials), each with a
+  duration, pauses on the punctuation. With a recording the voice's own
+  envelope and spectrum (four bands off the existing `AnalyserNode`) decide
+  **how open and when** — so the mouth is always in sync — and the text decides
+  **which shape**: round on *oo*, closed on *m b p*, teeth on the lip for
+  *f v*, a hiss narrows and bares the teeth. The recording and the script
+  drift apart at every breath, so each onset after a real pause pulls the
+  text cursor toward the nearest pause in the script (`realign`, ±1 s at
+  most). Without a recording — the browser voice, or the television — the
+  visemes run on a clock calibrated on the fifteen mp3s (`RATE` 8.6 units/s),
+  and the browser voice's `boundary` events mark the word it is on. On the
+  stressed words (`pickEmphasis`: after an intensifier, numbers, CAPITALS, the
+  last content word before a pause — at most one in three) the head and
+  brows **beat** (`BEATS`: nod, brow flash, tilt, lean, shake — chosen for the
+  sentence's sense, never the same one twice in a row); a thinking sentence
+  looks away up and to one side and comes back with a blink.
+- **Micro — always.** Blinks every ≈3.4 s talking / 4.6 s listening, closing
+  in 70 ms and opening in 130, a double now and then, one on many phrase ends;
+  saccades between the listener's eyes; a slow drift of the head and the brows
+  (`fbm1`); a small "go on" nod every ten seconds or so while listening.
+
+The pose reaches the body through three adapters. **The skin moves in the
+vertex shader** (`FACE_VERT` in `realShader`): the head has no jaw bone and no
+blend shapes, so the deformation runs in rest space before skinning, where the
+paint and the weights live. `dressGeometry` computes two attributes from the
+base head and paintFace's own landmarks — `faceW` (jaw, upper lip, lower lip,
+"no face") and `faceX` (signed by side: corner, inner brow, outer brow,
+cheek). The jaw is a hinge under the ear: the mandible turns (7.5° at a full
+"ah"), the lower lip falls further than the chin, as it does. The dials are
+three `vec4` uniforms on each person's material (`uFaceA/B/C`, set by
+`applyRig`). **The cavity** (`applyMouth`) keeps its top edge on the lip line
+and its bottom on the lower lip the hinge took down; the teeth keep their own
+height and only show once there is room. **The eyes** (`applyEyes`) take the
+lid over the blink plus the expression's squint (−.08 is wide-eyed), and the
+gaze offsets on the eye groups. The head and neck joints stay the caller's:
+Simon's `mapSimon` and the animate loop (his look-at logic is untouched; the
+performer adds its nods, turns and tilts on top), the television's
+`tvRender`.
+
+The presenter **reads the story** — the headline, then the deck (`tvLine`) —
+on the segment's own clock (`src.at`), so the fine is read with concern and
+tonight's programme with a smile; she glances down at her notes in the last
+.8 s of every item. The CEO says his statement (`TV_CEO_LINE`) during his.
+Picking a section makes Simon acknowledge it (`react("acknowledge")`, brows up
+and a nod) before the line starts.
+
+**Extending it.** An emotion is one line in `EXPR` (and one in `LEX` if the
+text should find it; `FACE.define(name, pose, regex, weight)` does both); a
+beat is one entry in `BEATS`; a new talking face is `new FACE.Performer(id,
+{base, motion, expr})` plus the three `apply*` calls. `performer.force(pose)`
+holds a pose by hand for tuning and stills. Under `prefers-reduced-motion`
+the head and the glances away are off (`motion` 0); the lips and the blinks
+stay, or the man is not talking.
+
 ## Credits
 
 - Scanned surfaces (`tex/scan/`), all **CC0**: oak veneer 02, black walnut

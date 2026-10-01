@@ -5915,7 +5915,55 @@ function dressGeometry(rig,lod){
       }
     }
   }
+  /* THE FACE RIG's weights (FACE DIRECTION), from the BASE head — the
+     landmarks are paintFace's: the lip line at 1.5745, corners at ±.027,
+     brows at 1.664, cheeks at (±.046, 1.605). The mandible is everything
+     under the lip line in front, bounded by a hinge line that climbs to
+     the ear at the sides; the lips are two bands either side of the line,
+     fading to the corners; corners, brows and cheeks are soft bumps. A
+     vertex nothing reaches keeps faceW.w = 255, which is also what a
+     geometry WITHOUT the attribute reads — so a missing rig moves nothing. */
+  const fw=new Uint8Array(nv*4),fx=new Int8Array(nv*4);
+  for(let i=0;i<nv;i++)fw[i*4+3]=255;
+  {
+    const F=REAL.hdr.face.eye,YL=1.5745;
+    const bump=q=>q>=1?0:(1-q*q)*(1-q*q);
+    let vv=0;
+    for(const p of parts){
+      const cnt=p.m.pos.length/3;
+      if(p.kind==="body")for(let i=0;i<cnt;i++){
+        const v=vv+i,x=base[v*3],y=base[v*3+1],z=base[v*3+2];
+        if(y<1.49||z<-.05)continue;
+        const ax=Math.abs(x),sd=x<0?-1:1;
+        if(ax>.062&&z<.03)continue;                              /* the ears */
+        /* no bone test: the neck bone owns most of the lower face (head
+           weight .24 at the lip line), and rest space is before skinning */
+        const front=smooth01(.02,.06,z);
+        const yLim=YL+(1-front)*(.06-Math.min(z,.06))*.55,wdt=.0012+(1-front)*.012;
+        /* the jawline, chin to the angle under the ear: below it the
+           throat stays where it is */
+        const yJaw=1.537+Math.max(0,.10-z)*.22;
+        const wJ=smooth01(yLim+wdt,yLim-wdt,y)*smooth01(yJaw-.012,yJaw+.004,y)*smooth01(-.04,-.015,z);
+        const lx=Math.sqrt(Math.max(0,1-(ax/.031)*(ax/.031)))*front;
+        const wLU=smooth01(YL-.001,YL+.002,y)*smooth01(YL+.021,YL+.013,y)*lx;
+        const wLL=smooth01(YL+.001,YL-.002,y)*smooth01(YL-.019,YL-.012,y)*lx;
+        const wC=bump(Math.hypot(ax-.027,(y-YL)*1.2,(z-.118)*.8)/.017);
+        const bq=(y-1.664)/.009,bq2=(y-1.664)/.022;
+        const by=Math.exp(-bq*bq),bt=y>1.664?Math.exp(-bq2*bq2)*.55:0;
+        const bw=Math.max(by,bt)*smooth01(.03,.07,z);
+        const wBI=bw*smooth01(.04,.024,ax),wBO=bw*smooth01(.022,.038,ax)*smooth01(.075,.058,ax);
+        let wCh=bump(Math.hypot(ax-.046,(y-1.605)*.9,(z-.088)*.7)/.028);
+        wCh=Math.max(wCh,.7*bump(Math.hypot(ax-F.x,(y-(F.y-.013))*1.4,(z-zLid(x))*1.2)/.014));
+        if(wJ+wLU+wLL+wC+wBI+wBO+wCh<.01)continue;
+        fw[v*4]=Math.round(wJ*255);fw[v*4+1]=Math.round(wLU*255);fw[v*4+2]=Math.round(wLL*255);fw[v*4+3]=0;
+        fx[v*4]=Math.round(wC*127)*sd;fx[v*4+1]=Math.round(wBI*127)*sd;fx[v*4+2]=Math.round(wBO*127)*sd;fx[v*4+3]=Math.round(wCh*127)*sd;
+      }
+      vv+=cnt;
+    }
+  }
   g.setAttribute("position",new THREE.BufferAttribute(pos,3));
+  g.setAttribute("faceW",new THREE.BufferAttribute(fw,4,true));
+  g.setAttribute("faceX",new THREE.BufferAttribute(fx,4,true));
   g.setAttribute("skinIndex",new THREE.BufferAttribute(si,4));
   g.setAttribute("skinWeight",new THREE.BufferAttribute(sw,4,true));
   g.setAttribute("color",new THREE.BufferAttribute(col,3,true));
@@ -6138,11 +6186,45 @@ function paintFace(rig){
    (kind: 0 skin, 1 cotton, 2 knit, 3 twill, 4 leather, 5 sole, 6 hair) and
    painted with the face above. Every person gets their own instance for
    their own face map; the compiled program is shared. */
+/* THE FACE RIG, in the vertex shader (FACE DIRECTION). The head has no
+   jaw bone and no blend shapes: the face moves here, in REST space before
+   skinning, where the paint (base) and the per-vertex weights of
+   dressGeometry live. faceW = jaw, upper lip, lower lip, "no face" (255
+   where nothing moves — the default of a missing attribute); faceX = the
+   signed weights (sign = side): corner, inner brow, outer brow, cheek.
+   The jaw is a hinge under the ear (y 1.615, z -.005): the mandible
+   turns, the lower lip falls further than the chin, as it does. */
+const FACE_VERT=`
+  if(faceW.w<.5){
+    float fsd=base.x<0.?-1.:1.;
+    float fth=uFaceA.x*faceW.x;
+    transformed.y-=fth*(base.z+.005);
+    transformed.z+=fth*(base.y-1.615);
+    float flu=faceW.y,fll=faceW.z,flp=max(flu,fll);
+    transformed.x-=base.x*uFaceA.y*.32*flp;
+    transformed.z+=uFaceA.y*.0045*flp;
+    transformed.x+=base.x*uFaceA.z*.10*flp;
+    transformed.y-=(base.y-1.5745)*uFaceA.w*.45*flp;
+    transformed.z-=uFaceA.w*.0012*flp;
+    transformed.y+=uFaceC.z*.0028*fll;transformed.z-=uFaceC.z*.0025*fll;
+    transformed.y+=uFaceC.w*.003*flu;
+    float fcw=abs(faceX.x);float fcu=faceX.x<0.?uFaceB.x:uFaceB.y;
+    transformed.y+=fcu*.0055*fcw;
+    transformed.x+=fsd*(max(fcu,0.)*.0045+uFaceA.z*.004)*fcw;
+    transformed.z-=max(fcu,0.)*.0035*fcw;
+    float fbi=abs(faceX.y),fbo=abs(faceX.z);float fbr=(faceX.y+faceX.z)<0.?uFaceB.z:uFaceB.w;
+    transformed.y+=fbr*.0045*(fbi+fbo*.8);
+    transformed.y-=uFaceC.x*.003*fbi;transformed.x-=fsd*uFaceC.x*.0025*fbi;
+    float fch=abs(faceX.w);
+    transformed.y+=uFaceC.y*.003*fch;transformed.z+=uFaceC.y*.0012*fch;
+  }
+`;
 function realShader(shader){
   shader.uniforms.faceMap={value:this.userData.faceTex};
-  shader.vertexShader="attribute float kind;\nattribute vec3 base;\nvarying float vKind;\nvarying vec3 vRest;\nvarying vec3 vRestN;\n"+
+  shader.uniforms.uFaceA=this.userData.uFaceA;shader.uniforms.uFaceB=this.userData.uFaceB;shader.uniforms.uFaceC=this.userData.uFaceC;
+  shader.vertexShader="attribute float kind;\nattribute vec3 base;\nattribute vec4 faceW;\nattribute vec4 faceX;\nuniform vec4 uFaceA;\nuniform vec4 uFaceB;\nuniform vec4 uFaceC;\nvarying float vKind;\nvarying vec3 vRest;\nvarying vec3 vRestN;\n"+
     shader.vertexShader.replace("#include <begin_vertex>",
-      "#include <begin_vertex>\n  vKind=kind;vRest=base;vRestN=normal;");
+      "#include <begin_vertex>\n  vKind=kind;vRest=base;vRestN=normal;\n"+FACE_VERT);
   shader.fragmentShader="uniform sampler2D faceMap;\nvarying float vKind;\nvarying vec3 vRest;\nvarying vec3 vRestN;\n"+
     /* kinds: 0 skin, 1 tee/apron, 2 sweater, 3 trousers, 4 shoes, 5 soles,
        6 hair, 7 blazer, 8 shirt */
@@ -6285,6 +6367,13 @@ function realMaterial(rig){
   if(!rig.faceTex)paintFace(rig);
   const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0,envMapIntensity:.35});
   m.userData.faceTex=rig.faceTex;
+  /* THE FACE RIG's dials (FACE DIRECTION): one set per person, on the
+     material so a performer writes them and the compiled program reads
+     them — jaw/round/wide/press, corners L R + brows L R, furrow/cheek/
+     lower lip up/upper lip up */
+  m.userData.uFaceA={value:new THREE.Vector4(0,0,0,0)};
+  m.userData.uFaceB={value:new THREE.Vector4(0,0,0,0)};
+  m.userData.uFaceC={value:new THREE.Vector4(0,0,0,0)};
   m.onBeforeCompile=realShader;
   return m;
 }
@@ -8618,6 +8707,10 @@ const TV_STORIES=[
    art:"ceo",tag:"NDABANK",val:"PENALTY",down:true}
 ];
 const TV_SEG=8;                                  /* seconds a story holds */
+/* what the man at the lectern is saying (FACE DIRECTION reads it to him) */
+const TV_CEO_LINE="We will reinforce the internal compliance department. We take these findings seriously, and we are cooperating fully with the regulator.";
+/* what she reads for a story: the headline, then the deck, quotes unquoted */
+function tvLine(st){return st.head.replace(/\.?$/,".")+" "+st.sub.replace(/\s*—.*$/,"").replace(/[“”"]/g,"").replace(/\.?$/,".");}
 const TV_LOOP=TV_STORIES.length*TV_SEG;
 const TV={tex:null,ctx:null,acc:0};
 /* ---- the illustrations. A channel does not put a graph on everything:
@@ -9458,16 +9551,21 @@ function tvRender(t,dt){
   TVS.uT.value=t;
   const ill=st.art==="ceo"||st.art==="eu"||st.art==="topic";
   /* --- the presenter: talking, blinking, looking up from her notes --- */
-  const a=TVS.anchor,J=a.J;
-  const talk=Math.sin(t*.43)>-.6;
-  const jaw=talk?(.18+.62*Math.abs(Math.sin(t*8.7))*(.55+.45*Math.sin(t*2.3+1))):.05;
-  TVS.aMouth.scale.y=.0004+jaw*.0046;
-  /* the teeth only once the lips part — shut, under a key light, they drew
-     a white line across her mouth */
-  TVS.aMouth.children[0].visible=jaw>.3;
-  const notes=((t%11.5)>9.8);
-  J.neck.rotation.set(-.02+(notes?.1:0),Math.sin(t*.47)*.05,Math.sin(t*.31)*.02);
-  J.head.rotation.set(-.04+(notes?.18:0)+Math.sin(t*1.9)*.012*(talk?1:0),Math.sin(t*.61+1)*.07,Math.sin(t*.37)*.025);
+  const a=TVS.anchor,J=a.J,ph0=t%TV_SEG;
+  /* she READS the story — the headline, then the deck — on the segment's
+     own clock (FACE DIRECTION; no recording, so the visemes run at
+     speaking pace stretched to the segment) and her face follows the
+     sense of it: the fine is read with concern, tonight's programme with
+     a smile, the figures straight. Between two items she looks down at
+     her notes. */
+  if(TVS.story!==st){TVS.story=st;FACE.anchor.start(tvLine(st),{at:0,span:TV_SEG-.9});}
+  FACE.anchor.src.at=ph0;
+  const fo=FACE.anchor.tick(dt||0,t,null);
+  const talk=FACE.anchor.active;
+  FACE.applyRig(a,fo);FACE.applyMouth(TVS.aMouth,fo);
+  const notes=ph0>TV_SEG-.8;
+  J.neck.rotation.set(-.02+(notes?.1:0)+fo.headX*.35,fo.headY*.35,fo.headZ*.4);
+  J.head.rotation.set(-.04+(notes?.18:0)+fo.headX*.65,fo.headY*.65,fo.headZ*.6);
   J.spine.rotation.set(.04,0,0);J.chest.rotation.set(.06+Math.sin(t*1.5)*.006,0,0);
   for(const s of["L","R"]){
     const sg=s==="L"?-1:1;
@@ -9476,15 +9574,17 @@ function tvRender(t,dt){
     J["wrist"+s].rotation.set(.1,0,-sg*.25);
   }
   if(talk){const gk=Math.max(0,Math.sin(t*.9));J.elbowR.rotation.x=-1.3-.25*gk;J.wristR.rotation.z=-.25-.3*gk;}
-  const bk=tvBlink(a,TVS.blink,dt||0);
-  a.eyes.forEach(function(e){e.lid.rotation.x=bk*.93+(notes?.55:0);e.eg.rotation.x=notes?.35:0;});
+  FACE.applyEyes(a.eyes,fo,fo.gazeX,(notes?-.35:0)+fo.gazeY,notes?.3:0);
   /* --- the wall --- */
   if(ill&&TVS.ceo&&st.art==="ceo"){
     const c=TVS.ceo,CJ=c.J;
-    const cj=.2+.55*Math.abs(Math.sin(t*7.9))*(.5+.5*Math.sin(t*1.7));
-    TVS.cMouth.scale.y=.0004+cj*.0046;TVS.cMouth.children[0].visible=cj>.3;
-    CJ.head.rotation.set(-.02+Math.sin(t*.8)*.03,Math.sin(t*.5)*.1,0);
-    CJ.neck.rotation.set(0,Math.sin(t*.5)*.05,0);
+    /* his statement, on the segment's clock, with the face it deserves */
+    if(TVS.ceoStory!==st){TVS.ceoStory=st;FACE.ceo.start(TV_CEO_LINE,{at:0,span:TV_SEG-.4});}
+    FACE.ceo.src.at=ph0;
+    const co=FACE.ceo.tick(dt||0,t,null);
+    FACE.applyRig(c,co);FACE.applyMouth(TVS.cMouth,co);
+    CJ.head.rotation.set(-.02+co.headX*.65,co.headY*.65,co.headZ*.6);
+    CJ.neck.rotation.set(co.headX*.35,co.headY*.35,co.headZ*.4);
     /* hands on the lectern's edge; every few seconds the right one comes
        up, palm in, for the line he is saying */
     for(const s of["L","R"]){const sg=s==="L"?-1:1;
@@ -9492,7 +9592,7 @@ function tvRender(t,dt){
     const gk=smooth01(.2,.8,Math.sin(t*.9));
     CJ.shoulderR.rotation.set(-.42-.25*gk,0,.1+.12*gk);CJ.elbowR.rotation.set(-.95-.75*gk,-.3*gk,0);CJ.wristR.rotation.set(.35-.25*gk,0,.5*gk);
     CJ.spine.rotation.set(.04,0,0);CJ.chest.rotation.set(.05,0,0);
-    const cb=tvBlink(c,TVS.cBlink,dt||0);c.eyes.forEach(function(e){e.lid.rotation.x=cb*.93;});
+    FACE.applyEyes(c.eyes,co,co.gazeX,co.gazeY,0);
     TVS.flash.intensity=(Math.sin(t*3.7)>.985||Math.sin(t*2.3+1)>.992)?2.6:0;
   }
   if(ill){
@@ -13965,17 +14065,16 @@ function simonMouthMesh(J,H){
   J.head.add(m);
   return m;
 }
-function mapSimon(eyeS){
+function mapSimon(fo){
   const J=simonRig.J;
   J.neck.rotation.set(SIMON_POSE.neck.x+simonHead.rotation.x*.35,simonHead.rotation.y*.35,simonHead.rotation.z*.4);
   J.head.rotation.set(SIMON_POSE.head.x+simonHead.rotation.x*.65,simonHead.rotation.y*.65,simonHead.rotation.z*.6);
-  const eY=clampN(simonEyeY,.30),eP=clampN(simonEyeP,.16);
-  simonRig.eyes.forEach(e=>{
-    e.eg.rotation.y=eY;e.eg.rotation.x=-eP;
-    e.lid.rotation.x=(eyeS<1?.93:0)+Math.max(0,-eP)*.9;
-  });
-  const jaw=Math.max(0,(mouthMesh.scale.y-1)/3.2);
-  simonMouth.scale.set(mouthMesh.scale.x,.0004+jaw*.0046,1);
+  /* the pose of the frame (FACE DIRECTION): eyes and lids, the skin's
+     dials, the cavity between the lips */
+  const eY=clampN(simonEyeY+fo.gazeX,.30),eP=clampN(simonEyeP+fo.gazeY,.16);
+  FACE.applyEyes(simonRig.eyes,fo,eY,eP,0);
+  FACE.applyRig(simonRig,fo);
+  FACE.applyMouth(simonMouth,fo);
   if(simon.userData.rShoulder)
     J.shoulderR.rotation.z=simonRig.shR+(simon.userData.rShoulder.rotation.z-.32)*.8;
   /* every glance in the room is aimed at simonHead: put it on his real head */
@@ -14540,6 +14639,627 @@ function showCue(txt){
 }
 function clearCues(){cues=[];cueIdx=-1;showCue("");}
 
+/* ════════════════════════════════════════════════════════════════════
+   FACE DIRECTION
+   The face follows what is SAID, not only how loud it is said. One
+   performer per talking face (Simon, the HENRY TV presenter, the CEO on
+   her wall) turns a line of text — and, when there is one, the voice
+   playing it — into a face: lips on the phonemes, an expression on the
+   sense of each sentence, beats of the head and brows on the words that
+   carry it, and under all of that the small unrest a living face never
+   loses (blinks, saccades, drift). Three layers, summed, each with its
+   own speed:
+
+     affect  — per SENTENCE: greeting, explanation, announcement, question,
+               humour, concern… → a target pose from EXPR, jittered so no
+               two sentences wear the same face, crossfaded in ~.3 s and
+               released in ~.8 s (a smile arrives faster than it leaves)
+     speech  — per PHONEME: the text is read into visemes (VIS); with a
+               recording, the voice's own envelope and spectrum decide HOW
+               open and WHEN (always in sync), the text decides WHICH
+               shape (round, wide, closed, teeth on lip); without one the
+               visemes run on a clock at speaking rate. Plus the beats:
+               a nod, a brow flash, a tilt on the stressed words.
+     micro   — always: blinks (also at phrase ends and after a glance
+               away), saccades round the listener's eyes, a slow drift of
+               the head, breath in the brows.
+
+   The output is a POSE, one number per parameter (PARAMS), applied by an
+   adapter: the skin's vertex shader (realShader: jaw hinge, lips,
+   corners, brows, cheeks — the per-vertex weights come from
+   dressGeometry), the mouth cavity (applyMouth), the lids and the eye
+   groups, and the head/neck joints the caller owns. Adding an emotion is
+   one line in EXPR and, if the text should find it, one line in LEX;
+   adding a beat is one entry in BEATS. Nothing here is per-person except
+   `base` (the face at rest) and `motion` (how big it moves).
+   ════════════════════════════════════════════════════════════════════ */
+const FACE=(function(){
+  /* the parameter space — every pose is a subset of these, 0 at rest */
+  const PARAMS=["jaw","round","wide","press","lowerUp","upperUp",
+    "cornerL","cornerR","browL","browR","furrow","cheek","squint",
+    "gazeX","gazeY","headX","headY","headZ"];
+  /* THE EXPRESSIONS. Values are fractions of the shader's full travel
+     (corners ±1, brows ±1 raise/frown, furrow, cheek, squint 0..1),
+     head angles in radians. Asymmetry is deliberate where a face would
+     have it (a smirk lifts one side first). */
+  const EXPR={
+    neutral:{},
+    rest:{cornerL:.14,cornerR:.12,cheek:.06},
+    professional:{cornerL:.07,cornerR:.06,browL:.05,browR:.05,furrow:.08},
+    warm:{cornerL:.62,cornerR:.58,cheek:.42,browL:.16,browR:.14,squint:.12},
+    attentive:{cornerL:.2,cornerR:.18,browL:.3,browR:.28,headZ:.045},
+    enthusiastic:{cornerL:.78,cornerR:.74,cheek:.52,browL:.62,browR:.6,squint:-.07,headX:-.02},
+    thoughtful:{furrow:.38,browL:.14,browR:.1,press:.18,squint:.16,headZ:.07,cornerL:-.05,cornerR:-.04},
+    amused:{cornerL:.72,cornerR:.36,cheek:.42,squint:.18,browL:.14,browR:.04,headZ:.05},
+    concerned:{browL:.32,browR:.3,furrow:.52,cornerL:-.22,cornerR:-.2,headX:.02,squint:.05},
+    emphatic:{browL:.52,browR:.5,squint:-.06,cornerL:.26,cornerR:.24,headX:-.03},
+    acknowledge:{browL:.45,browR:.42,cornerL:.32,cornerR:.3,cheek:.15},
+    listening:{cornerL:.18,cornerR:.16,browL:.1,browR:.08,headZ:.03}
+  };
+  /* THE VISEMES: jaw, round, wide, press, lowerUp (f/v: the lower lip
+     under the upper teeth), upperUp (the upper lip off the teeth). */
+  const VIS={
+    X:[0,0,0,0,0,0],        M:[.02,0,0,1,0,0],       F:[.08,0,.1,0,1,0],
+    TH:[.22,0,.2,0,0,.15],  T:[.18,0,.3,0,0,0],      K:[.28,0,.1,0,0,0],
+    CH:[.2,.5,0,0,0,0],     R:[.18,.35,0,0,0,0],     W:[.12,.9,0,0,0,0],
+    A:[1,0,.2,0,0,.1],      E:[.55,0,.55,0,0,0],     I:[.3,0,.9,0,0,.1],
+    O:[.6,.7,0,0,0,0],      U:[.25,1,0,0,0,0]
+  };
+  /* THE SENSE OF A SENTENCE. Each line: an expression, what finds it, its
+     weight. Several can match; the heaviest total wins, the runner-up
+     tints it. The default is attentive for a long sentence (an
+     explanation) and professional for a short one. */
+  const LEX=[
+    ["warm",/\b(hey|hi|hello|welcome|there you are|good to (finally )?(see|have)|nice to|glad|thanks|thank you|coffee together|pleasure|happy to|let's see|patient)\b/i,1.2],
+    ["enthusiastic",/\b(love|genuinely|exactly what|great|the best|proud|no regrets|fan of|brilliant|amazing|perfect|wonderful|fantastic|favourite|favorite|exciting|excited|soars?|gains?|record|leads?)\b|!/i,1],
+    ["thoughtful",/\?|\b(whether|wherever|whatever|which one|what do you|how (do|would|about)|do you|would you|i wonder|maybe|perhaps|i guess|i think|let me think|or why|the question|honestly|to be honest)\b/i,1],
+    ["attentive",/\b(because|which means|so that|that is|in other words|the way|means|basically|for example|first|then|after|when|while|since|so i|so we|the thing about|explain|decoded|how they|take a (proper )?look)\b/i,.6],
+    ["emphatic",/\b(here it is|there it is|the thing is|important|the point|the key|news|announce|today|now,|listen|look,|the one thing|don't miss|tonight|all of it)\b/i,1],
+    ["amused",/\b(no worries|happens to the best|odd bits|not always a fun|joke|funny|laugh|haha|bluff|ah,|well,|to be fair|of course|let's say|who knows)\b/i,1],
+    ["concerned",/\b(unfortunately|hard|difficult|nagging|problem|covid|crisis|fined?|failures?|penalty|risk|worry|sorry|lost|fail|laundering|sanction|loss|reinforce|compliance)\b/i,1]
+  ];
+  /* THE BEATS: what a stressed word does to the head and brows. k is the
+     beat's own time 0..1; the shapes are what a head does — down fast,
+     back slowly. All amplitudes are scaled by the performer's motion. */
+  const BEATS={
+    nod:{dur:.42,fn:(k,o,a)=>{o.headX+=a*.045*Math.sin(Math.PI*Math.pow(k,.7));}},
+    brow:{dur:.38,fn:(k,o,a)=>{const p=k<.25?k/.25:1-(k-.25)/.75;o.browL+=a*.5*p;o.browR+=a*.45*p;}},
+    nodBrow:{dur:.46,fn:(k,o,a)=>{const p=Math.sin(Math.PI*Math.pow(k,.7));o.headX+=a*.04*p;o.browL+=a*.4*p;o.browR+=a*.38*p;}},
+    tilt:{dur:1.1,fn:(k,o,a)=>{o.headZ+=a*.06*Math.sin(Math.PI*k)*(o._side||1);}},
+    lean:{dur:.9,fn:(k,o,a)=>{const p=Math.sin(Math.PI*k);o.headX-=a*.03*p;o.browL+=a*.25*p;o.browR+=a*.25*p;}},
+    shake:{dur:.7,fn:(k,o,a)=>{o.headY+=a*.03*Math.sin(k*Math.PI*3)*(1-k);}}
+  };
+  /* which beat an intent reaches for, in order of preference */
+  const BEAT_OF={warm:["nodBrow","nod","brow"],enthusiastic:["nodBrow","brow","nod"],thoughtful:["tilt","brow","nod"],
+    attentive:["nod","brow","nodBrow"],emphatic:["lean","nodBrow","nod"],amused:["tilt","nod","brow"],
+    concerned:["shake","nod","brow"],professional:["nod","brow","nod"],rest:["nod","brow","nod"]};
+  const STOP=/^(the|a|an|and|or|but|of|to|in|on|at|for|with|is|are|was|were|be|been|it|its|i|i'm|i'd|i've|you|your|he|she|we|they|that|this|these|those|my|me|so|as|if|do|did|does|not|no|yes|there|here|than|then|them|his|her|our|us|have|has|had|from|by|about|just|can|could|would|should|will|what|which|who|how|when|where|all|any|some|up|out|into|over|too|very|also|one|two|three|s|t|d|ll|re|ve|m)$/i;
+  const INTENS=/^(really|genuinely|exactly|every|all|never|no|not|very|so|whole|only|absolutely|totally|completely|truly|actually|the)$/i;
+
+  /* ---- the text → phonemes → visemes, by rule ----
+     English spelling read the way a careful stranger would: digraphs
+     first, then one letter at a time. It does not have to be right, it
+     has to be the right SHAPE at the right time — a round mouth on "oo",
+     closed lips on "m", teeth on the lip for "f". Each viseme carries a
+     duration in units (a vowel ~1, a consonant ~.45). */
+  function wordVisemes(w){
+    let s=w.toLowerCase().replace(/[^a-z']/g,"");
+    if(!s)return [];
+    s=s.replace(/'(s|t|d|ll|re|ve|m)$/,"$1").replace(/'/g,"");
+    if(/[^aeiouy]e$/.test(s)&&s.length>3)s=s.slice(0,-1);          /* silent e */
+    const out=[];
+    const push=(v,d)=>{
+      const L=out[out.length-1];
+      if(L&&L[0]===v){L[1]+=d*.5;return;}
+      out.push([v,d]);
+    };
+    for(let i=0;i<s.length;i++){
+      const c=s[i],n=s[i+1]||"",two=c+n,three=two+(s[i+2]||"");
+      if(i>0&&c===s[i-1]&&c!=="o"&&c!=="e")continue;                /* doubled consonant */
+      if(two==="th"){push("TH",.5);i++;continue;}
+      if(two==="gh"&&i>0){i++;continue;}                                 /* though, through: silent */
+      if(two==="wr"){push("R",.45);i++;continue;}
+      if(two==="kn"){push("T",.45);i++;continue;}
+      if(three==="tch"){push("CH",.6);i+=2;continue;}
+      if(two==="sh"||two==="ch"){push("CH",.6);i++;continue;}
+      if(two==="ph"){push("F",.6);i++;continue;}
+      if(two==="wh"){push("W",.5);i++;continue;}
+      if(two==="qu"){push("K",.4);push("W",.4);i++;continue;}
+      if(two==="ng"||two==="ck"){push("K",.5);i++;continue;}
+      if(two==="oo"){push("U",1);i++;continue;}
+      if(two==="ou"||two==="ow"){push("A",.6);push("U",.5);i++;continue;}
+      if(two==="ee"||two==="ea"||two==="ie"||two==="ey"){push("I",1);i++;continue;}
+      if(two==="ai"||two==="ay"||two==="ei"){push("E",.6);push("I",.5);i++;continue;}
+      if(two==="oa"||two==="oe"||two==="au"||two==="aw"){push("O",1);i++;continue;}
+      if(two==="oi"||two==="oy"){push("O",.6);push("I",.5);i++;continue;}
+      if(three==="igh"){push("A",.6);push("I",.5);i+=2;continue;}
+      if(two==="ew"||two==="ue"||two==="ui"){push("U",1);i++;continue;}
+      switch(c){
+        case "a":push("A",.9);break;
+        case "e":push("E",.9);break;
+        case "i":case "y":push("I",.85);break;
+        case "o":push("O",.9);break;
+        case "u":push("U",.8);break;
+        case "m":case "b":case "p":push("M",.6);break;
+        case "f":case "v":push("F",.6);break;
+        case "w":push("W",.5);break;
+        case "r":push("R",.45);break;
+        case "j":push("CH",.55);break;
+        case "g":push(/[eiy]/.test(n)?"CH":"K",.45);break;
+        case "c":push(/[eiy]/.test(n)?"T":"K",.45);break;
+        case "k":case "q":case "h":case "x":push("K",.45);break;
+        default:push("T",.45);                                          /* t d n l s z */
+      }
+    }
+    return out;
+  }
+  /* digits are said as words: enough of them to move the mouth as long */
+  function numberVisemes(t){
+    const out=[];const digits=t.replace(/[^0-9]/g,"").length||1;
+    for(let i=0;i<digits;i++){out.push(["T",.45],["E",.8],["T",.45],["I",.7]);}
+    if(/%/.test(t))out.push(["M",.6],["E",.8],["T",.45],["E",.7],["T",.45]);
+    return out;
+  }
+  function classify(text,words){
+    const sc={};
+    for(const L of LEX){
+      const m=text.match(new RegExp(L[1].source,"gi"));
+      if(m)sc[L[0]]=(sc[L[0]]||0)+L[2]*Math.min(3,m.length);
+    }
+    sc[words>14?"attentive":"professional"]=(sc[words>14?"attentive":"professional"]||0)+.35;
+    let best=null,second=null;
+    for(const k in sc){
+      if(!best||sc[k]>sc[best]){second=best;best=k;}
+      else if(!second||sc[k]>sc[second])second=k;
+    }
+    return {main:best,tint:second&&sc[second]>=sc[best]*.6?second:null};
+  }
+  /* the stressed words: the ones after an intensifier, numbers, SHOUTED
+     words, and the last content word before a pause — English parks its
+     nuclear stress at the end of the phrase. At most one every three
+     words: a head that beats every word is a metronome. */
+  function pickEmphasis(toks){
+    const picked=new Map();
+    let lastContent=-1,sinceBeat=9;
+    const isWord=t=>/[A-Za-z0-9]/.test(t);
+    for(let i=0;i<toks.length;i++){
+      const t=toks[i];
+      if(isWord(t)){
+        sinceBeat++;
+        const content=!STOP.test(t);
+        let s=0;
+        if(/\d/.test(t))s+=2;
+        if(t.length>1&&t===t.toUpperCase()&&/[A-Z]/.test(t))s+=2;
+        if(i>0&&INTENS.test(toks[i-1])&&content)s+=1.6;
+        if(content&&t.length>=7)s+=.4;
+        if(content)lastContent=i;
+        if(s>=1.5&&sinceBeat>=3){picked.set(i,s);sinceBeat=0;}
+      }else{
+        /* a pause: stress the content word that closed the phrase */
+        if(lastContent>=0&&!picked.has(lastContent)&&sinceBeat>=3){picked.set(lastContent,1);sinceBeat=0;}
+        lastContent=-1;
+      }
+    }
+    return picked;
+  }
+  /* THE SCORE: the whole line as a list of units on an abstract clock
+     (weights), each a viseme or a pause, tagged with its sentence and,
+     on the stressed words, a beat. Mapped to seconds once a duration is
+     known (the clip's, or TV_SEG), or run at RATE units a second. */
+  const RATE=8.6;             /* units per second at conversational pace (calibrated on the recordings) */
+  const SCORES=new Map();
+  function buildScore(text){
+    if(SCORES.has(text))return SCORES.get(text);
+    const sents=[],re=/[^.!?…]+[.!?…]+["'”)]?|\S[^.!?…]*$/g;let m;
+    while((m=re.exec(text)))sents.push({text:m[0],at:m.index});
+    const units=[];let W=0;
+    sents.forEach((s,si)=>{
+      const toks=s.text.match(/[A-Za-z0-9'’%]+|[,;:—–\-…\.!?()“”"]+/g)||[];
+      const nw=toks.filter(t=>/[A-Za-z0-9]/.test(t)).length;
+      const c=classify(s.text,nw);
+      s.intent=c.main;s.tint=c.tint;s.words=nw;
+      s.question=/\?\s*$/.test(s.text);
+      s.w0=W;
+      const emph=pickEmphasis(toks);
+      let pos=s.at;
+      toks.forEach((t,ti)=>{
+        const at=text.indexOf(t,pos);if(at>=0)pos=at+t.length;
+        if(/[A-Za-z0-9]/.test(t)){
+          const vs=/\d/.test(t)?numberVisemes(t):wordVisemes(t);
+          const beat=emph.get(ti)||0;
+          vs.forEach((v,k)=>{units.push({w0:W,w1:W+v[1],vis:v[0],si,at,beat:k===0?beat:0});W+=v[1];});
+          units.push({w0:W,w1:W+.25,vis:"X",si,at:pos,gap:true});W+=.25;
+        }else{
+          const pause=/[.!?…]/.test(t)?3.0:/[—–]/.test(t)?2.0:/[;:]/.test(t)?2.2:/,/.test(t)?1.5:.5;
+          units.push({w0:W,w1:W+pause,vis:"X",si,at,pause:true});W+=pause;
+        }
+      });
+      s.w1=W;
+    });
+    const sc={text,sents,units,W};
+    SCORES.set(text,sc);
+    return sc;
+  }
+  /* binary search: the unit under weight w */
+  function unitAt(sc,w){
+    const U=sc.units;let lo=0,hi=U.length-1;
+    if(!U.length||w<0)return null;
+    if(w>=sc.W)return null;
+    while(lo<hi){const mid=(lo+hi)>>1;if(U[mid].w1<=w)lo=mid+1;else hi=mid;}
+    return U[lo];
+  }
+
+  /* ---- the voice itself ----
+     One FFT a frame over the analyser the mp3 path already wires (the
+     mute sits after it, so a silenced Simon keeps talking). Four bands
+     say how open (level), how round (energy low), how wide (energy in
+     the second formant's range) and whether this is a hiss (energy
+     high and little below). The level is normalised to the clip's own
+     running peak, so a quiet take opens the mouth as much as a loud one. */
+  function AudioFeel(){this.peak=40;this.open=0;this.rLow=0;this.rMid=0;this.rHigh=0;this.quiet=0;this.wasQuiet=true;this.onset=false;this.level=0;}
+  AudioFeel.prototype.read=function(an,data,sr,dt){
+    an.getByteFrequencyData(data);
+    const bw=sr/an.fftSize;
+    const band=(f0,f1)=>{let s=0,n=0;for(let i=Math.max(1,Math.round(f0/bw));i<Math.min(data.length,Math.round(f1/bw));i++){s+=data[i];n++;}return n?s/n:0;};
+    const lo=band(90,700),mid=band(700,2300),hi=band(2300,6500);
+    const tot=lo+mid+hi+1e-3;
+    const lv=(lo+mid*.9+hi*.5)/2.4;
+    this.level=lv;
+    this.peak=Math.max(this.peak*(1-dt*.08),lv,30);
+    const o=Math.min(1,Math.pow(lv/this.peak,1.15)*1.15);
+    /* attack in ~30 ms, release in ~80 ms: the lips close slower than they open */
+    this.open+=(o-this.open)*Math.min(1,dt/(o>this.open?.03:.08));
+    this.rLow+=(lo/tot-this.rLow)*Math.min(1,dt/.05);
+    this.rMid+=(mid/tot-this.rMid)*Math.min(1,dt/.05);
+    this.rHigh+=(hi/tot-this.rHigh)*Math.min(1,dt/.04);
+    /* a pause ends: the next phrase begins here */
+    const q=o<.09;
+    this.quiet=q?this.quiet+dt:0;
+    this.onset=!q&&this.wasQuiet;
+    if(q&&this.quiet>.25)this.wasQuiet=true;else if(!q)this.wasQuiet=false;
+  };
+
+  /* ---- the performer ---- */
+  function Performer(id,opts){
+    this.id=id;
+    this.base=opts.base||"rest";
+    this.motion=opts.motion===undefined?1:opts.motion;     /* how far the head goes */
+    this.expr=opts.expr===undefined?1:opts.expr;           /* how far the face goes */
+    this.seed=(opts.seed||Math.random()*97)+1;
+    this.cur={};this.tgtA={};this.vel={};
+    for(const p of PARAMS){this.cur[p]=0;this.tgtA[p]=0;}
+    this.out={};
+    this.score=null;this.src=null;this.active=false;
+    this.w=0;this.offset=0;this.lastSi=-1;this.lastUnit=null;
+    this.held=0;                /* seconds the last expression stays after the line */
+    this.events=[];             /* running beats */
+    this.blinkT=1+Math.random()*2;this.blinkP=0;this.blinkDbl=false;
+    this.sacc={x:0,y:0,t:.5};
+    this.away={x:0,y:0,until:0,back:0};
+    this.turn=0;                /* the phrase's own small heading */
+    this.nodT=5;
+    this.listening=false;
+    this.react_=null;
+    this.feel=new AudioFeel();
+    this.lastBeat="";
+  }
+  /* a new line. src: {audio:HTMLAudioElement} the recording it follows,
+     {tts:true} the browser voice (boundary events mark the words),
+     {duration:s} a clock stretched to a known length, or nothing (RATE). */
+  Performer.prototype.start=function(text,src){
+    this.score=buildScore(text||"");
+    this.src=src||{};
+    this.active=true;this.w=0;this.offset=0;this.lastSi=-1;this.lastUnit=null;
+    this.t0=0;this.clock=0;this.held=0;
+    this.feel.wasQuiet=true;this.feel.quiet=0;
+    /* a fresh face for a fresh line: the jitter that keeps two readings
+       of the same sentence from being the same face */
+    this.rnd=rng((this.seed*7919+Date.now())%2147483647);
+  };
+  Performer.prototype.stop=function(){
+    if(!this.active)return;
+    this.active=false;this.held=1.4;
+  };
+  /* the browser voice tells us which word it is on (charIndex within
+     the sentence it was handed); find that sentence in the score */
+  Performer.prototype.mark=function(sentence,charIndex){
+    if(!this.score||!this.active)return;
+    const at=this.score.text.indexOf(sentence.trim(),Math.max(0,(this.markAt||0)-2));
+    if(at<0)return;
+    this.markAt=at;
+    const pos=at+(charIndex||0);
+    const U=this.score.units;
+    for(let i=0;i<U.length;i++)if(U[i].at>=pos){this.w=U[i].w0;return;}
+  };
+  /* a reaction the room asks for (the visitor picked a section, sat
+     down, left): an expression laid over the current one for a moment */
+  Performer.prototype.react=function(name,dur){
+    if(!EXPR[name])return;
+    this.react_={pose:EXPR[name],t:0,dur:dur||1.2};
+    this.beat(BEAT_OF[name]?BEAT_OF[name][0]:"nod",1);
+  };
+  Performer.prototype.beat=function(type,amp){
+    const B=BEATS[type];if(!B)return;
+    this.events.push({B,t:0,amp:amp||1,side:this.rnd?(this.rnd()<.5?-1:1):1});
+    this.lastBeat=type;
+  };
+  Performer.prototype.blink=function(){this.blinkT=Math.min(this.blinkT,.05);};
+  /* a pose held by hand, over everything — for tuning and the stills */
+  Performer.prototype.force=function(pose){this.forced=pose||null;};
+  /* where the line is, in score units, this frame */
+  Performer.prototype.cursor=function(dt){
+    const S=this.src,sc=this.score;
+    if(S.audio){
+      const el=S.audio,D=el.duration;
+      if(D&&isFinite(D)&&D>0){
+        const lead=.12,tail=.28,span=Math.max(.5,D-lead-tail);
+        const t=el.currentTime-lead+this.offset;
+        return t/span*sc.W;
+      }
+      this.clock+=dt;return this.clock*RATE;
+    }
+    if(S.duration){this.clock+=dt;return this.clock/S.duration*sc.W;}
+    if(S.at!==undefined)return S.at/(S.span||1)*sc.W;        /* driven from outside (the TV's own clock) */
+    this.clock+=dt;return this.clock*RATE;
+  };
+  /* the recording and the text drift apart (a breath, a longer pause):
+     at each onset after silence, if the text has a pause ending within
+     a second of here, pull the cursor to it — a little, every time */
+  Performer.prototype.realign=function(w){
+    const sc=this.score,U=sc.units,spanW=sc.W;
+    const D=this.src.audio.duration;if(!D||!isFinite(D))return;
+    const secPerW=Math.max(.5,D-.4)/spanW;
+    let best=null,bd=1e9;
+    for(let i=0;i<U.length;i++){
+      if(!U[i].pause)continue;
+      const d=(U[i].w1-w)*secPerW;
+      if(Math.abs(d)<Math.abs(bd)&&Math.abs(d)<.7){bd=d;best=U[i];}
+    }
+    if(best){this.offset=Math.max(-1,Math.min(1,this.offset+bd*.6));}
+  };
+  Performer.prototype.tick=function(dt,t,io){
+    dt=Math.min(dt,.05);this.now=t;
+    const o={};for(const p of PARAMS)o[p]=0;
+    const mot=RM?0:this.motion,exprK=this.expr;
+    const R=this.rnd||Math.random;
+    /* ── speech layer ── */
+    let vis=VIS.X,sentence=null,phase=0,next=VIS.X,env=1;
+    if(this.active&&this.score&&this.score.units.length){
+      const sc=this.score;
+      let w=this.cursor(dt);
+      /* the voice: envelope and spectrum */
+      let af=null;
+      if(this.src.audio&&io&&io.analyser){
+        this.feel.read(io.analyser,io.data,io.sampleRate||44100,dt);af=this.feel;
+        if(af.onset)this.realign(w);
+      }
+      if(w<0)w=0;
+      this.w=w;
+      const u=unitAt(sc,w);
+      if(u){
+        vis=VIS[u.vis]||VIS.X;
+        phase=(w-u.w0)/Math.max(1e-3,u.w1-u.w0);
+        const ni=sc.units.indexOf(u)+1;next=sc.units[ni]?VIS[sc.units[ni].vis]:VIS.X;
+        sentence=sc.sents[u.si];
+        if(u!==this.lastUnit){
+          /* the stressed word: its beat, chosen for the sentence's sense */
+          if(u.beat&&!u.gap&&!u.pause){
+            const pref=BEAT_OF[sentence.intent]||BEAT_OF.rest;
+            let type=pref[(R()*pref.length)|0];
+            if(type===this.lastBeat)type=pref[(pref.indexOf(type)+1)%pref.length];
+            this.beat(type,(.6+.5*Math.min(2,u.beat)/2)*(sentence.intent==="emphatic"?1.3:1));
+          }
+          /* a pause: blink on it sometimes, re-aim the head a little */
+          if(u.pause&&R()<.55)this.blink();
+          if(u.pause&&R()<.5)this.turn=(R()-.5)*.05;
+          this.lastUnit=u;
+        }
+        if(u.si!==this.lastSi){
+          this.lastSi=u.si;
+          this.onSentence(sentence,R);
+        }
+      }
+      if(af){
+        /* the recording decides how open and when; the text which shape */
+        const op=af.open;
+        const fric=af.rHigh>.46&&op>.12&&op<.8;
+        const aRound=Math.max(0,Math.min(1,(af.rLow-.52)*3))*op;
+        const aWide=Math.max(0,Math.min(1,(af.rMid-.42)*3))*op*(1-aRound);
+        const cv=k=>vis[k]*(1-Math.min(.5,phase>.65?(phase-.65)/.35*.5:0))+next[k]*Math.min(.5,phase>.65?(phase-.65)/.35*.5:0);
+        o.jaw=op*(.42+.58*cv(0));
+        o.round=cv(1)*(.45+.55*op)*.7+aRound*.3;
+        o.wide=cv(2)*(.45+.55*op)*.7+aWide*.3;
+        o.press=cv(3)*Math.max(0,1-op*1.6);
+        o.lowerUp=cv(4)*(1-op*.5);
+        o.upperUp=cv(5)*op;
+        if(fric){o.wide=Math.max(o.wide,.32*(1-o.round));o.jaw=Math.min(o.jaw,.16);}
+      }else{
+        /* no recording: the visemes on their own clock, breathing a little
+           so a run of the same vowel is not a held note */
+        const k=Math.min(.5,phase>.65?(phase-.65)/.35*.5:0);
+        env=(vis===VIS.X)?0:.8+.2*Math.sin(t*9.1+this.seed);
+        o.jaw=(vis[0]*(1-k)+next[0]*k)*env;
+        o.round=vis[1]*(1-k)+next[1]*k;o.wide=vis[2]*(1-k)+next[2]*k;
+        o.press=vis[3]*(1-k)+next[3]*k;o.lowerUp=vis[4]*(1-k)+next[4]*k;o.upperUp=(vis[5]*(1-k)+next[5]*k)*env;
+      }
+      if(w>=sc.W&&!this.src.audio)this.stop();        /* the clock ran out of words */
+    }
+    /* ── affect layer: the sentence's face, held a moment after the line ── */
+    let pose=EXPR[this.base]||EXPR.neutral,tint=null;
+    if(this.active&&sentence){
+      pose=EXPR[sentence.intent]||pose;
+      tint=sentence.tint?EXPR[sentence.tint]:null;
+    }else if(this.active){pose=this.lastPose||pose;tint=this.lastTint||null;}   /* the tail of the take */
+    else if(this.held>0){
+      this.held-=dt;
+      pose=this.lastPose||pose;tint=this.lastTint||null;
+    }else if(this.listening){pose=EXPR.listening;}
+    if(this.active&&sentence){this.lastPose=pose;this.lastTint=tint;}
+    for(const p of PARAMS){
+      let v=(pose[p]||0);
+      if(tint)v=v*.75+(tint[p]||0)*.35;
+      v*=this.jit?this.jit[p]:1;
+      const base=EXPR[this.base]||{};
+      if(pose!==base)v+= (base[p]||0)*.35;       /* the person shows through the moment */
+      this.tgtA[p]=v*exprK;
+    }
+    /* a reaction on top */
+    if(this.react_){
+      const r=this.react_;r.t+=dt;
+      const k=r.t/r.dur,env2=k<.2?k/.2:k>.6?Math.max(0,1-(k-.6)/.4):1;
+      if(k>=1)this.react_=null;
+      else for(const p in r.pose)this.tgtA[p]+=r.pose[p]*env2*exprK;
+    }
+    /* the crossfade: a smile arrives in ~.3 s and leaves in ~.8 s */
+    for(const p of PARAMS){
+      if(p==="jaw"||p==="round"||p==="wide"||p==="press"||p==="lowerUp"||p==="upperUp")continue;
+      const tg=this.tgtA[p],c=this.cur[p];
+      const tau=Math.abs(tg)>Math.abs(c)?.3:.8;
+      this.cur[p]=c+(tg-c)*Math.min(1,dt/tau);
+    }
+    /* the mouth: ~35 ms to open, ~60 ms to close */
+    for(const p of["jaw","round","wide","press","lowerUp","upperUp"]){
+      /* silent, the expression may purse or part the lips a little */
+      const c=this.cur[p],tg=this.active?o[p]:Math.max(o[p],this.tgtA[p]||0);
+      this.cur[p]=c+(tg-c)*Math.min(1,dt/(tg>c?.035:.06));
+      o[p]=this.cur[p];
+    }
+    for(const p of PARAMS){if(p==="jaw"||p==="round"||p==="wide"||p==="press"||p==="lowerUp"||p==="upperUp")continue;o[p]+=this.cur[p];}
+    /* ── beats ── */
+    for(let i=this.events.length-1;i>=0;i--){
+      const e=this.events[i];e.t+=dt;
+      const k=e.t/e.B.dur;
+      if(k>=1){this.events.splice(i,1);continue;}
+      o._side=e.side;e.B.fn(k,o,e.amp*(mot||(RM?.0:1)));
+    }
+    delete o._side;
+    /* ── micro layer ── */
+    /* blinks: every ~3.5 s talking, ~4.5 s listening, a double now and
+       then; closing takes 70 ms, opening 130 */
+    this.blinkT-=dt;
+    if(this.blinkT<=0){
+      this.blinkP=1;
+      this.blinkT=this.blinkDbl?.22:jit(this.active?3.4:4.6,.5);
+      this.blinkDbl=!this.blinkDbl&&Math.random()<.12;
+    }
+    let bk=0;
+    if(this.blinkP>0){
+      const p=1-this.blinkP;
+      bk=p<.35?smooth01(0,.35,p):1-smooth01(.35,1,p);
+      this.blinkP-=dt/.2;
+    }
+    /* saccades: the eyes hop between the listener's eyes and mouth */
+    this.sacc.t-=dt;
+    if(this.sacc.t<=0){this.sacc.t=jit(1.5,.6);this.sacc.x=(Math.random()-.5)*.05;this.sacc.y=(Math.random()-.5)*.03-.005;}
+    /* a glance away while thinking, then back — and a blink on the return */
+    if(this.away.until>t){o.gazeX+=this.away.x;o.gazeY+=this.away.y;o.headY+=this.away.x*.35*mot;o.headX-=this.away.y*.3*mot;}
+    else if(this.away.until>0&&this.away.until<=t){this.away.until=0;if(Math.random()<.8)this.blink();}
+    o.gazeX+=this.sacc.x;o.gazeY+=this.sacc.y;
+    /* the drift: a head is never still, a brow never flat */
+    const dr=(this.active?1:.7)*mot;
+    o.headX+=fbm1(t,.35,this.seed)*.011*dr;
+    o.headY+=fbm1(t,.27,this.seed+3)*.014*dr+this.turn*mot;
+    o.headZ+=fbm1(t,.22,this.seed+7)*.009*dr;
+    o.browL+=fbm1(t,.5,this.seed+11)*.045;o.browR+=fbm1(t,.47,this.seed+17)*.045;
+    o.cornerL+=fbm1(t,.3,this.seed+23)*.03;o.cornerR+=fbm1(t,.33,this.seed+29)*.03;
+    /* listening: a small "go on" every few seconds */
+    if(!this.active&&this.listening&&mot){
+      this.nodT-=dt;
+      if(this.nodT<=0){this.nodT=jit(9,.5);this.beat(Math.random()<.7?"nod":"tilt",.5);}
+    }
+    /* the lid: the blink over the expression's squint; -.08 is wide-eyed */
+    o.lid=Math.max(-.08,Math.min(1,bk+o.squint*.35*(1-bk)));
+    if(this.forced)for(const p in this.forced)o[p]=this.forced[p];
+    /* clamps the shader and the joints can take */
+    o.jaw=Math.max(0,Math.min(1,o.jaw));o.round=Math.max(0,Math.min(1,o.round));
+    o.wide=Math.max(0,Math.min(1,o.wide));o.press=Math.max(0,Math.min(1,o.press));
+    o.cornerL=Math.max(-1,Math.min(1,o.cornerL));o.cornerR=Math.max(-1,Math.min(1,o.cornerR));
+    o.browL=Math.max(-1,Math.min(1,o.browL));o.browR=Math.max(-1,Math.min(1,o.browR));
+    o.furrow=Math.max(0,Math.min(1,o.furrow));o.cheek=Math.max(0,Math.min(1,o.cheek));
+    o.headX=Math.max(-.2,Math.min(.2,o.headX));o.headY=Math.max(-.25,Math.min(.25,o.headY));o.headZ=Math.max(-.2,Math.min(.2,o.headZ));
+    this.out=o;
+    return o;
+  };
+  /* a sentence begins: its face is dealt (jittered), and what the sense
+     of it does to the head happens here, once */
+  Performer.prototype.onSentence=function(s,R){
+    this.jit={};
+    for(const p of PARAMS)this.jit[p]=1+(R()-.5)*.28;
+    const mot=RM?0:this.motion;
+    const now=this.now||0;
+    if(s.intent==="thoughtful"||(s.question&&R()<.8)){
+      /* thinking looks away — up and to one side — for a moment */
+      const side=R()<.5?-1:1;
+      this.away.x=side*(.18+R()*.1);this.away.y=.1+R()*.08;
+      this.away.until=now+.55+R()*.7;
+      this.turn=side*.03;
+    }else if(s.intent==="attentive"&&R()<.3){
+      const side=R()<.5?-1:1;
+      this.away.x=side*(.12+R()*.08);this.away.y=.02;
+      this.away.until=now+.35+R()*.4;
+    }else this.away.until=0;
+    if(s.intent==="warm")this.beat("nodBrow",.9);
+    else if(s.intent==="emphatic")this.beat("lean",1);
+    else if(s.intent==="enthusiastic"&&R()<.6)this.beat("brow",.8);
+    else if(s.intent==="concerned"&&R()<.5)this.beat("shake",.6);
+    if(R()<.45)this.turn=(R()-.5)*.06*mot;
+    if(R()<.5)this.blink();
+  };
+
+  /* ---- adapters: pose → the rig ---- */
+  const JAW_RAD=.13;                       /* a full "ah": 7.5°, ~17 mm at the lip */
+  function applyRig(rig,o){
+    if(!rig||!rig.real||!rig.body)return;
+    const u=rig.body.material.userData;if(!u.uFaceA)return;
+    u.uFaceA.value.set(o.jaw*JAW_RAD,o.round,o.wide,o.press);
+    u.uFaceB.value.set(o.cornerL,o.cornerR,o.browL,o.browR);
+    u.uFaceC.value.set(o.furrow,o.cheek,o.lowerUp,o.upperUp);
+  }
+  /* the cavity (simonMouthMesh): its top edge stays on the lip line, its
+     bottom follows the lower lip the jaw hinge took down; the teeth keep
+     their own height under the upper lip and only show once there is room */
+  function applyMouth(m,o){
+    if(!m)return;
+    if(m.userData.y0===undefined)m.userData.y0=m.position.y;
+    const th=o.jaw*JAW_RAD,drop=th*(zLip(0)+.0012+.005);
+    const part=o.round*.0022+o.wide*.0014-o.press*.001;
+    const a=Math.max(0,part*.4+o.upperUp*.0028),b=Math.max(0,drop+part*.6);
+    const h=a+b,s=Math.max(.0004,h/1.9);
+    /* shut, the cavity is gone: the paint draws the line between the lips
+       and FOLLOWS a smile, a straight hairline under it did not */
+    m.visible=h>.0007;
+    /* 1.35 × the lens: an open "ah" is nearly the painted mouth's width (the
+       33 mm lens left pale stretched skin either side of it), rounding narrows */
+    m.scale.set(1.35+o.wide*.3-o.round*.6,s,1);
+    m.position.y=m.userData.y0+a-s;
+    const teeth=m.children[0];
+    if(teeth){
+      const k=Math.min(.95,.0045/(1.9*s));
+      teeth.scale.y=k;teeth.position.y=1-k;
+      teeth.visible=h>.0018;
+    }
+  }
+  /* the eyes: lids over the expression, the gaze offsets on the groups */
+  function applyEyes(eyes,o,eyeY,eyeP,extraLid){
+    const lid=Math.max(-.08,Math.min(1,o.lid))*.93+(extraLid||0)+Math.max(0,-eyeP)*.9;
+    for(let i=0;i<eyes.length;i++){
+      const e=eyes[i];
+      e.eg.rotation.y=eyeY;e.eg.rotation.x=-eyeP;
+      e.lid.rotation.x=lid;
+    }
+  }
+  const api={
+    EXPR,VIS,LEX,BEATS,BEAT_OF,PARAMS,
+    Performer,buildScore,wordVisemes,applyRig,applyMouth,applyEyes,
+    /* an emotion more: a pose, and optionally what finds it in a line */
+    define:function(name,pose,re,weight){EXPR[name]=pose;if(re)LEX.push([name,re,weight||1]);},
+    simon:new Performer("simon",{base:"rest",seed:3}),
+    anchor:new Performer("anchor",{base:"professional",motion:.7,expr:.8,seed:11}),
+    ceo:new Performer("ceo",{base:"concerned",motion:.6,expr:.9,seed:19})
+  };
+  return api;
+})();
+
 /* ---- lipsync ----
    The jaw is driven by the actual audio amplitude (AnalyserNode over the
    voice bins), not a fixed-rate sine decorrelated from the voice.
@@ -14668,6 +15388,7 @@ function playSection(key){
   if(reading)endReading();           /* a peeked sheet goes down — he's talking now */
   setBeerMode(key==="personal");     /* off the clock: two beers on the table */
   abortChain();
+  FACE.simon.react("acknowledge",1.1);  /* "sure" — brows up, a nod, before the line */
   current=key;drawResume();          /* the sheet lights the matching block */
   promptEl.style.display="none";
   /* Fires before the audio chain starts, and covers the keyboard shortcuts too — every way
@@ -14897,6 +15618,7 @@ function ttsStart(text,gen){
   const v=bestVoice(code)||bestVoice("en");
   ttsCode=code;ttsVoice=v;
   queue=text.match(/[^.!?…]+[.!?…]+["']?|\S[^.!?…]*$/g)||[text];
+  FACE.simon.start(text,{tts:true});          /* no recording: the words mark the time */
   next(code,v,gen);
 }
 /* Resume the caption chain after a mute interrupted an utterance.
@@ -14921,6 +15643,7 @@ function speak(text,key){
     audioEl=new Audio(f);
     try{attachAnalyser(audioEl);audioRouted=true;}catch(_){lipAnalyser=null;audioRouted=false;}
     applyMute();
+    FACE.simon.start(text,{audio:audioEl});     /* the face reads the line with him */
     if(audioEl.readyState>=1&&audioEl.duration)cues=buildCues(text,audioEl.duration);
     else audioEl.addEventListener("loadedmetadata",()=>{
       /* gen-guarded like every other callback: a replaced clip's late
@@ -14959,6 +15682,7 @@ function next(code,v,gen){
   const sentence=queue.shift().trim();
   const u=new SpeechSynthesisUtterance(sentence);
   u.lang=code;u.rate=.98;if(v)u.voice=v;
+  u.onboundary=e=>{if(gen===speechGen)FACE.simon.mark(sentence,e.charIndex);};
   /* volume 0 rather than skipping: onend still fires, so the captions
      keep their pacing with the sound off */
   u.volume=muted?0:1;
@@ -14973,7 +15697,7 @@ function next(code,v,gen){
    an error, must NOT read as "Simon finished his goodbye" — otherwise
    cutting the outro short empties the café around you. */
 function endSpeech(natural){
-  speaking=false;clearCues();
+  speaking=false;clearCues();FACE.simon.stop();
   if(natural&&lastKey==="outro"&&!RM)startClosing();
   /* the only place a section advances or completes: a clip that ran out
      of words. Anything else — a hush, a dead file, a mute race — leaves
@@ -14981,7 +15705,7 @@ function endSpeech(natural){
   if(natural)nextClip();
   else abortChain();
 }
-function stopSpeaking(){speechGen++;if(ttsTimer){clearTimeout(ttsTimer);ttsTimer=0;}queue=[];speaking=false;ttsInterrupt=false;clearCues();
+function stopSpeaking(){speechGen++;if(ttsTimer){clearTimeout(ttsTimer);ttsTimer=0;}queue=[];speaking=false;ttsInterrupt=false;clearCues();FACE.simon.stop();
   if("speechSynthesis"in window)speechSynthesis.cancel();
   if(audioEl){audioEl.pause();audioEl=null;}}
 
@@ -16209,39 +16933,35 @@ function animate(){
      travels across the white — which is exactly how an eye reads */
   simonEyeY=damp(simonEyeY,clampN(tYaw-simonLook,.34),.4,dt);
   simonEyeP=damp(simonEyeP,clampN(tPit,.26),.4,dt);
+  /* THE FACE (FACE DIRECTION): lips on the phonemes of the line, the
+     sentence's expression, beats of the head on the words that carry it,
+     blinks and saccades — one pose a frame, written to the real rig by
+     mapSimon and, should people.bin never arrive, to the old primitives
+     here. The voice's own envelope and spectrum reach it through the
+     analyser (the mute sits after it: silenced, he still talks). */
+  FACE.simon.listening=hasGuest&&guest.state!=="walk"&&!speaking;
+  const fo=FACE.simon.tick(dt,t,speaking&&audioEl&&lipAnalyser?{analyser:lipAnalyser,data:lipData,sampleRate:lipCtx.sampleRate}:null);
+  jawOpen=fo.jaw;
+  const lidK=Math.max(0,Math.min(1,fo.lid));
+  eyeGroups.forEach(g=>g.scale.y=1-lidK*.88);
   for(let i=0;i<eyeGroups.length;i++){
-    eyeGroups[i].rotation.y=simonEyeY;
-    eyeGroups[i].rotation.x=-simonEyeP;
+    eyeGroups[i].rotation.y=simonEyeY+fo.gazeX;
+    eyeGroups[i].rotation.x=-(simonEyeP+fo.gazeY);
   }
-  const blinkT=t%3.7;
-  const eyeS=blinkT<.12?.12:1;
-  eyeGroups.forEach(g=>g.scale.y=eyeS);
-  /* jaw driven by the real audio amplitude (voice bins ~90 Hz-1.1 kHz);
-     TTS fallback keeps a softer pseudo-energy. The eye detects a
-     fixed-rate mouth in about one second. */
-  let jawTarget=0;
-  if(speaking&&audioEl&&lipAnalyser){
-    lipAnalyser.getByteFrequencyData(lipData);
-    let s=0;
-    for(let i=2;i<26;i++)s+=lipData[i];
-    jawTarget=Math.min(1,(s/24)/105);
-  }else if(speaking){
-    jawTarget=.25+Math.abs(Math.sin(t*9.3))*.45;
-  }
-  jawOpen+=(jawTarget-jawOpen)*Math.min(1,dt*20);
-  mouthMesh.scale.y=1+jawOpen*3.2;
-  mouthMesh.scale.x=1-jawOpen*.15;      /* the mouth narrows as it opens */
+  mouthMesh.scale.y=1+fo.jaw*3.2;
+  mouthMesh.scale.x=1-fo.jaw*.15+fo.wide*.2-fo.round*.3;
+  simonHead.rotation.x=fo.headX;
+  simonHead.rotation.y+=fo.headY;
+  simonHead.rotation.z+=fo.headZ;
+  simonHead.position.y+=fo.jaw*.004;
   if(speaking){
-    simonHead.rotation.x=fbm1(t,2.6,.7)*.04;
-    simonHead.position.y+=jawOpen*.005;
     if(simon.userData.rShoulder)
       simon.userData.rShoulder.rotation.z=.32+fbm1(t,2.1,1.9)*.09;
   }else{
-    simonHead.rotation.x*=.92;
     if(simon.userData.rShoulder)
       simon.userData.rShoulder.rotation.z+=(.32-simon.userData.rShoulder.rotation.z)*.1;
   }
-  if(simonRig&&simonRig.real)mapSimon(eyeS);
+  if(simonRig&&simonRig.real)mapSimon(fo);
   /* the seat marker: bob, slow spin, breathing ring — and a fade so it
      leaves the frame instead of blinking out when he sits down */
   {

@@ -353,6 +353,26 @@ mesh not in the repo — see `people/README.md`).
   animate loop's writes to `simonHead` / `eyeGroups` / `mouthMesh` /
   `rShoulder` back onto the real rig, and puts `simonHead` on the real head
   every frame because every glance in the room is aimed at it.
+- **The face is driven by FACE DIRECTION** (`const FACE`, before the lipsync
+  block): one `Performer` per talking face turns the line's TEXT (sentence
+  intent → `EXPR`, phonemes → `VIS`, stressed words → `BEATS`) and, for
+  Simon's mp3s, the voice's envelope/spectrum into a pose a frame. The skin
+  moves in the vertex shader (`FACE_VERT`, rest space, before skinning) from
+  two attributes `dressGeometry` computes on the BASE head (`faceW`
+  jaw/lips/"no face", `faceX` signed corner/brows/cheek) and three `vec4`
+  uniforms on the person's material (`m.userData.uFaceA/B/C`, written by
+  `FACE.applyRig`). Traps: `faceW.w` is 255 = "no face", chosen so a
+  geometry WITHOUT the attribute (default w = 1) moves nothing — keep that
+  convention if you repack; the weights use paintFace's landmarks (lip line
+  1.5745, corners ±.027, brows 1.664), move a landmark in the paint and move
+  it here; `applyMouth` owns the cavity's scale AND position (its top edge
+  stays on the lip line) — nothing else may write `simonMouth.scale`; the
+  speaking rate `RATE` (8.6 units/s) was calibrated on the fifteen
+  recordings, re-run the calibration if the scripts' style changes;
+  `speak()` / `ttsStart()` / `endSpeech()` / `stopSpeaking()` are the only
+  places that start or stop Simon's performer — a new way to talk must call
+  `FACE.simon.start(text, src)` and `.stop()` or the face reads the
+  previous line. `performer.force(pose)` holds a pose for stills.
 
 ## The street (THE STREET block) — what bites
 
@@ -387,7 +407,9 @@ mesh not in the repo — see `people/README.md`).
   studio scenes (not agents — they never walk and never take part in the
   wardrobe or the gaze lottery). Their mouths go through `tvMouth()`, which
   moves Simon's mouth mesh onto THEIR morphed lips (a fem / short face put it
-  on the nose). Both renders force ACES tone mapping and restore it: the
+  on the nose), and their faces through `FACE.anchor` / `FACE.ceo` (below):
+  she reads `tvLine(st)` on the segment's clock (`src.at`), he says
+  `TV_CEO_LINE`. Both renders force ACES tone mapping and restore it: the
   café's own renderer runs NoToneMapping into the HDR target.
 - **Clothes are allocated, not rolled** (`pickDistinct()`, NO TWO ALIKE):
   any new cast member or rack colour must keep ΔE ≥ 16 (cast) / ≥ 12

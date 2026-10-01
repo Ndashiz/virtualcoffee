@@ -743,6 +743,90 @@ Quatre retours de Simon sur la prod :
   `film.js` / `cdp.js` le passent. L'habillage de la TV ne reconstruit plus
   15 fois par seconde des mipmaps qu'il ne lit jamais.
 
+### Le visage suit la parole (2026-10-01)
+
+Jusqu'ici la voix ne bougeait qu'une chose : une mâchoire, à proportion du
+volume de l'enregistrement. Désormais c'est **la phrase** — et la voix qui la
+dit, quand il y en a une — qui conduit tout le visage. Le module s'appelle
+`FACE` (section « FACE DIRECTION » d'`index.html`) : un **performer** par
+visage qui parle — Simon, la présentatrice de HENRY TV, le PDG sur son mur.
+Chaque image, il transforme la ligne en une **pose** (un nombre par paramètre :
+`jaw round wide press lowerUp upperUp · cornerL/R browL/R furrow cheek squint ·
+gazeX/Y headX/Y/Z`, plus la paupière `lid` qui en découle), en trois couches
+additionnées, chacune à sa vitesse :
+
+- **L'affect — par phrase.** Chaque phrase est classée par ce qu'elle dit
+  (`LEX`, un lexique pondéré : accueil, enthousiasme, question/analyse,
+  explication, annonce, humour, inquiétude ; une phrase longue sans indice est
+  *attentive*, une courte *professionnelle*) et reçoit la pose correspondante
+  d'`EXPR`, secouée de ±14 % pour que deux phrases ne portent jamais le même
+  visage, fondue en ≈0,3 s et relâchée en ≈0,8 s — un sourire arrive plus vite
+  qu'il ne part. L'intention seconde teinte la première. Le visage de repos de
+  la personne (`base` : le sourire facile de Simon, le neutre professionnel de
+  la présentatrice) transparaît à chaque instant.
+- **La parole — par phonème.** Le texte est lu en visèmes par règles
+  (`wordVisemes` : les digrammes d'abord — *th sh ch ph wh oo ou ee ai oa oi
+  igh* — puis lettre à lettre ; `VIS` fait correspondre 14 formes aux
+  curseurs de la bouche), chacun avec une durée, les pauses sur la
+  ponctuation. Avec un enregistrement, l'enveloppe et le spectre de la voix
+  (quatre bandes sur l'`AnalyserNode` déjà câblé) décident **de l'ouverture et
+  du moment** — la bouche reste donc toujours synchrone — et le texte décide
+  **de la forme** : arrondie sur *oo*, fermée sur *m b p*, dents sur la lèvre
+  pour *f v*, une sifflante resserre et découvre les dents. Enregistrement et
+  script dérivent à chaque respiration : chaque attaque après une vraie pause
+  ramène le curseur du texte vers la pause la plus proche du script
+  (`realign`, ±1 s au plus). Sans enregistrement — voix du navigateur, ou la
+  télé — les visèmes tournent sur une horloge calibrée sur les quinze mp3
+  (`RATE` 8,6 unités/s), et les événements `boundary` de la voix du
+  navigateur marquent le mot en cours. Sur les mots accentués
+  (`pickEmphasis` : après un intensif, les nombres, les MAJUSCULES, le dernier
+  mot plein avant une pause — un sur trois au plus) la tête et les sourcils
+  **battent la mesure** (`BEATS` : hochement, éclair de sourcils, inclinaison,
+  avancée, dénégation — choisis selon le sens de la phrase, jamais deux fois
+  le même de suite) ; une phrase qui réfléchit regarde ailleurs, en haut et
+  de côté, et revient avec un clignement.
+- **Le micro — toujours.** Clignements toutes les ≈3,4 s en parlant / 4,6 s
+  en écoutant, fermeture en 70 ms, ouverture en 130, un double de temps en
+  temps, un sur beaucoup de fins de phrase ; saccades entre les yeux de
+  l'interlocuteur ; une lente dérive de la tête et des sourcils (`fbm1`) ; un
+  petit hochement « je vous écoute » toutes les dix secondes environ.
+
+La pose atteint le corps par trois adaptateurs. **La peau bouge dans le vertex
+shader** (`FACE_VERT` dans `realShader`) : la tête n'a ni os de mâchoire ni
+blend shapes, la déformation se fait donc dans l'espace de repos, avant le
+skinning, là où vivent la peinture et les poids. `dressGeometry` calcule deux
+attributs depuis la tête de base et les repères mêmes de paintFace — `faceW`
+(mâchoire, lèvre supérieure, lèvre inférieure, « pas de visage ») et `faceX`
+(signés par côté : commissure, sourcil interne, sourcil externe, joue). La
+mâchoire est une charnière sous l'oreille : la mandibule tourne (7,5° pour un
+« ah » plein), la lèvre inférieure descend plus que le menton, comme en vrai.
+Les curseurs sont trois uniforms `vec4` sur le matériau de chaque personne
+(`uFaceA/B/C`, écrits par `applyRig`). **La cavité** (`applyMouth`) garde son
+bord haut sur la ligne des lèvres et son bord bas sur la lèvre que la
+charnière a descendue ; les dents gardent leur hauteur et n'apparaissent que
+quand il y a la place. **Les yeux** (`applyEyes`) prennent la paupière
+(clignement + plissement de l'expression ; −0,08 = yeux écarquillés) et les
+décalages du regard sur les groupes d'yeux. Les articulations tête/cou restent
+à l'appelant : le `mapSimon` de Simon et la boucle d'animation (sa logique de
+regard vers le visiteur est intacte ; le performer ajoute ses hochements,
+tours et inclinaisons par-dessus), le `tvRender` de la télé.
+
+La présentatrice **lit la dépêche** — le titre, puis le chapeau (`tvLine`) —
+sur l'horloge du segment (`src.at`) : la sanction se lit avec inquiétude,
+l'émission du soir avec un sourire ; elle baisse les yeux sur ses notes les
+0,8 dernières secondes de chaque sujet. Le PDG dit sa déclaration
+(`TV_CEO_LINE`) pendant le sien. Choisir une section fait acquiescer Simon
+(`react("acknowledge")`, sourcils levés et hochement) avant la ligne.
+
+**Étendre.** Une émotion = une ligne dans `EXPR` (et une dans `LEX` si le
+texte doit la trouver ; `FACE.define(nom, pose, regex, poids)` fait les deux) ;
+un battement = une entrée dans `BEATS` ; un nouveau visage parlant = `new
+FACE.Performer(id, {base, motion, expr})` plus les trois `apply*`.
+`performer.force(pose)` tient une pose à la main pour le réglage et les
+captures. Sous `prefers-reduced-motion`, la tête et les regards ailleurs sont
+coupés (`motion` 0) ; les lèvres et les clignements restent, sinon l'homme ne
+parle pas.
+
 ## 6 ter. La rue (2026-09-28)
 
 Le dehors lisait comme un écran, pour trois raisons, toutes supprimées :
