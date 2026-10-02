@@ -24,22 +24,38 @@ lui-même dans « How I built this », au second palier.
 
 **Anglais uniquement** : les scripts n'existent qu'en anglais. La narration est
 rendue hors ligne par Kokoro (voix `bm_george`) à partir de ces mêmes textes —
-les mots sont de Simon, la voix non, et la carte d'accueil le dit.
+les mots sont de Simon, la voix non, et la carte d'accueil le dit dès sa première ligne.
 
 ## 2. Ce qu'on peut y faire
 
-**Rien ne bouge tant que vous ne bougez pas.** Le personnage entre côté
-porte et **reste là** : il n'y a plus d'autopilote, la marche est
-l'invitation et un personnage qui s'en va tout seul y répond à votre
-place. Alors Simon vous accueille, de l'autre bout de la salle
-(`welcome`) : le lieu est à lui, il en a fait la plomberie et
-l'électricité, faites-en le tour — et quand vous êtes prêt, **la chaise au
-coussin vert** est la vôtre. Deux façons de le déplacer : **les flèches**,
-ou **un tap sur le sol** — la seule dont dispose un téléphone, et la
-raison pour laquelle elle existe.
+**La carte d'accueil pose une seule question, avec deux boutons.**
+« **Sit down with Simon** » : le personnage entre côté porte et **marche
+seul jusqu'à la chaise** — une flèche ou un tap sur le sol reprend la main
+à tout moment. « **Look around first** » : la salle est à vous et **rien ne
+bouge tant que vous ne bougez pas** ; deux façons de le déplacer, **les
+flèches** ou **un tap sur le sol** — la seule dont dispose un téléphone.
 
-« Take a seat » ne téléporte plus : **votre personnage entre côté porte et
-les flèches sont à vous** (WASD physique aussi — ZQSD sur un AZERTY,
+Pourquoi deux boutons : il n'y en avait qu'un, « Take a seat », et il
+n'asseyait personne — il vous posait debout dans l'entrée. Qui vient de
+cliquer « Take a seat » croit s'être assis : il regarde la salle, ne
+cherche jamais de chaise, et repart sans la conversation pour laquelle la
+page existe. Le pilote automatique, retiré en août parce qu'un personnage
+qui part tout seul répond à l'invitation à votre place, ne revient que
+**sur demande** — c'est alors la réponse que vous avez choisie.
+
+Simon vous accueille de l'autre bout de la salle, et l'accueil est un seul
+enregistrement **découpé en trois** à ses propres silences (`welcome_hi`,
+`welcome_chair`, `welcome_tour`) pour pouvoir le rejouer dans un autre
+ordre : bonjour, **puis où est la chaise** (« the chair with the green
+cushion is yours »), et seulement ensuite la visite — la plomberie,
+l'électricité, faites-en le tour. La fin d'une longue réplique est la
+partie qu'on n'écoute déjà plus. Sur le chemin assis, il ne dit que
+bonjour. Si **quarante secondes** passent debout sans trouver la chaise,
+une pastille « **☕ Take me to the chair** » apparaît et il redit la phrase
+de la chaise. La pastille **?** en haut à droite est le mode d'emploi
+complet, à tout moment — et, debout, une porte de plus vers la table.
+
+Sur le chemin « regarder d'abord », **les flèches sont à vous** (WASD physique aussi — ZQSD sur un AZERTY,
 déplacement relatif à l'écran), **caméra à la troisième personne** dans son
 dos. La chaise libre porte une **balise** : anneau au sol, flèche qui flotte
 au-dessus, colonne de lumière visible d'un bout à l'autre de la salle — et si
@@ -87,6 +103,10 @@ en muet il parle toujours, sous-titres compris, on ne l'entend simplement pas.
 
 | Action | Résultat |
 |---|---|
+| « Sit down with Simon » (carte d'accueil) | Il entre et marche seul jusqu'à la chaise ; une flèche ou un tap reprend la main |
+| « Look around first » (carte d'accueil) | La salle est à vous ; Simon dit d'abord où est la chaise, puis vous invite à flâner |
+| Pastille **?** (en haut à droite) · `Échap` pour la refermer | Le mode d'emploi complet, à tout moment — et debout, « Take me to the chair » |
+| « ☕ Take me to the chair » (40 s debout sans s'être assis) | Il vous emmène à la chaise, d'où que vous soyez, et Simon redit où elle est |
 | Flèches / WASD (pendant la marche) | Vous pilotez votre personnage jusqu'à la chaise |
 | Clic / tap sur le sol | Il marche jusqu'au point visé (la seule commande d'un mobile) |
 | Glisser à la souris · molette · `Maj` | Tourner la caméra · reculer · sprinter |

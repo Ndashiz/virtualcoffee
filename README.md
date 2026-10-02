@@ -1,15 +1,26 @@
 # Virtual Coffee
 
-An interactive 3D resume. "Take a seat" spawns your character by the door and
-**the arrow keys are yours** (physical WASD works too, which lands on ZQSD for
-AZERTY, or a tap on the floor — the only control a phone has): nothing moves
-until you move it, so Simon calls you over out loud. A third-person camera
-follows you across the room — drag to look, wheel to pull back, Shift to run —
-to the chair across the table from him, marked by a ring on the floor, an
-arrow and a sign above it — look for the **green cushion**, which is what the
-welcome tells you to look for. Simon greets you the moment you step in and
-tells you to have a wander first; the conversation itself waits until you are
-actually in the chair.
+An interactive 3D resume. The welcome card asks one question with two
+buttons. **"Sit down with Simon"** walks your character in from the door and
+across the room to the chair facing him — any arrow key or a tap on the floor
+takes the wheel back. **"Look around first"** hands you the room: **the arrow
+keys are yours** (physical WASD works too, which lands on ZQSD for AZERTY, or a
+tap on the floor — the only control a phone has), and nothing moves until you
+move it. A third-person camera follows you — drag to look, wheel to pull back,
+Shift to run — and the chair across the table is marked by a ring on the
+floor, an arrow and a sign above it: the **green cushion**. Simon greets you
+the moment you step in; on the look-around path he says where the chair is
+*before* he tells you to have a wander, and if forty seconds go by without you
+finding it, a **"☕ Take me to the chair"** chip appears and he says it again.
+The **?** pill in the corner is the full manual, any time — and, while you are
+on your feet, one more way to the table. The conversation itself waits until
+you are actually in the chair.
+
+Why two buttons: the card used to have one, labelled "Take a seat", and it
+seated nobody — it dropped you standing in the doorway. A visitor who has just
+clicked "Take a seat" believes he has one, so he looks at the room and never
+for a chair. The funnel to watch is `enter → section` in the Jarvis counters:
+both buttons count as `enter`.
 
 Sitting down raises the CV to near full-screen and he starts talking over it
 straight away — the line is the caption to what you are reading. It goes back
@@ -1121,7 +1132,7 @@ next to `__agents()` and `__guest()`.
 One key = one clip = one mp3, and the same key is the counter event:
 
 ```
-welcome · seated · reclick
+welcome_hi · welcome_chair · welcome_tour · seated · reclick
 experience_open_a · experience_open_b · experience_body
 education · skills · certifications · languages
 personal · ai · banking · howibuilt · outro
@@ -1136,6 +1147,26 @@ A missing file falls back to TTS, and so does one that fails to load
 (`audioEl.onerror`), so the café is complete and speakable before a single clip
 is recorded. Drop `audio/en/<key>.mp3` in and that key stops falling back, with
 nothing else to change.
+
+The **welcome is one take cut in three** at its own pauses — 3.91 s and
+18.44 s, mid-silence at the −88 dB room-tone floor, re-encoded at the source's
+112 kb/s · 24 kHz · mono — so that its parts can play in a different order
+than they were spoken: hello, then where the chair is, then the tour. The end
+of a long line is the part a visitor has already stopped listening to, and the
+chair is the one sentence of it that matters. "Sit down with Simon" plays only
+`welcome_hi` on the walk-in (the rest is an invitation to wander, which that
+visitor has just declined) and lets it finish before `seated`; the nudge
+replays `welcome_chair`. The uncut take is kept in **`audio/en/source/`** —
+re-record or re-cut from there, and keep the three texts in step with it.
+
+**Primed clips.** WebKit refuses a *cold* `play()` — one with no user gesture
+in the call stack — and `speak()` then falls back to the browser voice. The
+walk-in starts `seated` at the far end of a walk nobody steered, and the
+welcome's second and third clips start on the previous one's `ended`, so every
+clip the page will start without a gesture is created and played inside the
+click that leads to it, and paused before a sample is heard (`primeClips()`);
+`speak()` takes that element instead of building a new one (`takePrimed()`),
+one element per use. Chrome and Firefox do not need it and do not notice.
 
 The **v1 recordings are parked in `audio/en/v1/`** rather than deleted. They
 carry the older, shorter scripts under the same filenames: left where they

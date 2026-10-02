@@ -517,6 +517,38 @@
   #enterBtn{background:var(--gold);color:#20303a;border:0;border-radius:999px;padding:12px 32px;
     font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:15px;cursor:pointer;transition:transform .12s;}
   #enterBtn:hover{transform:scale(1.05);}
+  /* Two buttons, one choice. The primary keeps the gold pill; the other is
+     an outline of the same size, so the pair reads as "pick one" and not
+     as a button with a footnote. They wrap onto two lines on a phone. */
+  .hbtns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;}
+  #altBtn{background:transparent;color:var(--gold);border:1.5px solid var(--gold);border-radius:999px;
+    padding:11px 26px;font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:15px;
+    cursor:pointer;transition:transform .12s,background .15s;}
+  #altBtn:hover{transform:scale(1.05);background:rgba(240,182,74,.08);}
+  #enterBtn:focus-visible,#altBtn:focus-visible,.hmore:focus-visible{outline:2px solid var(--gold);outline-offset:3px;}
+  .hmore{display:block;margin:14px auto 0;background:none;border:0;padding:4px 6px;cursor:pointer;
+    color:#9fb4bc;font-family:"Space Grotesk",sans-serif;font-size:13px;
+    text-decoration:underline;text-underline-offset:3px;}
+  .hmore:hover{color:var(--gold);}
+  .hmore[hidden]{display:none;}
+  #helpBtn{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:14px;
+    min-width:34px;justify-content:center;line-height:1;}
+  /* The nudge. It takes the prompt's place rather than sitting over it:
+     the prompt says "head for the arrow", and forty seconds in, that line
+     has visibly not worked. Clickable, so it cannot share the prompt's
+     pointer-events:none. */
+  .seatchip{position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);z-index:22;border:0;border-radius:999px;cursor:pointer;
+    background:var(--gold);color:#20303a;padding:11px 24px;white-space:nowrap;
+    font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:15px;
+    box-shadow:0 8px 26px rgba(0,0,0,.45);animation:chipIn .5s ease-out both;}
+  .seatchip[hidden]{display:none;}
+  /* The nudge speaks as it appears, and on a short window the subtitle
+     track came down over the chip (6 px at 568x320). It steps up while the
+     chip is there; 76 px clears the chip's 12 + 47 with a breath. */
+  .chipup .subs{bottom:calc(max(9vh + 22px,76px) + env(safe-area-inset-bottom));}
+  .seatchip:focus-visible{outline:2px solid #fff;outline-offset:3px;}
+  @keyframes chipIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
 
   @media(max-width:640px){
     .sign{left:12px;transform:rotate(-1.6deg);font-size:21px;padding:5px 14px 7px;}
@@ -551,6 +583,8 @@
     .hsteps{font-size:12.5px;line-height:1.38;margin:0 0 12px;}
     .hsteps li{padding:4px 4px;}
     #enterBtn{padding:10px 26px;font-size:14px;}
+    #altBtn{padding:9px 22px;font-size:14px;}
+    .hmore{margin-top:8px;}
   }
   /* Width the card can use once it no longer has to fit a phone: at
      852 px the six touch steps go from three-of-six wrapped to one line
@@ -563,6 +597,7 @@
   }
   @media(prefers-reduced-motion:reduce){
     .prompt{animation:none;}
+    .seatchip{animation:none;}
   }
 
   /* ── Jukebox / silent disco ────────────────────────────────────
@@ -646,7 +681,9 @@
 <div class="bars t"></div><div class="bars b"></div>
 <div class="subs" id="subs"></div>
 <div class="howto" id="howto">
-  <div class="hcard"><h2></h2><ul class="hsteps"></ul><button id="enterBtn"></button></div>
+  <div class="hcard"><h2></h2><ul class="hsteps"></ul>
+    <div class="hbtns"><button id="enterBtn" type="button"></button><button id="altBtn" type="button"></button></div>
+    <button class="hmore" id="howMore" type="button"></button></div>
 </div>
 <div class="sign" id="sign">Virtual Coffee<small>discussion with Simon</small></div>
 <div class="tools">
@@ -673,6 +710,9 @@
   <button class="pill" id="jbHudExit" hidden
           aria-label="Stop the music and exit the jukebox"
           title="Stop the music and exit the jukebox">⏏ Stop the music</button>
+  <!-- The manual, any time — and, on your feet, the way to the table. -->
+  <button class="pill icon" id="helpBtn" hidden aria-haspopup="dialog"
+          aria-label="How the café works" title="How the café works">?</button>
   <button class="pill icon" id="muteBtn" hidden aria-pressed="false"
           aria-label="Mute Simon's voice" title="Mute the voice (M)">
     <svg class="on" viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none"
@@ -693,6 +733,9 @@
     <path d="M17 3 L27 21 L17 16.5 L7 21 Z"/>
   </svg>
 </div>
+<!-- Forty seconds on your feet without finding the chair: the room has
+     made its point, this is the shortcut. One tap walks you there. -->
+<button class="seatchip" id="seatChip" hidden type="button">☕ Take me to the chair</button>
 <div class="prompt" id="prompt">Hover the resume on the table &amp; tap a section&nbsp;☕</div>
 
 <!-- ════════════════════════════════════════════════════════════════
@@ -1449,7 +1492,14 @@ const DATA={
      to match the mp3 word for word: change one, re-record the other.
      The running order lives in TALK/sectionClips(), not here. */
   speech:{
-   welcome:`Hey — there you are. Good to finally have the time for that coffee together. Look, before we sit down, have a wander. This place is mine — and I don't just mean I rent it. I did the plumbing, the wiring, all of it. Every detail in here I put there myself, which explains both the good bits and the odd bits. So take a look around. When you're ready, the chair with the green cushion is yours, and we'll talk properly.`,
+   /* The welcome is ONE take cut in three at its own pauses (3.91 s and
+      18.44 s, mid-silence, at the -88 dB room-tone floor), so the parts
+      can be played in a different order than they were spoken — the chair
+      FIRST, because the end of a long line is the part a visitor has
+      already stopped listening to. The uncut take is audio/en/source/. */
+   welcome_hi:`Hey — there you are. Good to finally have the time for that coffee together.`,
+   welcome_chair:`When you're ready, the chair with the green cushion is yours, and we'll talk properly.`,
+   welcome_tour:`Look, before we sit down, have a wander. This place is mine — and I don't just mean I rent it. I did the plumbing, the wiring, all of it. Every detail in here I put there myself, which explains both the good bits and the odd bits. So take a look around.`,
    seated:`There it is. Take a proper look — it's all there in black and white. But a resume only tells you what I did, not how, or why, or whether I was any good at it. So pick a section and I'll fill in the gaps. Wherever you want to start.`,
    reclick:`Ah, you weren't listening. No worries, happens to the best of us — here it is again.`,
    education:`So, economics at Solvay — bachelor then master. I went there because I'm genuinely a fan of macro, of geopolitics, of the way political decisions land in an economy. And I liked that it runs on mathematics. Not always a fun game, that part, but a real one. After my studies I had this nagging feeling I needed to do something about coding. I'd taken a few courses on the side, basic SQL, a bit of Python. But I also wanted to go abroad before starting work. So I went to Amsterdam for Le Wagon — a full-stack bootcamp, backend and frontend. Nine weeks doesn't make you a developer. It makes you someone engineers can't bluff, and that's exactly what I wanted. Then COVID happened, I started my first job remotely from Amsterdam, and stayed a few extra months. No regrets there.`,
@@ -1495,7 +1545,9 @@ const DATA={
    back, one at a time, with nothing else to change. */
 const AUDIO={
  en:{
-  welcome:"audio/en/welcome.mp3",
+  welcome_hi:"audio/en/welcome_hi.mp3",
+  welcome_chair:"audio/en/welcome_chair.mp3",
+  welcome_tour:"audio/en/welcome_tour.mp3",
   seated:"audio/en/seated.mp3",
   reclick:"audio/en/reclick.mp3",
   experience_open_a:"audio/en/experience_open_a.mp3",
@@ -11547,7 +11599,7 @@ window.__ice=function(skip){
     van:+VAN.k.toFixed(2),visible:courier.rig.root.visible};
 };
 
-/* The GUEST — the person who just clicked "Take a seat". He enters by the
+/* The GUEST — the person who just clicked one of the welcome's two buttons. He enters by the
    door (off-frame right, same convention as the stroller: no door to
    animate, the entrance is implied), crosses the room on camera, and sits
    on the spare chair at Simon's table. The welcome — and every
@@ -11561,11 +11613,13 @@ window.__ice=function(skip){
    clamps into his collar for the first second of the walk. A step in
    buys the lens the room it needs, and the doorway is still behind him
    in frame, which is all the entrance has to read as. */
-/* Only the first two entries still matter: with the autopilot gone this
-   is a SPAWN and a facing reference, not a route. He starts a good two
-   metres inside the door — at 5.5 the shopfront was close enough behind
-   him that the chase camera craned up his back, and now that he stands
-   there until you move him, that cramped frame IS the opening shot. */
+/* The old autopilot's route, and three things now: the SPAWN and facing
+   (entries 0 and 2, landscape and portrait), seven of the pilot planner's
+   graph nodes, and in its last entry the planner's goal, the chair's ring
+   (see "the pilot's route" below). He starts a good two metres inside the
+   door — at 5.5 the shopfront was close enough behind him that the chase
+   camera craned up his back, and on "Look around first" he stands there
+   until you move him, so that cramped frame IS the opening shot. */
 const GUEST_PATH=[[4.0,-1.15],[3.0,-.7],[3.0,-.6],[2.2,-.28],[1.4,.55],[0,.95],[-.64,.62]];
 /* ACROSS the table from Simon, not on the chair beside him — the whole
    page promises "you sit across a café table from me", and the model's
@@ -11575,6 +11629,118 @@ const GUEST_PATH=[[4.0,-1.15],[3.0,-.7],[3.0,-.6],[2.2,-.28],[1.4,.55],[0,.95],[
    which a dead-centre seat would both eclipse. */
 const GUEST_SEAT={x:-.64,z:.52,yaw:Math.atan2(0-(-.64),-1.08-.52)};
 const SEAT_TRIGGER=.55;      /* stand inside this and the interview starts */
+/* ---- the pilot's route ----
+   GUEST_PATH is the old autopilot's route, and it no longer survives the
+   room as it is: from the doorway it shares a lane with the waiter (two of
+   its waypoints sit 6 and 8 cm off WAITER_LANE) and the old way of joining
+   it from anywhere — walk to the nearest waypoint — failed 135 of 525
+   standable starts in the audit, through table 3 among them, because
+   GUEST_BLOCKERS does not cover every table and chair.
+
+   So the route is PLANNED: a visibility graph over GUEST_PATH plus the
+   seventeen nodes below, solved with Dijkstra from wherever the guest
+   stands to the path's last waypoint, the chair's ring. A leg is usable if
+   it keeps every chair and stool centre .55 + m away (CLAUDE.md's floor),
+   every table R + BODY_R + m (Simon's own takes no margin: his chair is
+   .21 from it and the ring is the destination), every GUEST_BLOCKERS
+   circle and GUEST_RECTS box clear, and stays inside collideGuest's box.
+   m = .05 — the .16 waypoint advance cuts corners — and if nothing is
+   found at .05 it plans at 0. A leg that STARTS inside a disc may leave it
+   but never get closer to its centre: that is the gate that lets a guest
+   parked against a chair be walked out of the niche at all.
+
+   Measured (route audit, 2026-10-02, the room's own NPCs and courier
+   running): 525/525 standable starts on a 25 cm grid arrive, at 30 and
+   60 fps, none handed back; longest arrival 9.2 s, longest stall 1.17 s
+   (the courier wait below, capped at 1 s); no chair, stool, table or
+   body closer than the floor unless he started closer. From the doorway,
+   52 runs per orientation: [3,-.6] → [0,.95] → the ring in 4.6 s
+   landscape, 3.4 s portrait, chair 1 passed at .72. Every node below came
+   out of that search — the pair [-1.307,2.944]/[-1.069,2.18] is the gate through the
+   1.21 m gap between stool 9 and chair 8, and is asymmetric on purpose:
+   centred, it passed the stool at .546.
+   Furniture is read from CAFE.boxes, the model's own boxes — so the pilot
+   plans only once the model has landed, and waits at the door until then. */
+const PILOT_NODES=[[6.45,-1.55],[6.13,2],[1.45,1.75],[2.2,2.85],[3.85,2.54],[4.4,2.9],[-1.05,.3],
+  [-1.307,2.944],[-1.069,2.18],[-2.45,2.85],[-1,-1.9],[1.0,-1.95],[2.3,-1.5],
+  [4.0,.55],[4.45,1.1],[4.35,-1.45],[5.6,3.1]];
+const PILOT_ADV=.16;            /* the old autopilot's advance radius */
+function pilotObstacles(m){
+  const o=GUEST_BLOCKERS.map(b=>[b[0],b[1],b[2]]);
+  CAFE.boxes.forEach(function(b,k){
+    if(!/^(assise|plateau_table|assise_tabouret)\./.test(k))return;
+    const x=(b.min[0]+b.max[0])/2,z=(b.min[2]+b.max[2])/2;
+    /* buildAtelier drops the till stool; so does the plan */
+    if(/^assise_tabouret/.test(k)&&z<-2.5&&x<-.5&&x>-1.2)return;
+    if(/^plateau/.test(k)){
+      const R=Math.max(b.max[0]-b.min[0],b.max[2]-b.min[2])/2;
+      o.push([x,z,R+BODY_R+(k==="plateau_table.0"?0:m)]);
+    }else o.push([x,z,.55+m]);
+  });
+  return o;
+}
+function segPointDist(ax,az,bx,bz,cx,cz){
+  const dx=bx-ax,dz=bz-az,L=dx*dx+dz*dz;
+  const t=L?Math.max(0,Math.min(1,((cx-ax)*dx+(cz-az)*dz)/L)):0;
+  return Math.hypot(ax+dx*t-cx,az+dz*t-cz);
+}
+function legClear(O,ax,az,bx,bz,fromStart){
+  if(Math.min(ax,bx)<-2.82||Math.max(ax,bx)>6.85||Math.min(az,bz)<-2.35||Math.max(az,bz)>3.32)return false;
+  for(const o of O){
+    const d=segPointDist(ax,az,bx,bz,o[0],o[1]);
+    const d0=Math.hypot(ax-o[0],az-o[1]);
+    if(fromStart&&d0<o[2]){if(d>=d0-.01)continue;return false;}
+    if(d<o[2])return false;
+  }
+  /* the rects are sampled every 2 cm, exactly as the audit measured them */
+  for(const r of GUEST_RECTS){
+    const n=Math.ceil(Math.hypot(bx-ax,bz-az)/.02)+1;
+    for(let i=0;i<=n;i++){
+      const t=i/n,x=ax+(bx-ax)*t,z=az+(bz-az)*t;
+      if(x>r[0]&&x<r[2]&&z>r[1]&&z<r[3])return false;
+    }
+  }
+  return true;
+}
+function planAt(x,z,m){
+  const O=pilotObstacles(m);
+  const N=GUEST_PATH.concat(PILOT_NODES).map(p=>p.slice());
+  const goal=GUEST_PATH.length-1,n=N.length,S=n;
+  N.push([x,z]);
+  const dist=new Array(n+1).fill(1e9),prev=new Array(n+1).fill(-1),done=new Array(n+1).fill(false);
+  dist[S]=0;
+  for(;;){
+    let u=-1,ud=1e9;
+    for(let i=0;i<=n;i++)if(!done[i]&&dist[i]<ud){ud=dist[i];u=i;}
+    if(u<0||u===goal)break;
+    done[u]=true;
+    for(let v=0;v<n;v++){
+      if(done[v]||v===u)continue;
+      if(!legClear(O,N[u][0],N[u][1],N[v][0],N[v][1],u===S))continue;
+      const w=Math.hypot(N[v][0]-N[u][0],N[v][1]-N[u][1]);
+      if(dist[u]+w<dist[v]){dist[v]=dist[u]+w;prev[v]=u;}
+    }
+  }
+  if(dist[goal]>=1e9)return null;
+  const out=[];
+  for(let v=goal;v!==S&&v>=0;v=prev[v])out.unshift(N[v]);
+  return out;
+}
+function planPilot(x,z){return planAt(x,z,.05)||planAt(x,z,0);}
+/* The furniture floor the pilot holds him outside (collideGuest): every
+   chair, stool and table at margin 0, Simon's table left out. The fourth
+   field marks a disc he is already inside, exempt until he leaves it. */
+function pilotFloor(x,z){
+  const out=[];
+  CAFE.boxes.forEach(function(b,k){
+    if(!/^(assise|plateau_table|assise_tabouret)\./.test(k)||k==="plateau_table.0")return;
+    const cx=(b.min[0]+b.max[0])/2,cz=(b.min[2]+b.max[2])/2;
+    if(/^assise_tabouret/.test(k)&&cz<-2.5&&cx<-.5&&cx>-1.2)return;
+    const r=/^plateau/.test(k)?Math.max(b.max[0]-b.min[0],b.max[2]-b.min[2])/2+BODY_R:.55;
+    out.push([cx,cz,r,Math.hypot(x-cx,z-cz)<r]);
+  });
+  return out;
+}
 
 /* His chair — the visitor's. Not one of the model's (those are merged by
    material and rebuilt in buildAtelier), so it is built here, from the same
@@ -11713,7 +11879,7 @@ function updateSeatHud(){
 const guest=makeAgent("guest","guest",{});
 guest.rig.root.visible=false;guest.blob.visible=false;
 guest.state="off";           /* off | walk | sit | seated */
-guest.mode="auto";           /* auto (path) | manual (arrow keys) */
+guest.mode="manual";         /* manual (the visitor drives) | auto (walked to the table) — see tickGuest */
 guest.idleT=0;guest.ctl=null;
 guest.collide=collideGuest;  /* walkLayer's hook — the guest alone has one */
 guest.vPauseT=0;             /* walkLayer's gate reads it — must be a number */
@@ -11721,9 +11887,9 @@ let simonLook=0,simonEyeY=0,simonEyeP=0;   /* Simon's head + eye aim, eased in a
 
 /* --- the walk is PLAYABLE: arrows (or physical WASD, which lands on
    ZQSD for an AZERTY keyboard) steer him, screen-relative — the camera
-   is axis-aligned, so up walks into the room. The autopilot drives
-   until the first key press; nine idle seconds hand it back, so an
-   abandoned character still finds the chair. */
+   is axis-aligned, so up walks into the room. The pilot (tickGuest) only
+   drives when asked — "Sit down with Simon", the nudge chip, the manual's
+   "Take me to the chair" — and the first arrow or tap takes it back. */
 const GUEST_KEYMAP={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],
   KeyW:[0,-1],KeyS:[0,1],KeyA:[-1,0],KeyD:[1,0]};
 const guestKeys=new Set();
@@ -11732,8 +11898,10 @@ addEventListener("keydown",e=>{
   if(guest.state!=="walk"||cafeClosed)return;
   if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;
   if(!document.getElementById("cv-text").hidden)return;   /* panel open: arrows scroll it */
+  if(helpOpen())return;                                   /* so is the manual */
   e.preventDefault();
   guestKeys.add(e.code);
+  if(guest.mode==="auto")stopPilot();     /* an arrow takes the wheel back */
   guest.mode="manual";guest.idleT=0;guest.walkTarget=null;
 });
 addEventListener("keyup",e=>{if(GUEST_KEYMAP[e.code])guestKeys.delete(e.code);});
@@ -11818,9 +11986,35 @@ function collideGuest(a){
     const dd=Math.hypot(dx,dz);
     if(dd<.36&&dd>1e-4){a.pos.x=d.pos.x+dx/dd*.36;a.pos.z=d.pos.z+dz/dd*.36;}
   }
+  /* On the pilot, the furniture FLOOR is a wall too — chairs and stools
+     .55 from the centre, tables R + BODY_R, Simon's own table excepted
+     (the chair across it is the destination, .21 from its edge). The
+     route never comes this close, so this never touches a planned walk:
+     it is there for the one thing that can still push him — the courier,
+     who never yields. Steering off on the pilot, a guest the courier walks
+     beside or brushes past was shoved sideways into chair 7 (.475) and up
+     against table 3 (.142 from its edge). Pushed now, he slides round the
+     floor's edge instead. Measured on the 525-start grid: it acts in one
+     run, by 1 mm. A disc he was already inside when the route was
+     planned (parked there by the visitor) is exempt until he has left it,
+     the same rule as the planner's start gate — or the plan's first step
+     would be a jump. The floor is built with each plan and dropped when the
+     pilot stops: a second "take me to the chair" used to clamp him against
+     the PREVIOUS walk's discs before planning — 8 cm in the window niche,
+     enough that no plan could be found and he never left. */
+  if(a.mode==="auto"&&a.route&&a.floorDiscs){   /* only a floor built with THIS plan, from where he stood */
+    const D=a.floorDiscs;
+    for(let i=0;i<D.length;i++){
+      const f=D[i],dx=a.pos.x-f[0],dz=a.pos.z-f[1],d=Math.hypot(dx,dz);
+      if(f[3]){if(d>=f[2])f[3]=false;continue;}   /* exempt until he is out */
+      if(d<f[2]&&d>1e-4){a.pos.x=f[0]+dx/d*f[2];a.pos.z=f[1]+dz/d*f[2];}
+    }
+  }
 }
 function startSit(a){
   a.state="sit";a.walkTarget=null;
+  a.mode="manual";                /* the pilot's job ends in the chair — standing up must not re-arm it */
+  a.route=null;a.floorDiscs=null;
   jbOnSit();                      /* sitting down ends the party — music included */
   showSeatMarker(false);          /* you are in it: the marker has done its job */
   a.sit={k:0,fx:a.pos.x,fz:a.pos.z,rY:seatPelvisY(a.rig)-.855*a.rig.root.scale.x};
@@ -11831,6 +12025,100 @@ function startSit(a){
       elbowL:{x:-.35*p},elbowR:{x:-.35*p}},1);
   });
   arriveAtTable();   /* "at the table" is when the dialogue starts */
+}
+
+/* The pilot's 10 Hz tick: the old autopilot's step — advance within
+   PILOT_ADV, hand walkLayer the next point, let the ring sit him — on a
+   planned list instead of GUEST_PATH. The plan is made on the first tick
+   the model allows (it needs CAFE.boxes); before that he waits at the door.
+
+   The advance RETURNS, keeping the old target for one more tick, exactly
+   as the audited autopilot did. Advancing and re-aiming in the same tick
+   looks tidier and cuts every corner a tenth of a second sooner: measured,
+   that took the [2.2,2.85] → [1.45,1.75] corner 1-3 mm inside chair 2's
+   floor.
+
+   He HOLDS while something owns the screen — the resume, a newspaper, the
+   jukebox panel, the manual. The room treats every one of those as "the
+   visitor is busy": walked on underneath, he used to reach the ring and
+   Simon started the thirteen-second seated line behind a panel nobody had
+   closed. The stall clock does not run while he waits for you.
+
+   He also lets the COURIER pass. With his own steering off on the pilot,
+   the courier is the one moving body that never yields (separateAgents:
+   aFix), so walking into him gets the guest shoved sideways — measured,
+   into chair 6 at .245 m. So while the courier is walking AT him — within
+   AVOID_R, ahead on this leg, heading back towards him — he stops, as
+   anyone with a coffee to get to would. Two limits, both measured:
+   a wait only STARTS while the courier is closing, because holding for a
+   courier who is circling him or walking ahead the same way made a
+   stop-go stutter and, at the door, a deadlock — a still body is the one
+   thing the courier cannot get round (steerAgents' give-up never fires;
+   separate bug); and it lasts one second at most, under the 1.5 s stall
+   floor, after which he walks on whatever the courier is doing. Whatever
+   the wait misses — a courier walking beside him, say — the furniture
+   floor in collideGuest catches. Seated bodies never
+   yield either, but they sit on chairs, and the plan already keeps .55 + m
+   from every chair.
+
+   "Nothing may orbit": three seconds without getting 5 cm closer to the
+   waypoint (the courier's wait included) and the route is planned again
+   from where he stands; a second failure hands the wheel back rather than
+   walk him in circles. */
+function tickPilot(a,dtT){
+  if(cvPanelOpen()||zoomItem||!jbxEl.hidden||helpOpen()){a.walkTarget=null;a.rStuckT=0;return;}
+  if(!a.route){
+    if(!CAFE.ready){a.walkTarget=null;return;}
+    a.route=planPilot(a.pos.x,a.pos.z);a.rIdx=0;a.rBest=1e9;a.rStuckT=0;
+    a.floorDiscs=pilotFloor(a.pos.x,a.pos.z);
+    if(!a.route){stopPilot();return;}          /* nowhere to plan from: walk it yourself */
+  }
+  const wp=a.route[a.rIdx];
+  if(!wp){startSit(a);return;}                  /* the ring's safety net */
+  if(Math.hypot(wp[0]-a.pos.x,wp[1]-a.pos.z)<PILOT_ADV){a.rIdx++;a.rBest=1e9;a.rStuckT=0;return;}
+  const d=Math.hypot(wp[0]-a.pos.x,wp[1]-a.pos.z);
+  if(d<a.rBest-.05){a.rBest=d;a.rStuckT=0;}
+  else if((a.rStuckT+=dtT)>3){
+    if(a.rReplans>=1){stopPilot();return;}
+    a.rReplans=(a.rReplans||0)+1;a.route=null;a.walkTarget=null;return;
+  }
+  /* A wait STARTS when the courier is closing and then holds while he is
+     still in front and near — not only while his heading points this way:
+     steering round a stopped guest turns that heading away while he is
+     still alongside, and letting go then is what put the guest in his
+     path. One wait per encounter, COURIER_WAIT at most; the clock resets
+     only once he has gone, so a courier who lingers cannot re-arm it into
+     a stop-go stutter. */
+  const near=courierNear(a,wp);
+  if((a.cWaitT>0||courierAhead(a,wp))&&near&&a.cWaitT<COURIER_WAIT){
+    a.cWaitT+=dtT;a.walkTarget=null;return;
+  }
+  if(!near)a.cWaitT=0;
+  a.walkTarget=[wp[0],wp[1]];
+}
+/* still in front on this leg and inside AVOID_R — whatever he is doing */
+function courierNear(a,wp){
+  if(!courier.rig.root.visible)return false;
+  const cx=courier.pos.x-a.pos.x,cz=courier.pos.z-a.pos.z,cd=Math.hypot(cx,cz);
+  if(cd>AVOID_R)return false;
+  const ux=wp[0]-a.pos.x,uz=wp[1]-a.pos.z;
+  return cx*ux+cz*uz>0;
+}
+/* the courier within AVOID_R, in front of him on this leg (cos > .2),
+   inside a body-and-a-half of the line he is walking, actually walking
+   (walkK > .12) and heading back at the guest — closing, not passing */
+const COURIER_WAIT=1;
+function courierAhead(a,wp){
+  if(!courier.rig.root.visible||!(courier.walkK>.12))return false;
+  const cx=courier.pos.x-a.pos.x,cz=courier.pos.z-a.pos.z,cd=Math.hypot(cx,cz);
+  if(cd>AVOID_R||cd<1e-4)return false;
+  const ux=wp[0]-a.pos.x,uz=wp[1]-a.pos.z,ud=Math.hypot(ux,uz)||1;
+  const along=(cx*ux+cz*uz)/ud;
+  if(along<=.2*cd)return false;
+  if(Math.abs(cx*uz-cz*ux)/ud>=BODY_R*3)return false;
+  /* his heading is walkLayer's yaw = atan2(vx,vz): closing when it points
+     from him back towards the guest */
+  return -(Math.sin(courier.yaw)*cx+Math.cos(courier.yaw)*cz)>0;
 }
 
 /* --- per-kind behaviour, decisions at 10 Hz --- */
@@ -12102,12 +12390,16 @@ function tickGuest(a,dtT){
     /* the chair claims him: this ring is the ONLY way the dialogue
        starts, and SEAT_TRIGGER is the radius drawn on the floor */
     if(Math.hypot(GUEST_SEAT.x-a.pos.x,GUEST_SEAT.z-a.pos.z)<SEAT_TRIGGER){startSit(a);return;}
-    /* NO AUTOPILOT. He stands in the doorway until the visitor moves
-       him — the walk is the invitation, and a character who strolls off
-       on his own answers it for them. Two ways to move: the arrows
-       (a.ctl, read at frame rate), or a tap on the floor (a.moveTo),
-       which is the only one a phone has. */
-    if(a.ctl){a.walkTarget=null;a.moveTo=null;return;}     /* keys win outright */
+    /* He moves only when somebody says so. The visitor: the arrows
+       (a.ctl, read at frame rate) or a tap on the floor (a.moveTo, the
+       only control a phone has). Or the PILOT, and only on request —
+       "Sit down with Simon", the nudge chip, the manual's "Take me to the
+       chair". The automatic version of it went in August for a reason that
+       still holds: a character who strolls off on his own answers the
+       invitation for the visitor. Asked for, it is the answer they chose.
+       Either visitor control takes the wheel back on the spot. */
+    if(a.ctl){if(a.mode==="auto")stopPilot();a.walkTarget=null;a.moveTo=null;return;}  /* keys win outright */
+    if(a.moveTo&&a.mode==="auto")stopPilot();                                          /* so does a tap */
     if(a.moveTo){
       if(Math.hypot(a.moveTo[0]-a.pos.x,a.moveTo[1]-a.pos.z)<.2){
         a.moveTo=null;a.walkTarget=null;return;
@@ -12115,6 +12407,7 @@ function tickGuest(a,dtT){
       a.walkTarget=a.moveTo;
       return;
     }
+    if(a.mode==="auto"){tickPilot(a,dtT);return;}
     a.walkTarget=null;
     return;
   }
@@ -12256,9 +12549,16 @@ function walkLayer(a,buf,ac,dt){
     const d=Math.hypot(dx,dz);
     if(d>.02){
       const arrive=Math.min(1,d/.45);
-      /* only the guest steers: the extras' routes are authored to be clear */
-      let h=a.collide?steerAround(a,dx/d,dz/d):[dx/d,dz/d];
-      h=steerAgents(a,h[0],h[1],dt);       /* and round each other */
+      /* only the guest steers: the extras' routes are authored to be clear.
+         Except the guest on the PILOT, whose route is planned clear of every
+         piece of furniture, and around whom the cast takes the whole
+         correction anyway. Measured with his steering on: stalls of up to
+         12.4 s shuffling against the waiter, and steerAround's .3 m band
+         pushing a clear leg sideways into chair 6. With it off: nothing
+         over .37 s, nothing under the floor, 525 starts out of 525. */
+      const piloted=a===guest&&a.mode==="auto";
+      let h=(a.collide&&!piloted)?steerAround(a,dx/d,dz/d):[dx/d,dz/d];
+      if(!piloted)h=steerAgents(a,h[0],h[1],dt);       /* and round each other */
       const vx=h[0]*a.speed*arrive,vz=h[1]*a.speed*arrive;
       a.pos.x+=vx*dt;a.pos.z+=vz*dt;
       a.yaw=angleDamp(a.yaw,Math.atan2(vx,vz),.14,dt);
@@ -12566,7 +12866,22 @@ function separateAgents(dt){
          seated customer IS scenery, and the courier has a route to keep.
          Against those two he is the one who gives, which is the only way a
          chair can stop him without a body sliding out from under someone. */
-      if(a===guest&&!bFix){aP=false;bP=true;}
+      /* ON THE PILOT, the courier gives instead. The rule above assumes a
+         guest the visitor is steering, who can go round. On the pilot he
+         cannot — his own steering is off and his route is planned, the
+         same claim the courier makes for his — and he must not be pushed
+         into the furniture either (the floor in collideGuest). Something
+         has to give: kept fixed against him, the courier shoved him into
+         chair 7 (.475) or, held off by the floor, walked through him (.29).
+         The courier does steer round bodies, so what this asks of him is
+         only the last few centimetres of an overlap. */
+      if(guest.mode==="auto"){
+        if(a===guest&&b.kind==="courier")bP=true,aP=false;
+        else if(b===guest&&a.kind==="courier")aP=true,bP=false;
+        else if(a===guest&&!bFix){aP=false;bP=true;}
+        else if(b===guest&&!aFix){bP=false;aP=true;}
+      }
+      else if(a===guest&&!bFix){aP=false;bP=true;}
       else if(b===guest&&!aFix){bP=false;aP=true;}
       if(!aP&&!bP)continue;
       if(d<1e-4){dx=1;dz=0;d=1;}  /* exactly stacked: any direction will do */
@@ -15263,8 +15578,9 @@ const FACE=(function(){
 /* ---- lipsync ----
    The jaw is driven by the actual audio amplitude (AnalyserNode over the
    voice bins), not a fixed-rate sine decorrelated from the voice.
-   createMediaElementSource is once-per-element — speak() makes a fresh
-   Audio each call, so that holds. The AudioContext resumes on the
+   createMediaElementSource is once-per-element — speak() gives every line
+   an element of its own (fresh, or a primed one handed out once), so that
+   holds. The AudioContext resumes on the
    enter-button click, the required user gesture. */
 let lipCtx=null,lipAnalyser=null,lipData=null,jawOpen=0,lipGain=null,audioRouted=false;
 function attachAnalyser(el){
@@ -15383,6 +15699,47 @@ function nextClip(){
   if(d)d();
 }
 function abortChain(){chain=[];chainEnd=null;}
+
+/* ---- primed clips ----
+   WebKit refuses a COLD play(): a clip started with no user gesture in the
+   call stack is blocked, and speak() falls back to the browser voice. Until
+   now every line began inside a click or a key, or at the end of a walk the
+   visitor had been steering. The walk-in does not — he is carried to the
+   table with no gesture between the button and the chair — and the welcome
+   is now three clips, the second and third starting on the previous one's
+   `ended`. On Safari either would put a robot in Simon's mouth at the exact
+   moment that matters.
+   So each line this page will start WITHOUT a gesture gets its element made
+   and played inside the click that leads to it, and paused before a sample
+   is heard: an element played once under a gesture keeps the right to
+   play. speak() takes it from here rather than building a new one, one
+   element per use (the nudge's copy of the chair line is its own). Chrome
+   and Firefox do not need any of this and do not notice it. */
+const PRIMED={};
+function primeClips(keys){
+  keys.forEach(k=>{
+    const f=AUDIO[lang][k];if(!f)return;
+    try{
+      const el=new Audio(f);el.preload="auto";
+      const p=el.play();
+      el.pause();                 /* before it is audible: the right to play is all we want */
+      if(p&&p.catch)p.catch(()=>{});
+      (PRIMED[k]=PRIMED[k]||[]).push(el);
+    }catch(_){}
+  });
+}
+/* top a key up to n primed elements — a door to the table that is used,
+   abandoned and used again must not stack a new element every time */
+function primeUpTo(k,n){
+  const have=PRIMED[k]?PRIMED[k].length:0;
+  for(let i=have;i<n;i++)primeClips([k]);
+}
+function takePrimed(k){
+  const q=PRIMED[k];if(!q||!q.length)return null;
+  const el=q.shift();
+  try{el.currentTime=0;}catch(_){}
+  return el;
+}
 
 function playSection(key){
   if(reading)endReading();           /* a peeked sheet goes down — he's talking now */
@@ -15640,7 +15997,7 @@ function speak(text,key){
   const gen=++speechGen;
   const f=key&&AUDIO[lang][key];
   if(f){
-    audioEl=new Audio(f);
+    audioEl=takePrimed(key)||new Audio(f);
     try{attachAnalyser(audioEl);audioRouted=true;}catch(_){lipAnalyser=null;audioRouted=false;}
     applyMute();
     FACE.simon.start(text,{audio:audioEl});     /* the face reads the line with him */
@@ -15787,31 +16144,60 @@ function paintSign(){
 VC.onOpenCV=()=>{closeZoom();abortChain();stopSpeaking();if(reading)endReading();};
 if("speechSynthesis"in window){speechSynthesis.getVoices();speechSynthesis.onvoiceschanged=()=>{};}
 
-/* ---------------- HOW-TO OVERLAY ---------------- */
+/* ---------------- HOW-TO OVERLAY ----------------
+   One card, three faces.
+
+   WELCOME is a choice and nothing else. It used to be six steps and one
+   button reading "Take a seat" — which seated nobody: it dropped you
+   standing in the doorway with a character to drive. A visitor who has
+   just clicked "Take a seat" believes he has one, so he looks at the room
+   and never for a chair, and leaves without the conversation the whole
+   page exists for. The card now asks the real question with two buttons
+   — be walked to the table, or look around first — in two lines of text.
+   The manual is one tap away and nobody is made to read it first.
+
+   HELP is that manual, behind the "?" pill and the "How the café works"
+   link. While you are on your feet it also offers the way to the table,
+   so the chair is reachable at any moment and not only once the forty-
+   second nudge has fired. Same markup as the welcome, so it inherits
+   every short-window rule the card already earned.
+
+   CLOSED is untouched: the card that says there is no café tonight. */
 const HOWTO={
  en:{title:"Welcome to my virtual coffee\u00A0☕",
-     /* Two cards for two machines (matchMedia pointer:coarse decides):
-        a keyboard gets keys spelled out — arrows or WASD, and because
-        the browser reports PHYSICAL key positions, ZQSD just works on
-        an AZERTY — while a thumb gets taps and swipes. Each card only
-        promises what its device can actually do: no Shift, no scroll
-        wheel on a phone. */
-     steps:["⌨️ Walk with the arrow keys or WASD (ZQSD works too) — have a wander, the place is mine",
+     /* the keyboard line names its keys and the touch line its tap, same
+        split as the manual below — each machine is told only what it can do.
+        "An AI voice" stays on this face and not only in the manual: it is
+        the disclosure, and a disclosure behind a "?" is not one. */
+     lead:["☕ Sit across the table and I'll walk you through my resume, section by section — my words, an AI voice: sound on if you can",
+           "🚶 Or look around first: walk with the arrow keys or WASD, and take the green chair whenever you like"],
+     leadTouch:["☕ Sit across the table and I'll walk you through my resume, section by section — my words, an AI voice: sound on if you can",
+                "🚶 Or look around first: tap the floor to walk, and take the green chair whenever you like"],
+     btn:"Sit down with Simon",
+     look:"Look around first",
+     more:"How the café works",
+     help:{title:"How the café works",
+           /* Two cards for two machines (matchMedia pointer:coarse decides):
+              a keyboard gets keys spelled out — arrows or WASD, and because
+              the browser reports PHYSICAL key positions, ZQSD just works on
+              an AZERTY — while a thumb gets taps and swipes. Each card only
+              promises what its device can actually do: no Shift, no scroll
+              wheel on a phone. */
+           steps:["⌨️ Walk with the arrow keys or WASD (ZQSD works too) — have a wander, the place is mine",
             "🖱️ Drag to look around · scroll to zoom · hold Shift to run",
             "🟡 To talk about my experience, step into the yellow circle and take the chair — the resume comes up and I fill in the gaps",
             "🔎 The café hides its details: more actions are tucked away — walk up to things and a bubble tells you what they can do",
             "🔊 My words, an AI voice — turn your sound on (space hushes me)",
             "📄 In a hurry? “Download it” hands you the CV to keep"],
-     stepsTouch:["👆 Tap the floor and he walks there — have a wander, the place is mine",
+           stepsTouch:["👆 Tap the floor and he walks there — have a wander, the place is mine",
             "🤳 Drag a finger to look around the room",
             "🟡 To talk about my experience, step into the yellow circle — the resume comes up",
             "🔎 The café hides its details: walk up to things and a bubble tells you",
             "🔊 My words, an AI voice — turn your sound on",
             "📄 In a hurry? “Download it” hands you the CV to keep"],
-     btn:"Take a seat",
-     /* Same card, other state. No new markup: #howto is already the
-        full-screen thing that explains the café, so when there is no café
-        it is the thing that says so. */
+           go:"Take me to the chair",
+           back:"Back to the café",
+           backWelcome:"Back"},
      closed:{title:"The café is closed\u00A0🌙",
              steps:["🌙 Lights down, room empty — Simon has gone home for the night",
                     "📄 The resume did not close with it: the full text version is one tap away",
@@ -15819,30 +16205,95 @@ const HOWTO={
                     "🚪 Tap outside this card if you'd rather sit in the dark a minute"],
              btn:"Read the text resume"}}
 };
-function renderHowto(){
+/* welcome | help | closed — which face the card is showing */
+let howtoMode="welcome";
+function renderHowto(mode){
+  if(cafeClosed)mode="closed";
+  else if(!mode)mode=howtoMode==="closed"?"welcome":howtoMode;
+  howtoMode=mode;
   const el=document.getElementById("howto");
-  const h=cafeClosed?HOWTO[lang].closed:HOWTO[lang];
-  const steps=(TOUCH&&h.stepsTouch)?h.stepsTouch:h.steps;
-  el.querySelector("h2").textContent=h.title;
-  el.querySelector(".hsteps").innerHTML=steps.map(x=>"<li>"+x+"</li>").join("");
-  document.getElementById("enterBtn").textContent=h.btn;
+  const go=document.getElementById("enterBtn"),alt=document.getElementById("altBtn");
+  const more=document.getElementById("howMore");
+  const H=HOWTO[lang];
+  let title,lines;
+  if(mode==="closed"){
+    title=H.closed.title;lines=H.closed.steps;
+    go.textContent=H.closed.btn;go.hidden=false;
+    alt.hidden=true;more.hidden=true;
+  }else if(mode==="help"){
+    const h=H.help;
+    title=h.title;lines=(TOUCH&&h.stepsTouch)?h.stepsTouch:h.steps;
+    /* on your feet, the manual is also a door to the table */
+    go.textContent=h.go;go.hidden=!(guest.state==="walk"&&guest.mode!=="auto"&&!RM);
+    alt.textContent=entering?h.back:h.backWelcome;alt.hidden=false;
+    more.hidden=true;
+  }else{
+    title=H.title;
+    lines=(TOUCH&&H.leadTouch)?H.leadTouch:H.lead;
+    /* reduced motion never walks, so "look around" has nothing to offer:
+       one line, one button, and the button seats you as it always has */
+    if(RM)lines=lines.slice(0,1);
+    go.textContent=H.btn;go.hidden=false;
+    alt.textContent=H.look;alt.hidden=RM;
+    more.textContent=H.more;more.hidden=false;
+  }
+  el.querySelector("h2").textContent=title;
+  el.querySelector(".hsteps").innerHTML=lines.map(x=>"<li>"+x+"</li>").join("");
 }
 renderHowto();
 promptEl.textContent=TOUCH?DATA[lang].promptTouch:DATA[lang].prompt;
+/* The fade-out's display:none lands 450 ms after the click. Before the
+   card could be reopened that timer was harmless; now a "?" pressed inside
+   that window would show the card and have the old timer hide it again,
+   so the handle is kept and cancelled on every show. */
+let howtoHideT=0;
 function dismissHowto(){
   const el=document.getElementById("howto");
   el.classList.add("hide");
-  setTimeout(()=>el.style.display="none",450);
+  clearTimeout(howtoHideT);
+  howtoHideT=setTimeout(()=>el.style.display="none",450);
+}
+function showHowto(){
+  const el=document.getElementById("howto");
+  clearTimeout(howtoHideT);
+  el.style.display="";
+  void el.offsetWidth;            /* commit the display before the fade, or there is none */
+  el.classList.remove("hide");
+}
+/* The manual is "open" in the sense that matters to the room — keys and
+   taps belong to it — only once you are inside. Before that the welcome
+   card already owns the screen whichever face it shows. */
+function helpOpen(){
+  return entering&&howtoMode==="help"&&
+    !document.getElementById("howto").classList.contains("hide");
+}
+function openHelp(){
+  if(cafeClosed)return;
+  /* the resume panel (60) and the newspaper (70) both sit above the card
+     (50): opened under them the manual would be there and invisible. The
+     newspaper is closed for it; the resume is the point of the page and is
+     left alone — the manual can wait until you put it down. */
+  if(cvPanelOpen())return;
+  closeZoom();
+  guestKeys.clear();              /* a key held as the card came up must not walk him behind it */
+  renderHowto("help");
+  if(entering)showHowto();        /* before entering the card is already up */
+  const b=document.getElementById("altBtn");
+  if(b&&b.focus)b.focus({preventScroll:true});
+}
+function closeHelp(){
+  if(!entering){renderHowto("welcome");return;}   /* back to the choice */
+  dismissHowto();
 }
 /* ---------------- THE ENTRANCE ----------------
-   Clicking "Take a seat" no longer teleports you into the chair: your
-   character walks in by the door and crosses the room on the arrows.
-   The welcome is spoken from the moment you step in — Simon calls it
-   across the room and it is the thing that tells you to have a wander
-   before sitting down. It therefore starts INSIDE this click, the last
-   user gesture available: a cold play() eight seconds later is refused
-   by Safari, and there is no gesture between here and the chair. */
-function startEntrance(){
+   Two ways in, one per welcome button, both starting at the door.
+   "Sit down with Simon" walks you to the table on the pilot (you can take
+   the wheel back with any arrow or tap). "Look around first" hands you the
+   arrows and the room. The first line is spoken from the moment you step
+   in, so it starts INSIDE this click, the last user gesture available: a
+   cold play() seconds later is refused by Safari — which is why everything
+   after that first clip is primed (see primeClips). */
+function startEntrance(how){
   entering=true;
   try{
     if(!lipCtx)lipCtx=new (window.AudioContext||window.webkitAudioContext)();
@@ -15890,18 +16341,104 @@ function startEntrance(){
   CAM.dist=2.7;CAM.distNow=2.7;CAM.sprint=false;
   camColliders=null;              /* the model may have landed since */
   showSeatMarker(true);           /* the arrow says where the coffee is */
-  /* nothing moves until the visitor moves it, so the prompt has to say
-     HOW — and on a phone that is a different instruction, not none */
   promptEl.style.display="";
-  promptEl.textContent=TOUCH
-    ?"Tap the floor to walk · drag to look — head for the arrow ☕"
-    :"Arrows to walk · drag to look · Shift to run — head for the arrow ☕";
   /* the stroller yields the entrance beat — unless he's already inside */
   if(!visitor.active)visitor.vTimer=Math.max(visitor.vTimer,16);
-  /* Simon calls it across the room: the wander, the plumbing, and where
-     the chair is. Nobody walks unless they are told to, so the telling
-     has to be part of the room rather than a line of UI. */
-  speak(SPEECH.welcome,"welcome");
+  /* Every first clip below is started HERE, inside the click — the last
+     gesture there is. Everything that follows it without one is primed. */
+  if(how==="sit"){
+    /* Walked to the table from the doorway on the planned route (see "the
+       pilot's route"). He only says hello on the way: the rest of the
+       welcome is an invitation to wander, which is the one thing this
+       visitor has just said no to. The seated line is primed for the
+       other end of the walk, where nobody will have touched a thing. */
+    primeClips(["seated","welcome_chair"]);   /* the chair line is the nudge's, should he take the wheel and get lost */
+    startPilot();
+    promptEl.textContent=pilotPrompt();
+    playChain(["welcome_hi"]);
+    return;
+  }
+  /* Look around first: you drive, the prompt says how — and on a phone
+     that is a different instruction, not none. Simon calls the welcome
+     across the room, in a new order: hello, then where the chair is, and
+     only then the wander. The tour is the long part, and the end of a
+     long line is the part a visitor has already stopped listening to. */
+  guest.mode="manual";
+  promptEl.textContent=walkPrompt();
+  primeClips(["welcome_chair","welcome_tour","welcome_chair"]);   /* the last is the nudge's */
+  nudgeT=0;nudged=false;
+  playChain(["welcome_hi","welcome_chair","welcome_tour"]);
+}
+
+/* ---------------- THE PILOT, AND THE NUDGE ----------------
+   Two ways the room now walks you to the table on request — the welcome's
+   "Sit down with Simon" and, for whoever chose to look around and then
+   could not find the chair, a chip forty seconds in. The manual's "Take
+   me to the chair" is the third door to the same function. */
+function walkPrompt(){
+  return TOUCH?"Tap the floor to walk · drag to look — head for the arrow ☕"
+              :"Arrows to walk · drag to look · Shift to run — head for the arrow ☕";
+}
+function pilotPrompt(){
+  /* say how to get the wheel back: being walked somewhere you did not mean
+     to go, with no way to stop it, is worse than never being walked */
+  return TOUCH?"Walking you to the table — tap the floor to take over"
+              :"Walking you to the table — press an arrow key to take over";
+}
+function startPilot(){
+  guest.mode="auto";
+  guest.moveTo=null;guest.walkTarget=null;guestKeys.clear();
+  /* floorDiscs go with the route: the last run's discs, with exemptions
+     worked out from where he stood THEN, would push him off a chair he is
+     legitimately parked against before the new plan is made — measured,
+     .08 m out of the window niche, from where no route was left */
+  guest.route=null;guest.floorDiscs=null;guest.rReplans=0;guest.cWaitT=0;
+}
+/* The visitor took the wheel back. Whoever had been nudged gets the chip
+   again — it is still the shortcut they will want in a minute. */
+function stopPilot(){
+  if(guest.mode!=="auto")return;
+  guest.mode="manual";guest.walkTarget=null;guest.route=null;guest.floorDiscs=null;
+  if(nudged&&!everSat){showSeatChip(true);return;}
+  promptEl.style.display="";promptEl.textContent=walkPrompt();
+}
+/* From anywhere in the room: the chip, the manual. Both are clicks, and the
+   click is the last gesture before the table — so the seated line is
+   primed here, the same as on the walk-in. */
+function goToChair(){
+  if(guest.state!=="walk"||cafeClosed||RM)return;
+  showSeatChip(false);
+  primeUpTo("seated",1);
+  startPilot();
+  promptEl.style.display="";promptEl.textContent=pilotPrompt();
+}
+
+/* The nudge. Forty seconds on your feet, never seated, and the room has
+   made its point: the chip that walks you there, and Simon saying where
+   the chair is again — the one sentence of the welcome that matters, in
+   case it went by with the sound off or under a hush. Counted in wall
+   time only while the room is the thing you are doing: an article open,
+   the resume, the manual or a record on the jukebox is a visitor who is
+   busy, not lost. Never over him: it waits for the end of a line. */
+const NUDGE_AT=40;
+let nudgeT=0,nudged=false;
+const seatChip=document.getElementById("seatChip");
+function showSeatChip(on){
+  if(!seatChip)return;
+  seatChip.hidden=!on;
+  document.body.classList.toggle("chipup",!!on);   /* the subtitle track steps up over it */
+  if(on)promptEl.style.display="none";   /* it takes the prompt's place */
+}
+if(seatChip)seatChip.addEventListener("click",goToChair);
+function tickNudge(raw){
+  if(nudged||everSat||RM||cafeClosed)return;
+  if(guest.state!=="walk"||guest.mode==="auto")return;
+  if(!lookActive()||JB.playing)return;
+  nudgeT+=Math.min(raw,.25);       /* a backgrounded tab returns one huge frame — not lost time */
+  if(nudgeT<NUDGE_AT||speaking)return;
+  nudged=true;
+  showSeatChip(true);
+  playChain(["welcome_chair"]);
 }
 /* ---------------- SITTING DOWN ----------------
    You sit, the sheet comes up near full-screen, and he starts talking
@@ -15916,7 +16453,16 @@ var reading=false,everSat=false;
 function arriveAtTable(){
   if(entered)return;
   entered=true;
-  abortChain();stopSpeaking();     /* the welcome had the walk; the sheet has this */
+  showSeatChip(false);
+  if(helpOpen())dismissHowto();    /* the manual was up while the pilot walked him in */
+  /* Walked in on "…that coffee together." (the pilot from the doorway is
+     about as long as the greeting, and in portrait shorter): cutting it
+     off mid-word is the one way to make the arrival feel broken. It
+     finishes, and the seated line follows it through the chain. Any other
+     clip — the tour, the chair line — is the welcome to a room he has just
+     stopped exploring, and goes as before. */
+  const greeting=speaking&&lastKey==="welcome_hi";
+  if(!greeting){abortChain();stopSpeaking();}   /* the welcome had the walk; the sheet has this */
   if(everSat){
     /* back at the table after a wander: no ceremony and no reread — the
        box reopens with every green marker, the tier and the outro state
@@ -15929,11 +16475,17 @@ function arriveAtTable(){
   reading=true;
   promptEl.style.display="";
   promptEl.textContent=TOUCH?DATA[lang].promptReadTouch:DATA[lang].promptRead;
-  playChain(["seated"],endReading);
+  if(greeting){chain=["seated"];chainEnd=endReading;}   /* nextClip() plays it on the greeting's natural end */
+  else playChain(["seated"],endReading);
 }
 function endReading(){
   if(!reading)return;
   reading=false;
+  /* Walked in on the greeting, "seated" waits in the chain for it to end.
+     Put the sheet down first (space, a click beside it) and that line is
+     about a sheet you have just put away: drop it before it starts. When
+     endReading runs as the chain's own end, the chain is already empty. */
+  if(chain[0]==="seated")abortChain();
   /* the sheet filled the frame, so the pointer was "over" it the whole
      time — left as is, the hover lift would catch it on the way down */
   paperHover=false;paperLifted=false;
@@ -15941,12 +16493,44 @@ function endReading(){
   /* let the sheet land before the menu appears under it */
   setTimeout(()=>{if(!cafeClosed)openTalk();},RM?60:620);
 }
+/* The primary button on every face: sit (welcome), the way to the table
+   (help, on your feet), the resume (closed). Both welcome buttons count as
+   the same "enter" — the counter's enum is closed server-side, and the
+   funnel that matters (enter → section) reads the same either way. */
 document.getElementById("enterBtn").addEventListener("click",()=>{
   if(cafeClosed){VC.openCV();return;}   /* closed: the button is the way to the CV, not a seat */
+  if(howtoMode==="help"){
+    if(!entering)return;                /* never offered before you are inside */
+    dismissHowto();goToChair();return;
+  }
   if(entering)return;
   dismissHowto();
   PING.tap("enter");
-  startEntrance();
+  startEntrance("sit");
+});
+document.getElementById("altBtn").addEventListener("click",()=>{
+  if(cafeClosed)return;
+  if(howtoMode==="help"){closeHelp();return;}
+  if(entering)return;
+  dismissHowto();
+  PING.tap("enter");
+  startEntrance("look");
+});
+document.getElementById("howMore").addEventListener("click",openHelp);
+{
+  const helpBtn=document.getElementById("helpBtn");
+  if(helpBtn){
+    helpBtn.hidden=false;               /* the scene is alive: the manual describes something real */
+    helpBtn.addEventListener("click",()=>{
+      const showing=!document.getElementById("howto").classList.contains("hide");
+      if(howtoMode==="help"&&showing)closeHelp();else openHelp();
+    });
+  }
+}
+addEventListener("keydown",e=>{
+  if(e.key!=="Escape"||howtoMode!=="help")return;
+  if(document.getElementById("howto").classList.contains("hide"))return;
+  closeHelp();
 });
 
 /* ---------------- THE VISIT, REMEMBERED ----------------
@@ -16017,8 +16601,13 @@ addEventListener("pagehide",saveVisit);
    the message from then on. Deliberately not wired when the café is open:
    there, the card is the instructions and dropping it by accident loses
    them. */
+/* The manual is wired the same way: dropping it by accident only puts you
+   back in the room, which is where it was opened from. The welcome face
+   is still NOT — it is the choice, and a stray tap must not make it. */
 document.getElementById("howto").addEventListener("click",e=>{
-  if(cafeClosed&&e.target===e.currentTarget)dismissHowto();
+  if(e.target!==e.currentTarget)return;
+  if(cafeClosed)dismissHowto();
+  else if(howtoMode==="help")closeHelp();
 });
 
 /* ---------------- CLOSED CAFÉ ----------------
@@ -16059,6 +16648,7 @@ function closeCafe(){
      the animation loop has to stop driving them, or the next frame turns
      them straight back on (see below). */
   if(muteBtn)muteBtn.hidden=true;   /* nothing left to mute in an empty room */
+  {const hb=document.getElementById("helpBtn");if(hb)hb.hidden=true;}   /* nor to explain */
   keySpot.intensity=0;
   winDir.intensity=.04;
   /* the design pass darkened everything you can move (walnut, bronze,
@@ -16290,8 +16880,8 @@ function updateFollowShot(dt){
 /* --- look controls: drag to orbit, wheel to dolly. No pointer lock — it
    would seize the cursor on a page whose whole point is a clickable
    resume, and the browser's own prompt would land mid-walk. --- */
-/* Tap-to-walk. Without it a phone could never reach the chair now that
-   the autopilot is gone — there are no arrow keys to press. A TAP is a
+/* Tap-to-walk. Without it a phone could never steer anywhere — there are
+   no arrow keys to press, and the pilot only goes to the chair. A TAP is a
    move order; a DRAG is a look, and the two are told apart by distance
    and duration, not by which element was hit. */
 const _tapRay=new THREE.Raycaster(),_tapPt=new THREE.Vector2();
@@ -16647,6 +17237,7 @@ function dropPointer(id){
 }
 function lookActive(){
   if(guest.state!=="walk"||RM||cafeClosed)return false;
+  if(helpOpen())return false;        /* the manual is over the room */
   if(zoomItem)return false;          /* something is open over the room */
   /* the text resume is a scrollable panel over the whole page: while it
      is open the wheel belongs to it, not to the camera */
@@ -16655,7 +17246,7 @@ function lookActive(){
 }
 addEventListener("pointerdown",e=>{
   if(!lookActive()||e.button!==0)return;
-  if(e.target&&e.target.closest&&e.target.closest(".tools,.howto,.cv,.zoom,.jbx"))return;
+  if(e.target&&e.target.closest&&e.target.closest(".tools,.howto,.cv,.zoom,.jbx,.seatchip"))return;
   touchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
   /* THE SECOND FINGER IS A PINCH, and a pinch is neither a look nor a
      walk. The first finger keeps its drag state, so lifting the second
@@ -16898,6 +17489,7 @@ function animate(){
 
   if(!cafeClosed){
     guest.ctl=guestCtl();      /* read the arrows at frame rate, not tick rate */
+    tickNudge(raw);
     tickClosing(dt);
     updateLife(dt);
     updateSkyTraffic(dt);
