@@ -52,9 +52,12 @@ Three mechanisms keep bodies apart, and they are not interchangeable:
 - **`steerAgents()`** (in `walkLayer`) is the one that actually avoids: if the
   direction of travel points into a body within `AVOID_R`, it takes the
   tangent. Same shape as `steerAround()`, which has done this for furniture
-  since the beginning. Swerving cannot deadlock. **Not applied to the guest** —
-  he is steered by a person and a route that argues with the keys is worse than
-  a bump.
+  since the beginning. Swerving cannot deadlock. It runs for every body walking
+  to a TARGET — **the guest included on a tap**; only the arrow keys (the
+  `a.ctl` branch, a route that argues with the keys is worse than a bump) and
+  the pilot (a planned route) bypass it. Until October 2026 its comment said
+  "not applied to the guest", which was only ever true of the keys (and,
+  since 530aa6c, of the pilot).
 - **`separateAgents()`** (end of `animateAgents`) is the safety net, not the
   rule. It can only say "you are already inside someone, come out". On its own
   it holds two bodies at arm's length, grinding, because both are still pulling
@@ -80,13 +83,31 @@ the geometry decides, identically, for both. Letting each take "the tangent
 that goes my way" is what put the courier inside the waiter: two bodies
 choosing the same gap. The choice is committed for ~1 s, because re-deciding
 every frame as the angle drifts is what makes two people shuffle in a doorway.
+"Closing" is read off HIS heading (`yaw`): until October 2026 the test
+compared positions — `|Δ|²`, never negative — so it was never true and every
+head-on was the mirror this paragraph describes.
 
 **Nothing may orbit.** A steering rule with no way to give up will circle a
 body that never moves: every approach is deflected, the waypoint behind it is
 never reached, and the route never ends. `steerAgents` counts how long it has
 been turned away by the same body and, past `STUCK_MAX`, walks straight at it
 and lets the separation pass part them. Better a shoulder brushed than a
-delivery that never arrives.
+delivery that never arrives. **The count belongs to the ENCOUNTER, not to the
+side chosen in it**: for five weeks the record was thrown away every
+`DETOUR_HOLD` (1.1 s) and rebuilt at zero against the same body, so the
+count never passed 1.1, `STUCK_MAX` (2.4) was unreachable and none of this
+ran. The hold re-opens the choice of side and nothing else; a second body
+taking the first one's place carries the count on; the encounter ends when
+nobody has been in the way for `DETOUR_FREE`, or when the walk does (a
+count left over rode into the next walk). A guilty
+pattern to look for in a probe: a value that climbs and resets on a fixed
+period. The guest's tap orders are PLANNED (`tapTarget` / `tapPlan`: a 5 cm
+grid of every point 8 cm clear of the furniture, filled breadth-first from
+where he stands; the target is the reached point nearest the tap). Pushing
+the tapped point out of the furniture is not a target: it slid into the
+corners where shapes meet and into a pocket sealed on every side. A second
+without moving re-plans and rounds the obstacle the other way
+(`orderTick`); three tries and the order is dropped.
 
 **A seated body is furniture.** `seated(a)` is `rootY<0 || a.sit`, which is the
 pose layer's own definition — and it must be, because the second copy of that
@@ -107,6 +128,17 @@ apart for ever. The courier never yields — his route threads authored
 clearances. Under one body radius, everyone moves regardless: at spawn `walkK`
 is still damping up from zero, and two arrivals sharing the doorway would
 otherwise sit merged waiting to be considered movers.
+
+**A body caught between two that will not give is squeezed** — the guest or
+the courier pressing the waiter into a customer in her chair, or into the
+stroller reading the menu. The first pass pushes it out of one and into the
+other. `separatePass(dt,true)` runs a second time over what is still
+overlapping, and there everyone who is not seated and not the courier gives,
+the guest and standing bodies included: that is the "cannot move either"
+above. And the courier gives the centimetres the furniture takes back from a
+guest he shoved into a table (end of `separateAgents`). Measured (Oct 2026,
+2 h of scene, guest tapping at random): 0 frames under `.515` in the room,
+where the first pass alone left 161, down to `.439`.
 
 ## Measure it, do not look at it
 
@@ -168,6 +200,15 @@ mechanics that bite:
   NEW that stands on the floor is a station for the audit rules above — the
   Strelitzia's leaves were measured against the dancer's spot and the guest's
   ring before it shipped.
+- **So is the guest's collision with it** (`tableBlockers`, called from
+  `buildAtelier`): one chain of circles per table, from the table's
+  `R + BODY_R` to each chair's `.55`. The circles used to be typed, for the
+  map of 2026-08-12; the map of 08-15 moved three tables and for seven weeks
+  the visitor walked through table 3 and five chairs while a circle guarded
+  empty floor. The cabinet is read off the model too (`armoire_socle` →
+  `GUEST_RECTS[1]`; its old right half was table 4's circle). What is still
+  typed in `GUEST_BLOCKERS` is not a box: Simon's table with Simon, and the
+  plant's leaves.
 - **`LatheGeometry` profiles run counter-clockwise in (r, y)** — out along the
   bottom, up the side, in across the top — or the faces wind inward and the
   object renders inside-out (the stool cushions did). `lathe()` also snaps the

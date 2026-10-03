@@ -67,7 +67,10 @@ did, not how, or why »*. La feuille redescend toute seule quand il a fini — o
 dès un clic à côté d'elle — et c'est là que la **boîte de dialogue** s'ouvre.
 La pastille Skip et `espace` l'écourtent aussi. L'anneau dessiné au sol a exactement le rayon du
 déclencheur (`SEAT_TRIGGER`) — ce que vous voyez est ce dans quoi il faut
-entrer. Collisions : tables, comptoir, bar de fenêtre — et Simon. Sous `prefers-reduced-motion`, pas de marche : déjà assis, accueil
+entrer. Collisions : chaque table et ses chaises (lues sur la maquette, `tableBlockers` ; saisies à la main pour la carte
+d'avant le 15 août, elles ne couvraient plus les tables 1, 3 et 4), comptoir, bar de fenêtre — et Simon. Un tap mène au point
+atteignable le plus proche de l'endroit touché, par un trajet planifié autour des meubles
+(grille de 5 cm, `tapPlan`). Sous `prefers-reduced-motion`, pas de marche : déjà assis, accueil
 immédiat.
 
 **La caméra est une vraie caméra de jeu.** Elle se tient derrière et

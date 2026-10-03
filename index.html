@@ -3980,7 +3980,7 @@ function boxUV(geo,tile){
     [/^feuillage\./,"feuillu_2","verdure"]
   ];
   const HIDE=/^(machine_corps|machine_chapeau|machine_facade|comptoir_plateau|plateau_table_haute|meuble_arriere|meuble_arriere_plateau|moulin_base|moulin_couvercle|moulin_tremie|pile_tasses_\d|vitrine_socle|etagere|cable|assise|latte_dossier|pied_chaise|barreau|montant|plateau_table|bord_table|fut_table|socle_table|assise_tabouret|fut_tabouret|socle_tabouret|repose_pied|abat_jour|abat_jour_applique|bras_applique|ampoule_applique|cadre_carte|carte_prix|comptoir_panneau|tapis_rond|pot|pot_col|caisse_(socle|corps|tiroir|tiroir_poignee|plaque_clavier|cloche)|touche_\d+_\d+|ecran_boitier|ecran_afficheur)\.|^feuillage\.[0-6]$|^(sol_naturel|clairiere_sous_bois|etage_resineux|houppier|branche|touffe|glissiere_securite|poteau_glissiere|tronc|feuillage|chassis|caisse_haute|nez|pavillon|lunette|vitre_g|vitre_d|arriere|becquet|retroviseur)\.|^(capot|pare_brise|phare|pneu|jante|cabine|calandre|pare_choc|vitre_cabine_g|vitre_cabine_d)\.|^feu_arriere\.[01]$/;
-  const CAPTURE=/^(assise|latte_dossier|plateau_table|plateau_table_haute|assise_tabouret|abat_jour|pot|caisse_socle|cadre_carte|comptoir_corps|comptoir_plateau|meuble_arriere|meuble_arriere_plateau|vitrine_socle|etagere)\./;
+  const CAPTURE=/^(assise|latte_dossier|plateau_table|plateau_table_haute|assise_tabouret|abat_jour|pot|caisse_socle|cadre_carte|comptoir_corps|comptoir_plateau|meuble_arriere|meuble_arriere_plateau|vitrine_socle|etagere|armoire_socle)\./;
   /* texel size, in metres per tile, for every material mapped by boxUV */
   const BOXUV={chene_sol:2.4,platre:2.6,mur_avant_teinte:2.6,platre_vert:2.6,
     olive_panneau:1.4,chene:1.3,travertin:1.9,noyer_fonce:.8,
@@ -4398,6 +4398,9 @@ function buildAtelier(REB){
     addStool(furn,mats,c[0],c[2],b.max[1]);
   });
   furn.build(scene);
+  tableBlockers(REB).forEach(c=>GUEST_BLOCKERS.push(c));   /* and the guest walks round them */
+  const cab=REB.get("armoire_socle.0");                     /* and the cabinet (GUEST_RECTS) */
+  if(cab)GUEST_RECTS[1]=[cab.min[0]-BODY_R,cab.min[2]-BODY_R,cab.max[0]+BODY_R,cab.max[2]+BODY_R];
 
   /* THE BAR FRONT. The counter body is oak now (REMAT); its face gets
      reeds, 3 cm on centre and 9 mm proud, from the toe kick to the
@@ -4649,6 +4652,43 @@ function dressLife(mats){
     const m=new THREE.Mesh(g,wearM);m.position.set(w[0],.002,w[1]);m.renderOrder=1;scene.add(m);
   }
   GUEST_BLOCKERS.push([6.75,1.85,.32],[6.3,3.72,.42],[6.82,-4.63,.25]);
+}
+/* The guest's collision for every café table but Simon's, read off the
+   model's boxes like the furniture itself. One circle per table and
+   chair would be honest (the chair's .55, the table's R + BODY_R —
+   CLAUDE.md's floor) but the union of three overlapping discs has a notch
+   on each side where a chair meets its table, and a tap aimed past the
+   table pins him in it: on the sweep (every 25 cm start to every 50 cm
+   target) 5 571 taps of 65 293 stuck, against 1 606 for the chain below,
+   and with steerAround as it is now still 6 860 stalls over 1.5 s
+   against 3 959. So each table is a CHAIN, from the table's circle out to each of its chairs in
+   steps of 20 cm, the radius running from R + BODY_R down to .55: the
+   envelope of a tapered capsule, convex but for 8 mm scallops. Each chair
+   belongs to its nearest table; Simon's table and its two chairs are the
+   (0,-.5) circle's business (the guest's own seat sits just outside it,
+   1.20 from its centre). */
+function tableBlockers(boxes){
+  const tables=[],chairs=[],out=[];
+  boxes.forEach(function(b,k){
+    if(/^plateau_table\./.test(k))
+      tables.push({k:k,c:boxCentre(b),r:Math.max(b.max[0]-b.min[0],b.max[2]-b.min[2])/2+BODY_R});
+    else if(/^assise\./.test(k))chairs.push(boxCentre(b));
+  });
+  tables.forEach(function(t){
+    if(t.k==="plateau_table.0")return;
+    out.push([t.c[0],t.c[2],t.r]);
+    chairs.forEach(function(c){
+      let near=null,nd=1e9;
+      tables.forEach(function(u){const d=Math.hypot(c[0]-u.c[0],c[2]-u.c[2]);if(d<nd){nd=d;near=u;}});
+      if(near!==t)return;
+      const n=Math.max(1,Math.ceil(nd/.2));
+      for(let i=1;i<=n;i++){
+        const k=i/n;
+        out.push([t.c[0]+(c[0]-t.c[0])*k,t.c[2]+(c[2]-t.c[2])*k,t.r+(.55-t.r)*k]);
+      }
+    });
+  });
+  return out;
 }
 function paintHours(x,w,h){
   x.clearRect(0,0,w,h);x.fillStyle="rgba(245,240,230,.92)";x.textAlign="center";
@@ -11652,7 +11692,8 @@ const SEAT_TRIGGER=.55;      /* stand inside this and the interview starts */
    its waypoints sit 6 and 8 cm off WAITER_LANE) and the old way of joining
    it from anywhere — walk to the nearest waypoint — failed 135 of 525
    standable starts in the audit, through table 3 among them, because
-   GUEST_BLOCKERS does not cover every table and chair.
+   GUEST_BLOCKERS did not cover every table and chair (it does now:
+   tableBlockers).
 
    So the route is PLANNED: a visibility graph over GUEST_PATH plus the
    seventeen nodes below, solved with Dijkstra from wherever the guest
@@ -11666,11 +11707,12 @@ const SEAT_TRIGGER=.55;      /* stand inside this and the interview starts */
    but never get closer to its centre: that is the gate that lets a guest
    parked against a chair be walked out of the niche at all.
 
-   Measured (route audit, 2026-10-02, the room's own NPCs and courier
-   running): 525/525 standable starts on a 25 cm grid arrive, at 30 and
-   60 fps, none handed back; longest arrival 9.2 s, longest stall 1.17 s
-   (the courier wait below, capped at 1 s); no chair, stool, table or
-   body closer than the floor unless he started closer. From the doorway
+   Measured (route audit, the room's own NPCs and courier running; again
+   on 2026-10-04 once every table and chair was solid and the courier
+   wait was gone): 514/514 standable starts on a 25 cm grid arrive (525
+   before the tables took their floor back), at 30 and 60 fps, none
+   handed back; longest arrival 8.0 s, longest stall 0.2 s; no chair,
+   stool, table or body closer than the floor unless he started closer. From the doorway
    (GUEST_SPAWN, every screen; 2026-10-04, 390x844 and 1280x800, 30 and
    60 fps, the courier's round and the waiter's lane swept): [0,.95] →
    the ring in 4.1–4.2 s, chair 1 passed at .78, chair 6 and table 3 no
@@ -11962,17 +12004,33 @@ function guestCtl(){
    the straight line from the door to the chair runs right through it, so
    a tap-to-walk visitor with no keyboard was stranded. Centred at
    (0,-.5) r 1.15 it swallows the tabletop and Simon, and still leaves the
-   seat (1.20 out) and its trigger ring standable. */
-const GUEST_BLOCKERS=[[2.65,1.81,.8],[5.19,-2.38,.85],[5.03,2.18,.8],[.48,3.19,.8],
-  [0,-.5,1.15],[3.9,3.45,.62]];
+   seat (1.20 out) and its trigger ring standable.
+   The other four tables are NOT typed here. They were, on 2026-08-12, and
+   three days later the map moved them: table 3 went from (5.03,2.18) to
+   (5.24,-.57), table 1 42 cm east, table 4 to (.21,2.45), and for seven
+   weeks the visitor walked through table 3 and through chairs 3 and 6 to
+   9 while a circle guarded empty floor. They are read off the model at
+   load (tableBlockers, from buildAtelier) like every piece of furniture
+   in the room, and so is the cabinet (GUEST_RECTS[1]), whose right half
+   was the circle that used to be table 4's. What is left typed is not a
+   box: Simon's table with Simon, and the plant — 62 cm, the reach of its
+   leaves, not the pot. */
+const GUEST_BLOCKERS=[[0,-.5,1.15],[3.9,3.45,.62]];
 /* RECTANGLES, for the two fixtures no circle describes: the window bar
    with the metre of floor behind it (it runs the length of the room), and
-   the left half of the trophy cabinet — the right half is the circle at
-   (.48,3.19) above, and the two are TANGENT, never overlapping. Overlap
-   is what leaves a pocket: pushed out of one you land in the other, and a
-   walk order aimed past them pins you there for good. */
-const GUEST_RECTS=[[-3.6,-3.62,-1.35,2.5],[-2.16,3.02,-.32,4.05]];
-function collideGuest(a){
+   the trophy cabinet, BODY_R off its plinth on every side — read off the
+   model at load (armoire_socle, buildAtelier); the literal is the same box
+   from cafe.obj.txt for the frames before the model lands. The cabinet
+   used to be half a rect and half a circle, and the circle was table 4's
+   from the map of 2026-08-12, bulging 85 cm into the room: against table
+   4's real chain it sealed a pocket at the cabinet's foot, and taps there
+   resolved into it with no way out. A rect against a
+   circle is still a wedge where chair 8 meets the cabinet — their
+   push-outs face each other — which is why collideGuest refuses a step
+   that ends inside a circle, and why a tap's target comes from tapTarget
+   rather than from pushing the tapped point out. */
+const GUEST_RECTS=[[-3.6,-3.62,-1.35,2.5],[-2.103,2.98,1.15,4.093]];
+function collideGuest(a,px,pz){
   /* The room is walkable end to end now. It was fenced at z=1.9 for a
      wide shot that no longer holds: the map grew a front wall, and the
      cabinet, the plaque and the toilet door all live on it — being
@@ -12011,12 +12069,13 @@ function collideGuest(a){
      .55 from the centre, tables R + BODY_R, Simon's own table excepted
      (the chair across it is the destination, .21 from its edge). The
      route never comes this close, so this never touches a planned walk:
-     it is there for the one thing that can still push him — the courier,
-     who never yields. Steering off on the pilot, a guest the courier walks
-     beside or brushes past was shoved sideways into chair 7 (.475) and up
-     against table 3 (.142 from its edge). Pushed now, he slides round the
-     floor's edge instead. Measured on the 525-start grid: it acts in one
-     run, by 1 mm. A disc he was already inside when the route was
+     it is there for what can still push him — a seated customer, and the
+     squeeze pass (separatePass), which makes him give when the body he
+     walked into is pinned. It was written for the courier, who shoved him
+     into chair 7 (.475) and up against table 3 (.142 from its edge); the
+     courier gives to him on the pilot now, but the clamp stays: with the
+     courier wait gone it is the pilot's last guard against furniture.
+     Pushed, he slides round the floor's edge instead. A disc he was already inside when the route was
      planned (parked there by the visitor) is exempt until he has left it,
      the same rule as the planner's start gate — or the plan's first step
      would be a jump. The floor is built with each plan and dropped when the
@@ -12031,6 +12090,118 @@ function collideGuest(a){
       if(d<f[2]&&d>1e-4){a.pos.x=f[0]+dx/d*f[2];a.pos.z=f[1]+dz/d*f[2];}
     }
   }
+  /* A STEP THAT WEDGES HIM IS NOT TAKEN. Where a circle runs into a
+     rectangle and their push-outs face each other — chair 8's under the
+     cabinet's — the rect, applied last, puts him back inside the circle,
+     and the next frame the circle lifts him into the rect again: wedged
+     .47 from a woman sitting in chair 8, 84-88 frames in half the runs.
+     walkLayer says where the step began; a step that ends more than 5 mm
+     inside a circle is not taken (he stops, and a tap order tries the
+     other way round). Probes and pushes pass no start and are untouched. */
+  if(px!==undefined){
+    for(let i=0;i<GUEST_BLOCKERS.length;i++){
+      const b=GUEST_BLOCKERS[i];
+      if(Math.hypot(a.pos.x-b[0],a.pos.z-b[1])<b[2]-.005){a.pos.x=px;a.pos.z=pz;break;}
+    }
+  }
+}
+/* WHERE A TAP CAN SEND HIM, AND HOW. Pushing the tapped point out of
+   whatever it landed in is not "the nearest point he can walk to": out of
+   the cabinet it went down into table 4's chain and back up, sliding into
+   the corner where they meet, and between the chain and the old cabinet
+   circle it settled in a pocket sealed on every side — 2 435 of 11 616
+   taps round the cabinet (2 cm grid) were dropped seconds later, metres
+   short. And steering alone cannot find a route that has to go AWAY first:
+   from beside the cabinet to the window corner is round table 4's far side
+   and up the 25 cm gap between chair 8 and the bar.
+   So: a 5 cm grid of every point at least TAP_CLEAR from every circle,
+   rect and wall (8 cm: a slot a body could only half enter is not a
+   place to send him), built once the model has landed — the furniture
+   never moves; a breadth-first fill from where he stands; the target is
+   the tap's own point if the fill reached it, the reached cell nearest to
+   it if not; and the order walks the fill's path, pulled into straight
+   legs that keep to the grid (tapPlan, orderTick). */
+const TAP_CELL=.05,TAP_CLEAR=.08;
+let tapGrid=null;
+function guestClearance(x,z){
+  let m=Math.min(x+2.82,6.85-x,z+2.35,3.32-z);   /* collideGuest's box */
+  for(let i=0;i<GUEST_BLOCKERS.length;i++){
+    const b=GUEST_BLOCKERS[i];
+    m=Math.min(m,Math.hypot(x-b[0],z-b[1])-b[2]);
+  }
+  for(let i=0;i<GUEST_RECTS.length;i++){
+    const r=GUEST_RECTS[i];
+    const ox=Math.max(r[0]-x,0,x-r[2]),oz=Math.max(r[1]-z,0,z-r[3]);
+    m=Math.min(m,(ox||oz)?Math.hypot(ox,oz):-Math.min(x-r[0],r[2]-x,z-r[1],r[3]-z));
+  }
+  return m;
+}
+/* the fill from (fx,fz); null before the model */
+function tapFill(fx,fz){
+  if(!CAFE.ready)return null;
+  if(!tapGrid){
+    const nx=Math.round(9.67/TAP_CELL)+1,nz=Math.round(5.67/TAP_CELL)+1,ok=new Uint8Array(nx*nz);
+    for(let i=0;i<nx;i++)for(let j=0;j<nz;j++)
+      ok[i*nz+j]=guestClearance(-2.82+i*TAP_CELL,-2.35+j*TAP_CELL)>=TAP_CLEAR?1:0;
+    tapGrid={nx:nx,nz:nz,ok:ok,from:new Int32Array(nx*nz),q:new Int32Array(nx*nz)};
+  }
+  const G=tapGrid,nz=G.nz,N=G.nx*nz;
+  /* start from the open cell nearest to him: pressed against a table he
+     stands closer to it than TAP_CLEAR */
+  let s=tapCell(fx,fz);
+  if(!G.ok[s]){let bd=1e9;for(let k=0;k<N;k++)if(G.ok[k]){
+    const d=Math.hypot(tapX(k)-fx,tapZ(k)-fz);if(d<bd){bd=d;s=k;}}}
+  G.from.fill(-1);
+  let h=0,t=0;G.q[t++]=s;G.from[s]=s;
+  while(h<t){
+    const k=G.q[h++],i=(k/nz)|0,j=k%nz;
+    if(i>0&&G.ok[k-nz]&&G.from[k-nz]<0){G.from[k-nz]=k;G.q[t++]=k-nz;}
+    if(i<G.nx-1&&G.ok[k+nz]&&G.from[k+nz]<0){G.from[k+nz]=k;G.q[t++]=k+nz;}
+    if(j>0&&G.ok[k-1]&&G.from[k-1]<0){G.from[k-1]=k;G.q[t++]=k-1;}
+    if(j<nz-1&&G.ok[k+1]&&G.from[k+1]<0){G.from[k+1]=k;G.q[t++]=k+1;}
+  }
+  return {s:s,n:t};
+}
+function tapCell(x,z){
+  const G=tapGrid;
+  return Math.max(0,Math.min(G.nx-1,Math.round((x+2.82)/TAP_CELL)))*G.nz+
+         Math.max(0,Math.min(G.nz-1,Math.round((z+2.35)/TAP_CELL)));
+}
+function tapX(k){return -2.82+((k/tapGrid.nz)|0)*TAP_CELL;}
+function tapZ(k){return -2.35+(k%tapGrid.nz)*TAP_CELL;}
+function tapTarget(x,z){
+  x=Math.max(-2.82,Math.min(6.85,x));z=Math.max(-2.35,Math.min(3.32,z));
+  const F=tapFill(guest.pos.x,guest.pos.z);
+  if(!F){const p={pos:{x:x,z:z}};collideGuest(p);return [p.pos.x,p.pos.z];}
+  const G=tapGrid;
+  if(G.from[tapCell(x,z)]>=0&&guestClearance(x,z)>=TAP_CLEAR)return [x,z];
+  let best=F.s,bd=1e9;
+  for(let n=0;n<F.n;n++){const k=G.q[n],d=Math.hypot(tapX(k)-x,tapZ(k)-z);if(d<bd){bd=d;best=k;}}
+  return [tapX(best),tapZ(best)];
+}
+/* the fill's path to (tx,tz), pulled tight: each leg runs as far down the
+   path as a straight line stays on open cells (sampled every 2.5 cm) */
+function tapPlan(fx,fz,tx,tz){
+  const F=tapFill(fx,fz);
+  if(!F)return [[tx,tz]];
+  const G=tapGrid;let g=tapCell(tx,tz);
+  if(G.from[g]<0)return [[tx,tz]];
+  const cells=[];for(let k=g;;k=G.from[k]){cells.push(k);if(k===F.s)break;}
+  cells.reverse();
+  const clear=(ax,az,bx,bz)=>{
+    const n=Math.ceil(Math.hypot(bx-ax,bz-az)/.025);
+    for(let i=1;i<n;i++){const k=tapCell(ax+(bx-ax)*i/n,az+(bz-az)*i/n);if(!G.ok[k])return false;}
+    return true;
+  };
+  const out=[];let cx=fx,cz=fz,i=0;
+  while(i<cells.length-1){
+    let j=cells.length-1;
+    while(j>i+1&&!clear(cx,cz,tapX(cells[j]),tapZ(cells[j])))j--;
+    if(j===cells.length-1)break;
+    cx=tapX(cells[j]);cz=tapZ(cells[j]);out.push([cx,cz]);i=j;
+  }
+  out.push([tx,tz]);
+  return out;
 }
 function startSit(a){
   a.state="sit";a.walkTarget=null;
@@ -12065,25 +12236,18 @@ function startSit(a){
    Simon started the thirteen-second seated line behind a panel nobody had
    closed. The stall clock does not run while he waits for you.
 
-   He also lets the COURIER pass. With his own steering off on the pilot,
-   the courier is the one moving body that never yields (separateAgents:
-   aFix), so walking into him gets the guest shoved sideways — measured,
-   into chair 6 at .245 m. So while the courier is walking AT him — within
-   AVOID_R, ahead on this leg, heading back towards him — he stops, as
-   anyone with a coffee to get to would. Two limits, both measured:
-   a wait only STARTS while the courier is closing, because holding for a
-   courier who is circling him or walking ahead the same way made a
-   stop-go stutter and, at the door, a deadlock — a still body is the one
-   thing the courier cannot get round (steerAgents' give-up never fires;
-   separate bug); and it lasts one second at most, under the 1.5 s stall
-   floor, after which he walks on whatever the courier is doing. Whatever
-   the wait misses — a courier walking beside him, say — the furniture
-   floor in collideGuest catches. Seated bodies never
-   yield either, but they sit on chairs, and the plan already keeps .55 + m
-   from every chair.
+   He does NOT stop for the courier any more. He did, for up to a second
+   (COURIER_WAIT), because a still body was the one thing the courier
+   could not get round: steerAgents' give-up never fired. It fires now,
+   and on the pilot the courier gives to him (separateAgents). Measured
+   without the wait on the doorway sweeps — three starts, the courier's
+   round swept over 120 phases each: 360/360 arrive, no body under .52,
+   the courier never closer than .52, longest stall .13 s (1.13 with it).
+   Seated bodies never yield either, but they sit on chairs, and the plan
+   already keeps .55 + m from every chair.
 
    "Nothing may orbit": three seconds without getting 5 cm closer to the
-   waypoint (the courier's wait included) and the route is planned again
+   waypoint and the route is planned again
    from where he stands; a second failure hands the wheel back rather than
    walk him in circles. */
 function tickPilot(a,dtT){
@@ -12103,43 +12267,7 @@ function tickPilot(a,dtT){
     if(a.rReplans>=1){stopPilot();return;}
     a.rReplans=(a.rReplans||0)+1;a.route=null;a.walkTarget=null;return;
   }
-  /* A wait STARTS when the courier is closing and then holds while he is
-     still in front and near — not only while his heading points this way:
-     steering round a stopped guest turns that heading away while he is
-     still alongside, and letting go then is what put the guest in his
-     path. One wait per encounter, COURIER_WAIT at most; the clock resets
-     only once he has gone, so a courier who lingers cannot re-arm it into
-     a stop-go stutter. */
-  const near=courierNear(a,wp);
-  if((a.cWaitT>0||courierAhead(a,wp))&&near&&a.cWaitT<COURIER_WAIT){
-    a.cWaitT+=dtT;a.walkTarget=null;return;
-  }
-  if(!near)a.cWaitT=0;
   a.walkTarget=[wp[0],wp[1]];
-}
-/* still in front on this leg and inside AVOID_R — whatever he is doing */
-function courierNear(a,wp){
-  if(!courier.rig.root.visible)return false;
-  const cx=courier.pos.x-a.pos.x,cz=courier.pos.z-a.pos.z,cd=Math.hypot(cx,cz);
-  if(cd>AVOID_R)return false;
-  const ux=wp[0]-a.pos.x,uz=wp[1]-a.pos.z;
-  return cx*ux+cz*uz>0;
-}
-/* the courier within AVOID_R, in front of him on this leg (cos > .2),
-   inside a body-and-a-half of the line he is walking, actually walking
-   (walkK > .12) and heading back at the guest — closing, not passing */
-const COURIER_WAIT=1;
-function courierAhead(a,wp){
-  if(!courier.rig.root.visible||!(courier.walkK>.12))return false;
-  const cx=courier.pos.x-a.pos.x,cz=courier.pos.z-a.pos.z,cd=Math.hypot(cx,cz);
-  if(cd>AVOID_R||cd<1e-4)return false;
-  const ux=wp[0]-a.pos.x,uz=wp[1]-a.pos.z,ud=Math.hypot(ux,uz)||1;
-  const along=(cx*ux+cz*uz)/ud;
-  if(along<=.2*cd)return false;
-  if(Math.abs(cx*uz-cz*ux)/ud>=BODY_R*3)return false;
-  /* his heading is walkLayer's yaw = atan2(vx,vz): closing when it points
-     from him back towards the guest */
-  return -(Math.sin(courier.yaw)*cx+Math.cos(courier.yaw)*cz)>0;
 }
 
 /* --- per-kind behaviour, decisions at 10 Hz --- */
@@ -12406,6 +12534,47 @@ function tickVisitor(a,dtT){
   }
   a.walkTarget=[wp[0],wp[1]];
 }
+/* A TAP is an order: walk there (a.moveTo — a new array is a new order,
+   which is what starts the bookkeeping below). The order walks tapPlan's
+   legs, corner to corner; steerAround and steerAgents only trim them.
+   NOTHING MAY ORBIT applies to him too, told apart by whether he moves:
+   · PINNED — a second without moving 5 cm (a dancer, a body, a corner the
+     grid's 8 cm did not see): plan again from where he stands, and round
+     whatever stopped him the other way (steerAround's committed side).
+     Three tries and the order is dropped: he stands where the room
+     stopped him, as he does against the counter.
+   · WANDERING — moving, but ORDER_PATIENCE seconds without getting 5 cm
+     closer to the corner he is walking to. Dropped.
+   Measured, guest alone, 60 fps: every 25 cm start to every 50 cm target,
+   63 751 taps of 63 751 arrive (before: 53 155 of 55 021); a 5 cm target
+   grid over the whole room from five starts, door and window corner
+   included, 110 580 of 110 580 (before: 49 636 of 66 348 from three).
+   Longest stall of any tap 2.15 s (before 5.9, plus the taps that never
+   arrived); arrival p95 7.1 s (6.7: he goes round the tables now). */
+const ORDER_TRIES=3,ORDER_PATIENCE=8;
+function orderTick(a,dtT){
+  if(a.mOrder!==a.moveTo){
+    a.mOrder=a.moveTo;a.mBest=1e9;a.mFarT=0;a.mTries=0;a.aroundSide=0;
+    a.mAt=[a.pos.x,a.pos.z];a.mStillT=0;
+    a.mPath=tapPlan(a.pos.x,a.pos.z,a.moveTo[0],a.moveTo[1]);a.mIdx=0;
+  }
+  if(Math.hypot(a.moveTo[0]-a.pos.x,a.moveTo[1]-a.pos.z)<.2){a.moveTo=null;a.walkTarget=null;return;}
+  /* along the plan: the same .2 acceptance at every corner */
+  while(a.mIdx<a.mPath.length-1&&
+        Math.hypot(a.mPath[a.mIdx][0]-a.pos.x,a.mPath[a.mIdx][1]-a.pos.z)<.2){a.mIdx++;a.mBest=1e9;a.mFarT=0;}
+  const wp=a.mPath[a.mIdx];
+  const d=Math.hypot(wp[0]-a.pos.x,wp[1]-a.pos.z);
+  if(d<a.mBest-.05){a.mBest=d;a.mFarT=0;}
+  else if((a.mFarT+=dtT)>ORDER_PATIENCE){a.moveTo=null;a.walkTarget=null;return;}
+  if(Math.hypot(a.pos.x-a.mAt[0],a.pos.z-a.mAt[1])>.05){a.mAt=[a.pos.x,a.pos.z];a.mStillT=0;}
+  else if((a.mStillT+=dtT)>1){
+    if(a.mTries>=ORDER_TRIES){a.moveTo=null;a.walkTarget=null;return;}
+    a.mTries++;a.mStillT=0;
+    a.aroundSide=-(a.aroundLast||1);
+    a.mPath=tapPlan(a.pos.x,a.pos.z,a.moveTo[0],a.moveTo[1]);a.mIdx=0;   /* and plan again from here */
+  }
+  a.walkTarget=wp;
+}
 function tickGuest(a,dtT){
   if(a.state==="walk"){
     /* the chair claims him: this ring is the ONLY way the dialogue
@@ -12421,13 +12590,7 @@ function tickGuest(a,dtT){
        Either visitor control takes the wheel back on the spot. */
     if(a.ctl){if(a.mode==="auto")stopPilot();a.walkTarget=null;a.moveTo=null;return;}  /* keys win outright */
     if(a.moveTo&&a.mode==="auto")stopPilot();                                          /* so does a tap */
-    if(a.moveTo){
-      if(Math.hypot(a.moveTo[0]-a.pos.x,a.moveTo[1]-a.pos.z)<.2){
-        a.moveTo=null;a.walkTarget=null;return;
-      }
-      a.walkTarget=a.moveTo;
-      return;
-    }
+    if(a.moveTo){orderTick(a,dtT);return;}
     if(a.mode==="auto"){tickPilot(a,dtT);return;}
     a.walkTarget=null;
     return;
@@ -12466,18 +12629,41 @@ const seatPose=a=>a.rig.real?SEAT_POSE_REAL:SEAT_POSE;
    the push-out and the pull-in cancel and he stalls there for ever. With
    no keyboard to shake him loose, that is a dead end on every phone — so
    when the heading digs into a circle he is already hugging, swap it for
-   the tangent that makes progress and let him walk round. */
-function steerAround(a,dx,dz){
+   the tangent that makes progress and let him walk round.
+   Taps are planned now (tapPlan), so this trims a leg rather than finds a
+   way. Two refinements, both measured on a sweep of 63 651 taps (every
+   25 cm start to every 50 cm target) once every table and chair had its
+   circles:
+   · only a circle the rest of the walk actually ENTERS, before `dist`
+     runs out, and of those the one it enters first. Merely being within
+     .3 of a circle and facing it used to be enough, so a tap that landed
+     just outside one could never be reached: every approach became a
+     tangent and he walked on the spot .2-.35 m from it, legs going
+     (1 775 taps before the new circles, 2 934 after, 0 now);
+   · the side can be COMMITTED (a.aroundSide, set by orderTick when an
+     order stops making progress): "the tangent that goes his way" walks
+     him into the corner where a table meets the cabinet or the wall, and
+     only the other way round is open. Committed, every circle is rounded
+     in the same sense, which is what keeps a cluster of them on one hand. */
+function steerAround(a,dx,dz,dist){
+  let hit=null,he=1e9,hx=0,hz=0,hl=1;
   for(let i=0;i<GUEST_BLOCKERS.length;i++){
     const b=GUEST_BLOCKERS[i];
     const rx=a.pos.x-b[0],rz=a.pos.z-b[1],rl=Math.hypot(rx,rz);
     if(rl<1e-4||rl>b[2]+.3)continue;              /* not against this one */
-    if(-(dx*rx+dz*rz)/rl<=.05)continue;           /* not heading inward */
-    const tx=-rz/rl,tz=rx/rl;                     /* the two tangents */
-    const s=(dx*tx+dz*tz)>=0?1:-1;                /* the one that goes his way */
-    return [tx*s,tz*s];
+    const along=-(dx*rx+dz*rz);                   /* to the closest approach */
+    if(along/rl<=.05)continue;                    /* not heading inward */
+    const miss2=b[2]*b[2]-(rl*rl-along*along);
+    if(miss2<=0)continue;                         /* the line passes it by */
+    const entry=along-Math.sqrt(miss2);
+    if(dist!==undefined&&entry>=dist)continue;    /* he gets there first */
+    if(entry<he){he=entry;hit=b;hx=rx;hz=rz;hl=rl;}
   }
-  return [dx,dz];
+  if(!hit)return [dx,dz];
+  const tx=-hz/hl,tz=hx/hl;                       /* the two tangents */
+  const s=a.aroundSide||((dx*tx+dz*tz)>=0?1:-1);  /* committed, or the one that goes his way */
+  a.aroundLast=s;
+  return [tx*s,tz*s];
 }
 /* GIVING WAY, which is a different job from being pushed apart. The
    separation pass at the end of the frame can only ever say "you are
@@ -12490,11 +12676,18 @@ function steerAround(a,dx,dz){
    reach, take the tangent instead of the straight line — swerve, rather
    than stop. Swerving cannot deadlock, and two agents that each pick the
    tangent naturally pass each other on the same side they would in life.
-   NOT applied to the guest: he is steered by a person, and a route that
-   argues with the keys is worse than a bump. He is still pushed. */
+   It runs for every body walking to a TARGET, the guest included when the
+   target is a tap on the floor: he was told where to go, not how, and
+   threading round the people on the way is what anyone does. It does not
+   run on the arrow keys (walkLayer's a.ctl branch never reaches it) —
+   a route that argues with the keys is worse than a bump — nor on the
+   pilot, whose route is planned. In the separation pass whoever he meets
+   takes the whole correction — unless it is pinned behind him (the
+   squeeze pass, separatePass), and then he gives too. */
 const AVOID_R=.86;
 const DETOUR_HOLD=1.1;            /* seconds a chosen side stays chosen */
 const STUCK_MAX=2.4;              /* and how long deflecting may go on */
+const DETOUR_FREE=.5;             /* out of his way this long: a new encounter */
 function steerAgents(a,dx,dz,dt){
   /* PLAN A is the route. PLAN B is the way round whoever is standing on it,
      and the whole difficulty is that the other body is choosing a plan B at
@@ -12522,11 +12715,42 @@ function steerAgents(a,dx,dz,dt){
     if(-(dx*rx+dz*rz)/rl<=.05)continue;      /* not heading into him */
     best=b;bd=rl;bx=rx;bz=rz;bl=rl;
   }
-  if(a.detour&&(a.detour.t-=dt)<=0)a.detour=null;
+  /* The record is the ENCOUNTER, and it outlives the side chosen in it.
+     It used to be thrown away when DETOUR_HOLD ran out and rebuilt with
+     stuck:0 against the very same body, so `stuck` never got past 1.1 s,
+     STUCK_MAX was unreachable and the progress guarantee below was dead
+     code. Measured on the whole cast: in 3 h of scene nobody's count
+     passed 1.10 and nobody ever gave up; the stroller stood 57 s nose
+     to nose with the courier on his way out, the courier 11.7 s against
+     the waiter. The hold now only re-opens the choice of side; the encounter
+     ends once nobody has been in his way for DETOUR_FREE — WHOEVER it is:
+     a second body taking the first one's place carries the count on, or
+     two bodies taking turns as the nearest would never let it fill. In 2 h
+     of scene since, the longest any of them goes without getting 5 cm
+     closer to its waypoint is 3.2 s. */
+  const r=a.detour;
+  if(r){
+    r.t-=dt;
+    if(best)r.free=0;
+    else if((r.free+=dt)>DETOUR_FREE)a.detour=null;
+  }
   if(!best){return [dx,dz];}
   const tx=-bz/bl,tz=bx/bl;                  /* the two tangents */
+  /* is he closing on me, or merely in the way? HIS heading decides
+     (walkLayer's yaw = atan2(vx,vz)). The test this replaces compared his
+     position with the line between us — |Δ|², never negative — so it was
+     never true, and two bodies meeting head-on both took "the tangent that
+     goes my way": the mirror the rule exists to prevent. Fixed, the cast
+     gave up 58 times in 2 h of scene instead of 129, and nobody went more
+     than 3.2 s without progress instead of 6.8. */
+  const pick=function(){
+    const closing=best.walkK>.12&&(Math.sin(best.yaw)*bx+Math.cos(best.yaw)*bz)>0;
+    return closing?1:((dx*tx+dz*tz)>=0?1:-1);
+  };
   let side;
-  if(a.detour&&a.detour.id===best.id){
+  if(a.detour){
+    /* a new body, or the hold run out: choose the side again, keep the count */
+    if(a.detour.id!==best.id||a.detour.t<=0){a.detour.id=best.id;a.detour.side=pick();a.detour.t=DETOUR_HOLD;}
     side=a.detour.side;
     /* PROGRESS GUARANTEE. A steering rule with no way to give up will orbit
        a body that never moves: every approach gets deflected, so the
@@ -12536,13 +12760,15 @@ function steerAgents(a,dx,dz,dt){
        at it — separateAgents is behind this and will part them, and for the
        courier, who never takes a push, it parts them by moving the other
        one. Better a shoulder brushed than a delivery that never arrives. */
-    if((a.detour.stuck+=dt)>STUCK_MAX)return [dx,dz];
+    /* Not the guest. His tap order carries its own guarantee (orderTick
+       drops it), and the separation's first pass never pushes him: walked
+       straight at a body, he shoved it into whoever stood behind — the
+       waiter into the stroller at .445. Whoever he meets gives up
+       instead, and they pass. */
+    if((a.detour.stuck+=dt)>STUCK_MAX&&a!==guest)return [dx,dz];
   }else{
-    /* is he closing on me, or merely in the way? */
-    const closing=best.walkK>.12&&
-      ((best.pos.x-a.pos.x)*(-bx)+(best.pos.z-a.pos.z)*(-bz))<0;
-    side=closing?1:((dx*tx+dz*tz)>=0?1:-1);
-    a.detour={id:best.id,side:side,t:DETOUR_HOLD,stuck:0};
+    side=pick();
+    a.detour={id:best.id,side:side,t:DETOUR_HOLD,stuck:0,free:0};
   }
   /* blend the tangent with the original heading rather than replacing it:
      a hard right-angle turn to dodge reads as a glitch, and the arrive
@@ -12553,7 +12779,8 @@ function steerAgents(a,dx,dz,dt){
   return [ox/ol,oz/ol];
 }
 function walkLayer(a,buf,ac,dt){
-  let v=0;
+  let v=0,steered=false;
+  const px=a.pos.x,pz=a.pos.z;     /* where this step began: collideGuest may refuse it */
   if(a.ctl){                       /* the guest, under arrow-key control */
     const cl=Math.hypot(a.ctl[0],a.ctl[1]);
     const sp=a.speed*(a===guest&&CAM.sprint?1.45:1);
@@ -12572,14 +12799,15 @@ function walkLayer(a,buf,ac,dt){
       const arrive=Math.min(1,d/.45);
       /* only the guest steers: the extras' routes are authored to be clear.
          Except the guest on the PILOT, whose route is planned clear of every
-         piece of furniture, and around whom the cast takes the whole
-         correction anyway. Measured with his steering on: stalls of up to
-         12.4 s shuffling against the waiter, and steerAround's .3 m band
+         piece of furniture, and around whom the cast takes the correction
+         (all but a squeeze: separatePass). Measured with his steering on:
+         stalls of up to 12.4 s shuffling against the waiter — steerAgents'
+         give-up was dead then, since fixed — and steerAround's .3 m band
          pushing a clear leg sideways into chair 6. With it off: nothing
          over .37 s, nothing under the floor, 525 starts out of 525. */
       const piloted=a===guest&&a.mode==="auto";
-      let h=(a.collide&&!piloted)?steerAround(a,dx/d,dz/d):[dx/d,dz/d];
-      if(!piloted)h=steerAgents(a,h[0],h[1],dt);       /* and round each other */
+      let h=(a.collide&&!piloted)?steerAround(a,dx/d,dz/d,d):[dx/d,dz/d];
+      if(!piloted){h=steerAgents(a,h[0],h[1],dt);steered=true;}   /* and round each other */
       const vx=h[0]*a.speed*arrive,vz=h[1]*a.speed*arrive;
       a.pos.x+=vx*dt;a.pos.z+=vz*dt;
       a.yaw=angleDamp(a.yaw,Math.atan2(vx,vz),.14,dt);
@@ -12592,7 +12820,11 @@ function walkLayer(a,buf,ac,dt){
      him around the edge while the waypoint pull keeps him going.
      WALK ONLY: the chair itself sits inside the T1 circle (that is what
      makes it a chair), so collide would evict the seated guest. */
-  if(a.collide&&a.state==="walk")a.collide(a);
+  /* not steering this frame — arrived, paused, on the keys, gone: the
+     encounter is over. Kept, a count past STUCK_MAX rode into the next
+     walk, and the stroller back from the menu walked straight at the guest. */
+  if(!steered)a.detour=null;
+  if(a.collide&&a.state==="walk")a.collide(a,px,pz);
   a.walkK=damp(a.walkK,Math.min(1,v/.25),.12,dt);
   if(a.walkK<.02){a.rig.root.position.y=a.rootY;return;}
   /* FLEXION AND EXTENSION ARE NOT THE SAME JOINT. LIMITS.hip.x gives 120
@@ -12862,6 +13094,38 @@ function doorClear(pt){
    clamped to the actual overlap, so it can never overshoot into a shove. */
 const PUSH_RATE=4,PUSH_RATE_DEEP=9;
 function separateAgents(dt){
+  separatePass(dt,false);
+  separatePass(dt,true);
+  /* the rigs were written from a.pos a few lines ago — and the guest gets
+     his furniture clamp re-run, or a push could seat him in a tabletop */
+  for(let i=0;i<agents.length;i++){
+    const a=agents[i];
+    if(!a.rig.root.visible)continue;
+    if(a.collide&&a.state==="walk"){
+      a.collide(a);
+      /* The courier never yields — but for the centimetres the furniture
+         takes back. Now that every table is solid, a guest the courier
+         shoves can be pinned against one, and the clamp just above puts
+         him back under the courier's feet (.464, 21 frames, beside
+         table 3). Here he gives exactly what the room left the guest no
+         room for — on the pilot too, where the floor discs can do the
+         same after the squeeze pass or a seated customer has pushed him. */
+      if(courier.rig.root.visible){
+        const cx=courier.pos.x-a.pos.x,cz=courier.pos.z-a.pos.z,cd=Math.hypot(cx,cz);
+        if(cd<BODY_R*2&&cd>1e-4){
+          const k=(BODY_R*2-cd)/cd;
+          courier.pos.x+=cx*k;courier.pos.z+=cz*k;
+          courier.rig.root.position.x=courier.pos.x;courier.rig.root.position.z=courier.pos.z;
+          courier.blob.position.x=courier.pos.x;courier.blob.position.z=courier.pos.z;
+        }
+      }
+    }
+    a.rig.root.position.x=a.pos.x;
+    a.rig.root.position.z=a.pos.z;
+    a.blob.position.x=a.pos.x;a.blob.position.z=a.pos.z;
+  }
+}
+function separatePass(dt,squeeze){
   for(let i=0;i<agents.length;i++){
     const a=agents[i];
     if(!a.rig.root.visible)continue;
@@ -12904,6 +13168,21 @@ function separateAgents(dt){
       }
       else if(a===guest&&!bFix){aP=false;bP=true;}
       else if(b===guest&&!aFix){bP=false;aP=true;}
+      /* SQUEEZE — the second pass. What the rules above leave overlapping
+         is a body pinned between two that will not give: the guest or the
+         courier pressing the waiter into a woman reading the menu or into
+         a customer in her chair. The first pass pushes it out of one and
+         into the other (.439 at worst, 21 frames). Here anyone who is not
+         seated and not the courier gives, the guest and a standing body
+         included — "unless what he walked into cannot move either" — and
+         only pairs still overlapping ever reach this. */
+      if(squeeze){
+        aP=!aFix;bP=!bFix;
+        if(guest.mode==="auto"){
+          if(a===guest&&b.kind==="courier"){bP=true;aP=false;}
+          else if(b===guest&&a.kind==="courier"){aP=true;bP=false;}
+        }
+      }
       if(!aP&&!bP)continue;
       if(d<1e-4){dx=1;dz=0;d=1;}  /* exactly stacked: any direction will do */
       const push=Math.min(BODY_R*2-d,(deep?PUSH_RATE_DEEP:PUSH_RATE)*dt);
@@ -12912,16 +13191,6 @@ function separateAgents(dt){
       if(ka){a.pos.x-=dx*push*ka;a.pos.z-=dz*push*ka;}
       if(kb){b.pos.x+=dx*push*kb;b.pos.z+=dz*push*kb;}
     }
-  }
-  /* the rigs were written from a.pos a few lines ago — and the guest gets
-     his furniture clamp re-run, or a push could seat him in a tabletop */
-  for(let i=0;i<agents.length;i++){
-    const a=agents[i];
-    if(!a.rig.root.visible)continue;
-    if(a.collide&&a.state==="walk")a.collide(a);
-    a.rig.root.position.x=a.pos.x;
-    a.rig.root.position.z=a.pos.z;
-    a.blob.position.x=a.pos.x;a.blob.position.z=a.pos.z;
   }
 }
 const TICK_DT=1/10;
@@ -16412,7 +16681,7 @@ function startPilot(){
      worked out from where he stood THEN, would push him off a chair he is
      legitimately parked against before the new plan is made — measured,
      .08 m out of the window niche, from where no route was left */
-  guest.route=null;guest.floorDiscs=null;guest.rReplans=0;guest.cWaitT=0;
+  guest.route=null;guest.floorDiscs=null;guest.rReplans=0;
 }
 /* The visitor took the wheel back. Whoever had been nudged gets the chip
    again — it is still the shortcut they will want in a minute. */
@@ -17205,10 +17474,11 @@ function walkOrder(cx,cy){
     _tapHit.normalize().multiplyScalar(3);
     _tapHit.x+=guest.pos.x;_tapHit.z+=guest.pos.z;
   }
-  /* run it through the same collision the walk uses, so a tap into the
-     counter parks him against it instead of inside it */
+  /* the nearest spot he can actually reach — so a tap into the counter
+     parks him against it instead of inside it (tapTarget) */
   const probe={pos:{x:_tapHit.x,z:_tapHit.z}};
-  collideGuest(probe);
+  const tt=tapTarget(probe.pos.x,probe.pos.z);
+  probe.pos.x=tt[0];probe.pos.z=tt[1];
   guest.moveTo=[probe.pos.x,probe.pos.z];
   /* the ping goes on the CLAMPED point, which is why it is posted down
      here and not up beside the raycast: what the visitor has to see is
