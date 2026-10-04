@@ -11613,14 +11613,31 @@ window.__ice=function(skip){
    clamps into his collar for the first second of the walk. A step in
    buys the lens the room it needs, and the doorway is still behind him
    in frame, which is all the entrance has to read as. */
-/* The old autopilot's route, and three things now: the SPAWN and facing
-   (entries 0 and 2, landscape and portrait), seven of the pilot planner's
-   graph nodes, and in its last entry the planner's goal, the chair's ring
-   (see "the pilot's route" below). He starts a good two metres inside the
-   door — at 5.5 the shopfront was close enough behind him that the chase
-   camera craned up his back, and on "Look around first" he stands there
-   until you move him, so that cramped frame IS the opening shot. */
+/* The old autopilot's route, and two things now: seven of the pilot
+   planner's graph nodes, and in its last entry the planner's goal, the
+   chair's ring (see "the pilot's route" below). Entries 0 and 2 used to be
+   the spawns, landscape and portrait; that is GUEST_SPAWN's job now. */
 const GUEST_PATH=[[4.0,-1.15],[3.0,-.7],[3.0,-.6],[2.2,-.28],[1.4,.55],[0,.95],[-.64,.62]];
+/* WHERE HE APPEARS — one point for every screen. A good two metres inside
+   the door: at 5.5 the shopfront was close enough behind him that the
+   chase camera craned up his back, and on "Look around first" he stands
+   there until you move him, so that frame IS the opening shot.
+   Portrait had its own spawn, GUEST_PATH[2] — chosen when the walk was
+   watched from the fixed table shot, whose narrow portrait frame lost the
+   door lane — and [3,-.6] lies 8 cm off WAITER_LANE: the guest appeared
+   INSIDE the waiter. GUEST_PATH[0] is a metre off his lane but .62 off the
+   stroller's, and a stroller swerving round the courier came to .38 of it.
+   This is the clearest point of the entrance, and it is a STATION (on
+   "Look around first" he stands here for as long as you let him): the
+   lanes of the waiter, the stroller, the courier and the window customers
+   pass .90, .92, 1.07 and 1.87 away, chair 6 is .65. Closing time's walk
+   to the door crosses nearer, but it starts after the outro, when he has
+   long since sat down.
+   Measured (2026-10-04, the cast running for 20 min of scene at 60 and at
+   30 fps, every frame read as "had he appeared now"): nearest body ever
+   .66 (the stroller), waiter .85, courier 1.07, never under .52 — where
+   [3,-.6] had the waiter at 1 cm and inside .52 on 4-5 % of all frames. */
+const GUEST_SPAWN=[3.95,-.85];
 /* ACROSS the table from Simon, not on the chair beside him — the whole
    page promises "you sit across a café table from me", and the model's
    spare chair sat at his elbow. Same radius from the table centre as his
@@ -11653,9 +11670,13 @@ const SEAT_TRIGGER=.55;      /* stand inside this and the interview starts */
    running): 525/525 standable starts on a 25 cm grid arrive, at 30 and
    60 fps, none handed back; longest arrival 9.2 s, longest stall 1.17 s
    (the courier wait below, capped at 1 s); no chair, stool, table or
-   body closer than the floor unless he started closer. From the doorway,
-   52 runs per orientation: [3,-.6] → [0,.95] → the ring in 4.6 s
-   landscape, 3.4 s portrait, chair 1 passed at .72. Every node below came
+   body closer than the floor unless he started closer. From the doorway
+   (GUEST_SPAWN, every screen; 2026-10-04, 390x844 and 1280x800, 30 and
+   60 fps, the courier's round and the waiter's lane swept): [0,.95] →
+   the ring in 4.1–4.2 s, chair 1 passed at .78, chair 6 and table 3 no
+   closer than where he starts (.65, .90 from the edge). Crossing the
+   waiter's lane, as every start on the door side must, he meets the
+   waiter at the .52 envelope and no closer. Every node below came
    out of that search — the pair [-1.307,2.944]/[-1.069,2.18] is the gate through the
    1.21 m gap between stool 9 and chair 8, and is asymmetric on purpose:
    centred, it passed the stool at .546.
@@ -16326,11 +16347,10 @@ function startEntrance(how){
     arriveAtTable();
     return;
   }
-  const s=camera.aspect<.75?2:0;       /* portrait: the door lane is off-frame — skip it */
-  guest.vLeg=s;
-  guest.pos.set(GUEST_PATH[s][0],0,GUEST_PATH[s][1]);
-  guest.yaw=Math.atan2(GUEST_PATH[s+1][0]-GUEST_PATH[s][0],
-                       GUEST_PATH[s+1][1]-GUEST_PATH[s][1]);
+  /* one spawn for every screen (GUEST_SPAWN), facing the chair he came
+     for — the arrow over it is in the first frame */
+  guest.pos.set(GUEST_SPAWN[0],0,GUEST_SPAWN[1]);
+  guest.yaw=Math.atan2(GUEST_SEAT.x-GUEST_SPAWN[0],GUEST_SEAT.z-GUEST_SPAWN[1]);
   guest.state="walk";
   guest.moveTo=null;guestKeys.clear();
   /* Parked behind him from frame one. Anything else means the camera
@@ -16455,8 +16475,8 @@ function arriveAtTable(){
   entered=true;
   showSeatChip(false);
   if(helpOpen())dismissHowto();    /* the manual was up while the pilot walked him in */
-  /* Walked in on "…that coffee together." (the pilot from the doorway is
-     about as long as the greeting, and in portrait shorter): cutting it
+  /* Walked in on "…that coffee together." (the pilot from the doorway,
+     4.2 s, is about as long as the greeting, 3.9): cutting it
      off mid-word is the one way to make the arrival feel broken. It
      finishes, and the seated line follows it through the chain. Any other
      clip — the tour, the chair line — is the welcome to a room he has just
