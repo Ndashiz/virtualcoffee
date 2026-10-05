@@ -4402,6 +4402,8 @@ function buildAtelier(REB){
   tableBlockers(REB).forEach(c=>GUEST_BLOCKERS.push(c));   /* and the guest walks round them */
   const cab=REB.get("armoire_socle.0");                     /* and the cabinet (GUEST_RECTS) */
   if(cab)GUEST_RECTS[1]=[cab.min[0]-BODY_R,cab.min[2]-BODY_R,cab.max[0]+BODY_R,cab.max[2]+BODY_R];
+  const bar=REB.get("plateau_table_haute.0");               /* and where the window bar ends */
+  if(bar)GUEST_RECTS[0][3]=bar.max[2];
 
   /* THE BAR FRONT. The counter body is oak now (REMAT); its face gets
      reeds, 3 cm on centre and 9 mm proud, from the toe kick to the
@@ -11711,7 +11713,8 @@ const SEAT_TRIGGER=.55;      /* stand inside this and the interview starts */
    Measured (route audit, the room's own NPCs and courier running; again
    on 2026-10-04 once every table and chair was solid and the courier
    wait was gone): 511/511 standable starts on a 25 cm grid arrive (525
-   before the tables took their floor back), at 30 and 60 fps, none
+   before the tables took their floor back; 506/506 since the window bar
+   ends where its top does, 2026-10-05), at 30 and 60 fps, none
    handed back; longest arrival 8.0 s, longest stall 0.2 s; no chair,
    stool, table or body closer than the floor unless he started closer. From the doorway
    (GUEST_SPAWN, every screen; 2026-10-04, 390x844 and 1280x800, 30 and
@@ -12032,8 +12035,16 @@ const GUEST_BLOCKERS=[[0,-.5,1.15],[3.9,3.45,.62]];
    circle is still a wedge where chair 8 meets the cabinet — their
    push-outs face each other — which is why collideGuest refuses a step
    that ends inside a circle, and why a tap's target comes from tapTarget
-   rather than from pushing the tapped point out. */
-const GUEST_RECTS=[[-3.6,-3.62,-1.35,2.5],[-2.103,2.98,1.15,4.093]];
+   rather than from pushing the tapped point out.
+   The window bar's north end is the bar top's own (plateau_table_haute,
+   buildAtelier), and only that: the rect stopped at 2.5, 22 cm short of
+   the rebuilt top, and taps round the window corner walked him along
+   z 2.6, his centre 12 cm under its end. BODY_R past it would be the
+   honest floor, and it would meet the cabinet's rect and seal the corner
+   where the notice board hangs (x -2.82..-2.10, z 2.98..3.32). So his
+   centre stops at the end of the wood; his shoulder can still overlap
+   it there. */
+const GUEST_RECTS=[[-3.6,-3.62,-1.35,2.721],[-2.103,2.98,1.15,4.093]];
 function collideGuest(a,px,pz){
   /* The room is walkable end to end now. It was fenced at z=1.9 for a
      wide shot that no longer holds: the map grew a front wall, and the

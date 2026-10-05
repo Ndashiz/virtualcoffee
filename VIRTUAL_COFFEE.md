@@ -69,7 +69,7 @@ La pastille Skip et `espace` l'écourtent aussi. L'anneau dessiné au sol a exac
 déclencheur (`SEAT_TRIGGER`) — ce que vous voyez est ce dans quoi il faut
 entrer. Collisions : chaque table et ses chaises (lues sur la maquette, `tableBlockers` ; saisies à la main pour la carte
 d'avant le 15 août, elles ne couvraient plus les tables 1, 3 et 4), armoire à trophées (lue sur la maquette elle aussi),
-comptoir, bar de fenêtre — et Simon. Un tap mène au point
+comptoir, bar de fenêtre (jusqu'au bout de son plateau, lu sur la maquette lui aussi) — et Simon. Un tap mène au point
 atteignable le plus proche de l'endroit touché, par un trajet planifié autour des meubles
 (grille de 5 cm, `tapPlan`) : un coin n'est passé que si la ligne suivante est libre depuis
 là où il se trouve, et bloqué une seconde par quelqu'un, il replanifie en le contournant —

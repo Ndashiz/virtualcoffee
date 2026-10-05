@@ -237,7 +237,10 @@ mechanics that bite:
   the visitor walked through tables 3 and 4, 5 cm into table 1 and through
   five chairs while a circle guarded empty floor. The cabinet is read off the
   model too (`armoire_socle` → `GUEST_RECTS[1]`; its old right half was
-  table 4's circle). What is still typed in `GUEST_BLOCKERS` is not a box:
+  table 4's circle), and so is where the window bar ends
+  (`plateau_table_haute` → `GUEST_RECTS[0][3]`, 2.721: it stopped at 2.5,
+  under the top; BODY_R further would seal the notice-board corner against
+  the cabinet's rect). What is still typed in `GUEST_BLOCKERS` is not a box:
   Simon's table with Simon, the plant's leaves, and `dressLife`'s three
   floor objects (umbrella stand, radiator, extinguisher).
 - **`LatheGeometry` profiles run counter-clockwise in (r, y)** — out along the
