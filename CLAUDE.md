@@ -495,6 +495,19 @@ mesh not in the repo — see `people/README.md`).
   she reads `tvLine(st)` on the segment's clock (`src.at`), he says
   `TV_CEO_LINE`. Both renders force ACES tone mapping and restore it: the
   café's own renderer runs NoToneMapping into the HDR target.
+- **THE CHASE** (bike + police car, `CHASE` / `updateChase`): each vehicle is
+  ONE mesh in one material (`chaseMat`: metal / rough / glow / coat per
+  vertex in `aF`, hub + kind in `aG`, wheels turned in the vertex shader,
+  kinds rounded before comparing). The beacons light the street through
+  `STREET.beacon` / `STREET.beam`, read by `streetInject` — every street
+  material pays for that branch only while `w > 0`. The beam shafts are a
+  ShaderMaterial: they and everything of the chase carry `userData.noProbe`,
+  which `captureProbe` hides (a pass at closing time would freeze a beacon
+  into the room's reflections). The parked sedan (z -19.4) and the south
+  young tree (z -9.6) were moved OUT of the chair's only road-level slit —
+  put anything back between z -8.5 and -11.3 on the café's parking lane, or
+  a trunk anywhere the seat sees, and the chase is hidden again. The seated
+  portrait shot never frames the bay.
 - **Clothes are allocated, not rolled** (`pickDistinct()`, NO TWO ALIKE):
   any new cast member or rack colour must keep ΔE ≥ 16 (cast) / ≥ 12
   (extras) against everything worn, measured on the DISPLAYED colour

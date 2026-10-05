@@ -467,6 +467,34 @@ mullion of the bay cutting him in half; at x -10.2, z -12.5 nothing covers
 him, no mullion, no tree, no patron's head. The airliner is 36 m of
 wingspan 330 m out and 110 m up: you catch it over the roofs from the glass.
 
+**The chase** (Simon, 2026-10-05: a guy pulling a wheelie, chased by a
+police car with its lights going). Every two to three minutes — the first
+one 25–40 s after you sit down — an orange naked bike comes down the west
+street on its back wheel at ~55 km/h, nose up 25–35° about the rear contact
+patch, the front coming down once to kiss the road somewhere the chair
+cannot see; the rider is a real body in a black leather jacket, jeans and a
+white full-face helmet, sat back with his arms long to the bars. A Brussels
+police estate follows 1.4–1.7 s behind, white with the blue and fluorescent
+yellow Battenburg, POLICE on the front doors and POLITIE on the rear, and two
+blue domes on a roof bar whose reflectors turn at 2.5 turns a second, half a
+turn apart: each dome glows on the side its reflector faces and flares as
+the beam crosses you, a soft shaft of blue turns in the air with each one
+(a hint by day, the whole show at night), and a band of blue sweeps the
+facades, the parked cars and the tarmac in step — a light injected into the
+street's own materials (`STREET.beacon`), never a three.js light, so the room
+is not relit. Direction alternates: north in the far lane, south in the near
+one. No sound. Between passes nothing of it is drawn. `?chase` runs one at
+once and loops them (`?chase=far` / `?chase=near` hold one lane).
+From the chair the bay shows the road through one slit — between a mullion
+and the reader on her window stool — and two things filled it: a parked
+black sedan (moved past the hatch, z -9.4 → -19.4) and the south young tree
+(z -7.2 → -9.6, now behind the back wall's corner from the seat; Superman's
+stop re-checked: 18/18 rays clear). The seated portrait shot does not frame
+the window at all, so on an upright phone the chase is seen while walking,
+not from the chair. Cost during a pass: +10 draw calls (bike, helmet, rider,
+car, two contact shadows, two beams drawn twice as double-sided
+transparents) and +31 k triangles; nothing between passes.
+
 Cost, measured on the main pass: +13 draw calls, +31 % triangles on desktop
 (707 k), +19 % on a phone (505 k, where the far kerbs lose their parked cars
 and the trees stop at 60 m).

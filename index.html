@@ -5222,8 +5222,10 @@ function captureProbe(){
   scene.traverse(function(o){
     if(!o.visible)return;
     const m=o.material;
+    /* noProbe: THE CHASE — a pass caught by the closing-time capture would
+       leave a police bar frozen mid-flash in every reflection of the room */
     if(o.isSkinnedMesh||o.isSprite||o.isPoints||(m&&(m.isShaderMaterial||m.blending===THREE.AdditiveBlending||
-       (m.transparent&&m.opacity<.5)))||o===PROBE.sheen){o.visible=false;hidden.push(o);}
+       (m.transparent&&m.opacity<.5)))||o===PROBE.sheen||o.userData.noProbe){o.visible=false;hidden.push(o);}
   });
   const bg=scene.background;scene.background=new THREE.Color(cafeClosed?0x0d1119:0xc9d6e2);
   const keepRT=renderer.getRenderTarget();
@@ -7144,7 +7146,15 @@ const STREET={haze:{value:srgbL(0xc2cedb)},hazeK:{value:1/460},
      bay looks at — the view the whole visit is spent in front of — is the
      sunlit one, and the sky's glow sits over the car park. */
   sunDir:{value:skyMat.uniforms.uSun.value},
-  sunCol:{value:new THREE.Color(1,.86,.68).multiplyScalar(2.1)}};
+  sunCol:{value:new THREE.Color(1,.86,.68).multiplyScalar(2.1)},
+  /* THE CHASE's rotating beacons (see THE CHASE): where they are (xyz) and
+     how bright (w); beam = the beam's heading on the ground (x, z), its
+     sharpness, and the share of light spilled all round. A light for the
+     street alone, on the sun's terms — injected, never a THREE.Light, so
+     the room cannot see it. w is 0 between passes and the branch is on a
+     uniform, so the facades pay nothing for it then. */
+  beacon:{value:new THREE.Vector4(0,0,0,0)},beam:{value:new THREE.Vector4(1,0,16,.015)},
+  beaconCol:{value:new THREE.Color(.10,.30,1)}};
 /* the street's shader additions, on any three material: world position,
    the sun, the haze. Split out so a material with its own onBeforeCompile
    (the flying man's) can take them too. */
@@ -7152,16 +7162,28 @@ function streetInject(s,x){
     s.uniforms.uHaze=STREET.haze;s.uniforms.uHazeK=STREET.hazeK;
     s.uniforms.uNight=STREET.night;s.uniforms.uTime=STREET.time;
     s.uniforms.uSunDir=STREET.sunDir;s.uniforms.uSunCol=STREET.sunCol;
+    s.uniforms.uBeacon=STREET.beacon;s.uniforms.uBeam=STREET.beam;s.uniforms.uBeaconCol=STREET.beaconCol;
     if(x.uniforms)Object.assign(s.uniforms,x.uniforms);
     s.vertexShader=s.vertexShader
       .replace("#include <common>","#include <common>\nvarying vec3 vHW;uniform float uTime,uNight;\n"+(x.vHead||""))
       .replace("#include <project_vertex>",(x.vPre||"")+"\n#include <project_vertex>\n"+
         "vHW=(modelMatrix*vec4(transformed,1.)).xyz;\n"+(x.vPost||""));
     s.fragmentShader=s.fragmentShader
-      .replace("#include <common>","#include <common>\nvarying vec3 vHW;uniform vec3 uHaze,uSunDir,uSunCol;uniform float uHazeK,uNight,uTime;\n"+(x.fHead||""))
+      .replace("#include <common>","#include <common>\nvarying vec3 vHW;uniform vec3 uHaze,uSunDir,uSunCol,uBeaconCol;uniform float uHazeK,uNight,uTime;uniform vec4 uBeacon,uBeam;\n"+(x.fHead||""))
       .replace("#include <lights_fragment_begin>","#include <lights_fragment_begin>\n"+
         "{IncidentLight sunL;sunL.direction=normalize((viewMatrix*vec4(uSunDir,0.)).xyz);"+
-        "sunL.color=uSunCol*(1.-uNight);sunL.visible=true;RE_Direct(sunL,geometry,material,reflectedLight);}")
+        "sunL.color=uSunCol*(1.-uNight);sunL.visible=true;RE_Direct(sunL,geometry,material,reflectedLight);}"+
+        /* the police beacons: two beams back to back (|cos|), turning on
+           the ground plane and fanned ±15° vertically — what they light is a
+           band of blue that walks across the facades, the parked cars and
+           the tarmac as they spin — plus a little spill all round. Falloff:
+           half power at 7 m. Diffuse and specular like the sun, so the clear
+           coats and the shop glass catch it too. */
+        "if(uBeacon.w>0.){vec3 bv=(viewMatrix*vec4(uBeacon.xyz,1.)).xyz-geometry.position;float bd=length(bv);"+
+        "vec3 lw=normalize(vHW-uBeacon.xyz);float lh=length(lw.xz);"+
+        "float lb=lh>1e-3?pow(abs(dot(lw.xz/lh,uBeam.xy)),uBeam.z)*exp(-lw.y*lw.y*9.):0.;"+
+        "IncidentLight bL;bL.direction=bv/max(bd,1e-3);bL.color=uBeaconCol*(uBeacon.w*(uBeam.w+lb)/(1.+bd*bd*.02));bL.visible=true;"+
+        "RE_Direct(bL,geometry,material,reflectedLight);}")
       /* at night the room's blue hemisphere and its window light would wash
          the whole street moon-blue: out here they fade, and what is left
          is what glows — windows, signs, lamps */
@@ -7644,6 +7666,13 @@ const CAR_TYPES={
   suv:{L:4.66,W:1.89,wr:.365,wb:2.79,fa:.88,sill:.29,belt:1.08,
     top:[[0,.82],[.012,1.1],[.04,1.3],[.1,1.6],[.16,1.66],[.58,1.67],[.64,1.58],[.745,1.14],[.84,1.07],[.94,1.0],[.985,.88],[1,.72]],
     glass:[.06,.15,.64,.742],pillarB:.42},
+  /* an estate — the shape of a Belgian police car (Octavia / Passat /
+     V60 Break): the sedan's nose, its roof carried flat to a near-upright
+     tailgate, a long side glass with the rear quarter in it. Only THE
+     CHASE drives one; no bay is parked with it. */
+  estate:{L:4.69,W:1.83,wr:.33,wb:2.84,fa:.88,sill:.2,belt:.93,
+    top:[[0,.72],[.012,.99],[.03,1.16],[.07,1.37],[.12,1.44],[.58,1.46],[.63,1.38],[.75,.98],[.85,.91],[.94,.85],[.985,.72],[1,.58]],
+    glass:[.05,.12,.63,.745],pillarB:.47},
   /* a light-commercial cab, Transit / Master class, for the two box vans:
      high belt, short hood, a windscreen raked ~38°, flat flanks, a long
      front overhang. Only the cab is lofted — the model's box stays (the
@@ -8035,16 +8064,29 @@ const carShadowTex=ctex(256,128,function(x,w,h){
     if(z>14&&z<29)continue;
     planeTree(35.8,z,10+((i*29)%6)*.7,300+i);
   }
-  /* two young ones on the café's own pavement, clear of the window's middle */
-  planeTree(-6.9,-7.2,7.5,501,2.6,{maxX:-3.7});planeTree(-6.9,6.4,7.8,502,2.6,{maxX:-3.7});
+  /* two young ones on the café's own pavement, clear of the window's middle.
+     The south one stood at z -7.2 until THE CHASE (2026-10-05): from the
+     chair its trunk was a third of the one slit of road the bay shows at
+     wheel height (x 107-160 of 1440 px, between the mullion at z -1.88 and
+     the reader on her stool). At -9.6 it stands behind the back wall's
+     corner from that seat (sightline slope 1.63 against the corner's 1.48,
+     the mouse parallax's ±.10 either side included); the passers' lane is
+     a metre off it in x wherever it stands along the kerb. */
+  const YOUNG_TREE_S=-9.6;
+  planeTree(-6.9,YOUNG_TREE_S,7.5,501,2.6,{maxX:-3.7});planeTree(-6.9,6.4,7.8,502,2.6,{maxX:-3.7});
 
   /* CARS. The model's lone box-car is dropped (HIDE); its bay gets a real
      one, and so do two empty bays — never the one in front of the door,
      which is the courier's lane. */
   const C=[
     ["hatch",13.95,-3.01,0,6],["suv",13.75,-5.57,0,2],["sedan",13.65,7.16,0,1],
-    /* west, café side: nose to -z (the kerb on their right) */
-    ["sedan",-8.72,-9.4,-Math.PI/2,0],["hatch",-8.72,-13.9,-Math.PI/2,3],["suv",-8.72,6.8,-Math.PI/2,4],
+    /* west, café side: nose to -z (the kerb on their right). The black
+       sedan stood at z -9.4 until THE CHASE (2026-10-05): seen from the
+       chair, the only stretch of road the bay shows at wheel height lies
+       behind the parking lane at z -8.6..-11.2, and that car filled it to
+       its roof — everything in the street below 1.45 m was its glass. It
+       parks past the hatch now, out of that sightline. */
+    ["sedan",-8.72,-19.4,-Math.PI/2,0],["hatch",-8.72,-13.9,-Math.PI/2,3],["suv",-8.72,6.8,-Math.PI/2,4],
     ["hatch",-8.72,12.6,-Math.PI/2,7],["sedan",-8.72,20.4,-Math.PI/2,8],
     /* west, far side: nose to +z */
     ["hatch",-18.45,-12.2,Math.PI/2,5],["sedan",-18.45,-6.9,Math.PI/2,1],["suv",-18.45,4.8,Math.PI/2,9],
@@ -8131,7 +8173,7 @@ const carShadowTex=ctex(256,128,function(x,w,h){
   }
   for(let z=-120;z<=120;z+=19){lamp(-7.35,z+4,-1);lamp(-19.85,z-5,1);lamp(36.3,z+2,-1);}
   for(let z=-26;z<=26;z+=1.55){
-    if(z>-8.3&&z<-6.1||z>5.3&&z<7.5)continue;
+    if(Math.abs(z-YOUNG_TREE_S)<1.1||z>5.3&&z<7.5)continue;   /* the two tree pits */
     LAMP.add(new THREE.CylinderGeometry(.055,.065,.78,8),mtx(-7.42,.54,z));
     LAMP.add(new THREE.SphereGeometry(.058,8,5,0,Math.PI*2,0,Math.PI/2),mtx(-7.42,.93,z));
   }
@@ -8891,6 +8933,522 @@ function updateSkyTraffic(dt){
   SKY.z0=east?-240:240;SKY.z1=-SKY.z0;
   SKY.y=100+Math.random()*25;SKY.dur=jit(9,.15);
   o.position.set(-330,SKY.y,SKY.z0);o.visible=true;SKY.obj=o;
+}
+
+/* ---------------- THE CHASE ----------------
+   Simon, 2026-10-05: "je veux que par la fenêtre on voit un mec qui fait
+   un wheeling en moto suivi d'une voiture de police avec des gyrophares".
+   A naked bike on its back wheel down the west street, and a Brussels
+   police estate 1.5 s behind it, its two rotating beacons going — both
+   at ~55 km/h, in the zone the sign by the corner says is 30. No sound: the
+   room has none, on purpose (see NO ROOM SOUND).
+   Built like the street: the bike and the car are ONE mesh each (the
+   helmet a third, on the rider's head joint), every part in one
+   vertex-coloured material that reads metal / roughness / glow / clear
+   coat per vertex and turns the wheels in the vertex shader (aG = hub,
+   kind). The rider is a real body (realizeRig) lit by the street's sun,
+   like the flying man. Measured with both in view: +10 draw calls (bike,
+   helmet, rider at LOD1, car, two contact shadows, two beams — drawn twice
+   each, as three.js draws every double-sided transparent) and +31 250
+   triangles (rider 14 418, car 8 326, bike 6 762, helmet 1 724). Hidden
+   between passes: nothing of it is drawn then.
+   WHERE: down the west street — +z in the far lane (x -15.45), -z in the
+   near one (-11.75), alternating — 95 m either side of the café. From the
+   chair (SHOTS.gameplay, desktop) the bay shows the road only through a
+   slit between the mullion at z -1.88 and the reader on her stool, ~140 px
+   of 1440: the far lane at z -16.8..-19.2, the near at -12..-13.8, where the
+   bike is 70-90 px tall and the car's bar sits just above the sill. At 55
+   km/h that is under half a second of each — which is why the beams and
+   the blue they throw on the street (STREET.beacon) carry it for a few
+   seconds either side, at night above all. The seated PORTRAIT shot never frames the bay (its far end
+   projects at x -1.87 of ±1): on an upright phone it is seen walking. */
+const CHASE={on:false,t:0,next:Infinity,armed:0,passes:0,dir:1,rate:1,
+  debug:(function(){const m=/[?&]chase(?:=(\w+))?/.exec(location.search);return m?(m[1]||"loop"):null;})(),
+  bike:null,pitch:null,car:null,rider:null,bikeU:null,carU:null,shB:null,shC:null,
+  vB:15,vC:15,gap:1.5,z0:0,len:190,xB:0,xC:0,dropAt:0,ph:0,rot:0,bar:null};
+const CHASE_TURN=Math.PI*2*2.5,_chaseCam=new THREE.Vector3();   /* 2.5 turns a second */
+/* bike space: x forward, y up, z to the rider's right, origin on the
+   ground under the rear axle — the point a wheelie turns about */
+const MOTO={WB:1.40,RR:.315,RF:.30,seat:[.62,.835],peg:[.43,.37,.165],grip:[1.0,1.075,.335]};
+/* one material per vehicle: metal, roughness, glow and clear coat ride in
+   aF; aG is (hub x, hub y, -, kind): kind 1 and 2 spin about their hub with
+   uSpin.x / .y, 3 and 4 are the two beacon domes, 5 head lamps and 6 tail
+   lamps (uLamp). Kinds are rounded before comparing.
+   A dome is lit from inside by its turning reflector: the side the beam
+   points through glows (uDomeA/B: the dome's centre and the beam's angle,
+   in the car's frame), the rest holds a faint blue, and the whole lens
+   flares when the beam sweeps across the lens of the camera (uStrobe:
+   that flare, worked out per frame from where the camera is). */
+function chaseMat(key,map){
+  const m=new THREE.MeshPhysicalMaterial({vertexColors:true,map:map||null,metalness:0,roughness:.5,
+    clearcoat:1,clearcoatRoughness:.06,envMapIntensity:1.1});
+  const U={uSpin:{value:new THREE.Vector2()},uStrobe:{value:new THREE.Vector2()},uLamp:{value:new THREE.Vector2(1,.4)},
+    uDomeA:{value:new THREE.Vector4()},uDomeB:{value:new THREE.Vector4()}};
+  const SPIN="float ck=floor(aG.w+.5);float ca=ck<1.5?uSpin.x:uSpin.y;float cc=cos(ca),cs=sin(ca);bool cw=ck>.5&&ck<2.5;";
+  streetMat(m,key,{uniforms:U,
+    vHead:"attribute vec4 aF,aG;uniform vec2 uSpin;varying vec4 vCF;varying float vCK;varying vec3 vCO;",
+    vPre:"{"+SPIN+"if(cw){vec2 d=transformed.xy-aG.xy;transformed.xy=aG.xy+vec2(cc*d.x-cs*d.y,cs*d.x+cc*d.y);}}",
+    vPost:"vCF=aF;vCK=aG.w;vCO=position;",
+    fHead:"uniform vec2 uStrobe,uLamp;uniform vec4 uDomeA,uDomeB;varying vec4 vCF;varying float vCK;varying vec3 vCO;",
+    frag:function(f){return f
+      .replace("#include <metalnessmap_fragment>","#include <metalnessmap_fragment>\nmetalnessFactor=vCF.x;roughnessFactor=vCF.y;")
+      .replace("material.clearcoat = clearcoat;","material.clearcoat = clearcoat*vCF.w;")
+      .replace("#include <emissivemap_fragment>","#include <emissivemap_fragment>\n"+
+        "{float k=floor(vCK+.5),e=0.;"+
+        "if(k>2.5&&k<4.5){vec4 D=k<3.5?uDomeA:uDomeB;vec2 dd=vCO.xz-D.xz;float dl=length(dd);"+
+        "float lb=dl>1e-4?max(dot(dd/dl,vec2(cos(D.w),-sin(D.w))),0.):0.;"+
+        "e=.1+1.2*pow(lb,3.)+2.4*(k<3.5?uStrobe.x:uStrobe.y);}"+
+        "else e=abs(k-5.)<.5?uLamp.x:abs(k-6.)<.5?uLamp.y:0.;"+
+        "totalEmissiveRadiance+=vColor*vCF.z*e;}");}});
+  /* the spinning parts' normals turn with them */
+  const sb=m.onBeforeCompile;
+  m.onBeforeCompile=function(s){sb(s);s.vertexShader=s.vertexShader.replace("#include <beginnormal_vertex>",
+    "#include <beginnormal_vertex>\n{"+SPIN+"if(cw)objectNormal.xy=vec2(cc*objectNormal.x-cs*objectNormal.y,cs*objectNormal.x+cc*objectNormal.y);}");};
+  m.userData.U=U;
+  return m;
+}
+/* a part: colour + (metal, rough, glow, coat) */
+function cP(hex,metal,rough,glow,coat){return {c:srgbL(hex),f:[metal,rough,glow||0,coat||0]};}
+function cPut(B,g,m,p,kind,hub){
+  if(g.attributes.uv)g.deleteAttribute("uv");     /* uv (0,0): the livery's white corner */
+  B.add(g,m||null,p.c,p.f,[hub?hub[0]:0,hub?hub[1]:0,0,kind||0]);g.dispose();
+}
+/* a box from p0 to p1 in the bike's side plane, w across, h thick */
+function cBeam(B,p0,p1,z,w,h,p){
+  const dx=p1[0]-p0[0],dy=p1[1]-p0[1];
+  cPut(B,new THREE.BoxGeometry(Math.hypot(dx,dy),h,w),mtx((p0[0]+p1[0])/2,(p0[1]+p1[1])/2,z,0,0,Math.atan2(dy,dx)),p);
+}
+/* a road wheel in the x-y plane: a round-shouldered tyre, a black
+   three-split-spoke cast rim, discs; everything but the calipers spins */
+function cWheel(B,cx,cy,r,w,kind,discs,P){
+  const hub=[cx,cy],rim=.216,tp=[];
+  for(let i=0;i<=12;i++){const a=i/12*Math.PI;tp.push([rim+.012+Math.sin(a)*(r-rim-.012),-Math.cos(a)*w*.5]);}
+  const ty=lathe(tp,36);ty.rotateX(Math.PI/2);cPut(B,ty,mtx(cx,cy,0),P.rub,kind,hub);
+  for(const s of[-1,1]){
+    const lip=new THREE.RingGeometry(rim-.018,rim+.013,36);if(s<0)lip.rotateY(Math.PI);
+    cPut(B,lip,mtx(cx,cy,s*w*.36),P.rim,kind,hub);
+  }
+  for(let k=0;k<6;k++){
+    const sp=new THREE.BoxGeometry(.024,rim-.05,.03);sp.translate(0,(rim-.05)/2+.035,0);
+    sp.rotateZ(k*Math.PI/3+(k%2?.1:-.1));cPut(B,sp,mtx(cx,cy,0),P.rim,kind,hub);
+  }
+  cPut(B,new THREE.CylinderGeometry(.048,.048,w*.72,14).rotateX(Math.PI/2),mtx(cx,cy,0),P.eng,kind,hub);
+  (discs||[]).forEach(function(d){
+    cPut(B,new THREE.CylinderGeometry(d[0],d[0],.006,32).rotateX(Math.PI/2),mtx(cx,cy,d[1]),P.disc,kind,hub);
+    cPut(B,new THREE.CylinderGeometry(d[0]*.6,d[0]*.6,.008,16).rotateX(Math.PI/2),mtx(cx,cy,d[1]),P.eng,kind,hub);
+  });
+}
+function chaseBikeGeo(){
+  const B=new GBag(),R=MOTO.RR,F=MOTO.RF,WB=MOTO.WB;
+  /* an orange naked middleweight (Duke / MT class): trellis frame, black
+     engine and wheels, gold fork, a stainless can on the right */
+  const P={paint:cP(0xe0571c,.2,.3,0,1),frame:cP(0xcf4e18,.35,.38,0,.8),blk:cP(0x161719,.4,.5,0,.2),
+    eng:cP(0x3a3c3f,.75,.42),inox:cP(0xc8cbcf,1,.2),rub:cP(0x141415,0,.9),rim:cP(0x111214,.6,.35,0,.6),
+    disc:cP(0xa3a6aa,.9,.3),seat:cP(0x101011,0,.78),gold:cP(0xc89a3a,.9,.26,0,.4),
+    head:cP(0xeef2ff,.1,.06,7,1),tail:cP(0xb0130e,.1,.15,8,1)};
+  cWheel(B,0,R,R,.19,1,[[.11,.085]],P);
+  cWheel(B,WB,F,F,.12,2,[[.15,.075],[.15,-.075]],P);
+  /* the rear sprocket and the chain, left side */
+  cPut(B,new THREE.CylinderGeometry(.105,.105,.01,24).rotateX(Math.PI/2),mtx(0,R,-.085),P.eng,1,[0,R]);
+  cPut(B,rodGeo([.02,R+.105,-.085],[.6,.455,-.085],.008,.008,5),null,P.eng);
+  cPut(B,rodGeo([.02,R-.105,-.085],[.6,.355,-.085],.008,.008,5),null,P.eng);
+  /* calipers: on the fork and the swingarm, they do not turn */
+  for(const z of[.075,-.075])cPut(B,new THREE.BoxGeometry(.09,.05,.04),mtx(WB-.1,F+.08,z+(z>0?.025:-.025),0,0,-.6),P.gold);
+  cPut(B,new THREE.BoxGeometry(.07,.04,.035),mtx(-.07,R-.07,.11),P.blk);
+  /* swingarm, pivot to axle */
+  for(const z of[-.105,.105])cBeam(B,[.56,.43],[0,R],z,.045,.075,P.blk);
+  /* the trellis: two rails a side, steering head to swingarm pivot */
+  const SH=[1.10,.92];
+  for(const s of[-1,1]){
+    const z=s*.115,f=function(p){return [p[0],p[1],z];};
+    [[SH,[.62,.81]],[SH,[.88,.50]],[[.62,.81],[.57,.47]],[[.88,.86],[.88,.50]],[[.88,.86],[.62,.62]],
+     [[.62,.81],[.62,.47]],[[.88,.50],[.62,.47]]].forEach(function(t){cPut(B,rodGeo(f(t[0]),f(t[1]),.014,.014,6),null,P.frame);});
+    /* subframe and its strut */
+    cPut(B,rodGeo([.62,.81,s*.08],[.12,.9,s*.07],.011,.011,6),null,P.blk);
+    cPut(B,rodGeo([.6,.55,s*.09],[.24,.86,s*.07],.01,.01,6),null,P.blk);
+  }
+  cPut(B,rodGeo([1.125,.84,0],[1.075,.99,0],.036,.036,10),null,P.frame);
+  /* engine: crankcase, the cylinder block leaning forward, head, covers, sump */
+  cPut(B,new THREE.BoxGeometry(.38,.28,.25),mtx(.79,.43,0),P.eng);
+  cPut(B,new THREE.BoxGeometry(.2,.26,.22),mtx(.95,.63,0,0,0,-.42),P.eng);
+  cPut(B,new THREE.BoxGeometry(.2,.09,.235),mtx(1.0,.76,0,0,0,-.42),P.blk);
+  for(const s of[-1,1])cPut(B,new THREE.CylinderGeometry(.11,.11,.03,18).rotateX(Math.PI/2),mtx(.74,.42,s*.135),P.blk);
+  cPut(B,new THREE.BoxGeometry(.3,.06,.2),mtx(.82,.27,0),P.blk);
+  /* radiator and its shrouds */
+  cPut(B,new THREE.BoxGeometry(.05,.3,.34),mtx(1.13,.64,0,0,0,-.18),P.blk);
+  /* exhaust: headers down and under, a short stainless can on the right */
+  cPut(B,rodGeo([1.06,.7,.04],[1.14,.45,.05],.022,.022,8),null,P.inox);
+  cPut(B,rodGeo([1.14,.45,.05],[1.0,.24,.05],.024,.024,8),null,P.inox);
+  cPut(B,rodGeo([1.0,.24,.05],[.6,.23,.1],.026,.026,8),null,P.inox);
+  cPut(B,rodGeo([.6,.23,.1],[.47,.3,.15],.03,.03,8),null,P.inox);
+  cPut(B,rodGeo([.5,.29,.16],[.2,.45,.18],.058,.05,14),null,P.inox);
+  cPut(B,new THREE.CylinderGeometry(.04,.04,.02,12),mtx(.2,.45,.18,0,0,Math.PI/2-.48),P.blk);
+  /* tank and its shrouds, airbox, seat, the tail unit and its lamp */
+  cPut(B,new THREE.SphereGeometry(1,22,14),mtx(.88,.92,0,0,0,-.1,.25,.12,.168),P.paint);
+  for(const s of[-1,1])cPut(B,new THREE.SphereGeometry(1,14,10),mtx(1.03,.8,s*.16,0,0,-.35,.17,.11,.045),P.paint);
+  cPut(B,new THREE.BoxGeometry(.22,.16,.2),mtx(.55,.67,0),P.blk);
+  cPut(B,new THREE.SphereGeometry(1,18,10),mtx(.6,.845,0,0,0,.04,.25,.045,.13),P.seat);
+  cPut(B,new THREE.SphereGeometry(1,14,8),mtx(.29,.905,0,0,0,.16,.14,.035,.1),P.seat);
+  cPut(B,new THREE.SphereGeometry(1,16,10),mtx(.3,.87,0,0,0,.2,.25,.065,.1),P.paint);
+  cPut(B,new THREE.BoxGeometry(.03,.035,.12),mtx(.07,.94,0,0,0,.2),P.tail,6);
+  /* the plate on its hugger, under the tail */
+  cPut(B,rodGeo([.12,.84,0],[-.02,.66,0],.012,.012,6),null,P.blk);
+  cPut(B,new THREE.BoxGeometry(.006,.12,.18),mtx(-.025,.66,0,0,0,.25),cP(0xf0f0ec,0,.5));
+  /* the fork: black lower legs, gold tubes, clamps; the front mudguard */
+  const fx=-.28,fy=.70,fl=Math.hypot(fx,fy),ux=fx/fl,uy=fy/fl;
+  for(const z of[-.095,.095]){
+    cPut(B,rodGeo([WB,F,z],[WB+ux*.34,F+uy*.34,z],.032,.03,10),null,P.blk);
+    cPut(B,rodGeo([WB+ux*.3,F+uy*.3,z],[WB+ux*.76,F+uy*.76,z],.024,.024,10),null,P.gold);
+  }
+  for(const t of[.62,.72])cPut(B,new THREE.BoxGeometry(.07,.035,.27),mtx(WB+ux*t,F+uy*t,0,0,0,.38),P.blk);
+  cPut(B,new THREE.CylinderGeometry(F+.035,F+.035,.13,16,1,true,1.4,2.0).rotateX(Math.PI/2),mtx(WB,F,0),P.blk);
+  /* headlamp, fly screen, dash */
+  cPut(B,new THREE.CylinderGeometry(.08,.07,.1,18),mtx(1.24,.96,0,0,0,Math.PI/2),P.blk);
+  cPut(B,new THREE.CircleGeometry(.068,18).rotateY(Math.PI/2),mtx(1.291,.96,0),P.head,5);
+  cPut(B,new THREE.BoxGeometry(.012,.13,.2),mtx(1.25,1.07,0,0,0,-.3),P.blk);
+  cPut(B,new THREE.BoxGeometry(.05,.06,.12),mtx(1.13,1.07,0,0,0,-.3),P.blk);
+  /* bars, grips, levers, mirrors; the pegs */
+  const G=MOTO.grip;
+  for(const s of[-1,1]){
+    cPut(B,rodGeo([1.08,1.035,0],[G[0]+.02,G[1],s*.27],.011,.011,8),null,P.blk);
+    cPut(B,rodGeo([G[0]+.02,G[1],s*.27],[G[0]-.01,G[1]+.005,s*.385],.018,.018,10),null,P.seat);
+    cPut(B,rodGeo([G[0]+.05,G[1]+.005,s*.25],[G[0]+.12,G[1]-.01,s*.34],.006,.006,5),null,P.blk);
+    cPut(B,rodGeo([G[0]+.04,G[1]+.005,s*.24],[G[0],G[1]+.15,s*.29],.007,.007,5),null,P.blk);
+    cPut(B,new THREE.SphereGeometry(1,10,7),mtx(G[0],G[1]+.165,s*.3,0,0,0,.035,.03,.06),P.blk);
+    cPut(B,rodGeo([MOTO.peg[0],MOTO.peg[1],s*.12],[MOTO.peg[0],MOTO.peg[1],s*.21],.012,.012,6),null,P.inox);
+    cPut(B,new THREE.BoxGeometry(.13,.09,.006),mtx(MOTO.peg[0]+.05,MOTO.peg[1]+.05,s*.13,0,0,.5),P.blk);
+  }
+  return {geo:B.geo(),P:P};
+}
+/* the full-face helmet, in the head joint's frame: a glossy white shell
+   over the skull, the chin bar, a smoked visor across the eyes */
+function chaseHelmetGeo(){
+  /* sized on the rig: chin 1.545, crown 1.80, nose tip z .13 — a shell
+     5 cm proud of the scalp, 6 in front of the face, 26 cm across */
+  const B=new GBag(),shell=cP(0xf2f2ef,.1,.22,0,1),visor=cP(0x0a0b0e,.2,.05,0,1),trim=cP(0x16171a,.2,.5);
+  const S=function(y,z){return mtx(0,y,z,0,0,0,.87,1.05,1.06);};
+  cPut(B,new THREE.SphereGeometry(.15,26,18),S(.012,.012),shell);
+  cPut(B,new THREE.SphereGeometry(1,16,10),mtx(0,-.1,.095,-.25,0,0,.09,.055,.075),shell);
+  cPut(B,new THREE.SphereGeometry(.153,22,6,Math.PI/2-.95,1.9,1.6,.58),S(.012,.012),visor);
+  cPut(B,new THREE.TorusGeometry(.115,.014,6,24).rotateX(Math.PI/2),mtx(0,-.13,-.005,.22,0,0,1,1,1.08),trim);
+  return B.geo();
+}
+/* Brussels police livery, both flanks on one canvas. u runs nose to tail
+   on BOTH sides (x/L + .5) so the nose and tail caps, which take a vertex
+   from each side, never sample across the sheet; the +z flank fills the
+   bottom 45 % upright, the -z flank the top 45 % turned through 180° (it
+   is seen from the other side), and the white strip between catches the
+   roof's ridge. Livery: white, a two-row Battenburg of blue and
+   fluorescent yellow under the belt, POLICE on the front doors and
+   POLITIE on the rear (bilingual, like the street's signs), shut lines. */
+function drawLivery(x,w,h){
+  const T=CAR_TYPES.estate,L=T.L;
+  x.fillStyle="#f6f6f2";x.fillRect(0,0,w,h);
+  for(const top of[false,true]){
+    const Y=function(y){return top?h*.3*y:h*(1-.3*y);},X=function(u){return u*w;};
+    const sq=.14/L;
+    for(let r=0;r<2;r++){
+      const a=Y(.42+r*.14),b=Y(.56+r*.14);
+      for(let k=0,u=.055;u<.945;u+=sq,k++){
+        x.fillStyle=((k+r)%2)?"#dff000":"#1b3c94";
+        x.fillRect(X(u),Math.min(a,b),X(sq)+.7,Math.abs(b-a)+.7);
+      }
+    }
+    /* shut lines and handles (the parked cars' seams, painted) */
+    x.fillStyle="rgba(20,22,26,.55)";
+    [T.pillarB-.25,T.pillarB,T.pillarB+.24].forEach(function(u){x.fillRect(X(u)-.8,Math.min(Y(.33),Y(.915)),1.6,Math.abs(Y(.915)-Y(.33)));});
+    [T.pillarB+.045,T.pillarB-.205].forEach(function(u){x.fillRect(X(u)-4,Math.min(Y(.84),Y(.862)),8,Math.abs(Y(.862)-Y(.84))+1);});
+    x.fillStyle="#173a8f";x.textAlign="center";x.textBaseline="middle";
+    x.font="700 "+Math.round(h*.3*.15)+"px 'Space Grotesk',sans-serif";
+    [["POLICE",T.pillarB+.115],["POLITIE",T.pillarB-.125]].forEach(function(t){
+      x.save();x.translate(X(t[1]),Y(.79));if(top)x.rotate(Math.PI);
+      x.fillText(t[0],0,0);x.restore();
+    });
+  }
+}
+function chaseCarGeo(){
+  const G=carGeos("estate"),T=G.wheel.T,L=T.L,W2=T.W/2,B=new GBag();
+  const P={white:cP(0xf3f3ef,0,.2,0,1),glass:cP(0x0b0e12,0,.04,0,1),trim:cP(0x111214,0,.5),lower:cP(0x1b1c1e,0,.7),
+    rub:cP(0x161617,0,.9),rim:cP(0x8e9297,.85,.3,0,.3),eng:cP(0x2a2c2f,.6,.45),disc:cP(0x8a8d91,.85,.35),
+    head:cP(0xdde4ec,.6,.08,6,1),tail:cP(0x8a0d0a,.2,.15,8,1),blue:cP(0x1238c8,.1,.12,16,1),bar:cP(0x15161a,.3,.4,0,.5)};
+  /* the painted body carries the livery: its own uv, see drawLivery */
+  {
+    const g=G.paint.toNonIndexed(),Q=g.attributes.position,uv=new Float32Array(Q.count*2);
+    for(let i=0;i<Q.count;i++){
+      const y=Math.min(1.5,Math.max(0,Q.getY(i)))/1.5;
+      uv[i*2]=Q.getX(i)/L+.5;uv[i*2+1]=Q.getZ(i)>=0?.45*y:1-.45*y;
+    }
+    g.setAttribute("uv",new THREE.BufferAttribute(uv,2));
+    B.add(g,null,P.white.c,P.white.f,[0,0,0,0]);g.dispose();
+  }
+  cPut(B,G.glass.clone(),null,P.glass);cPut(B,G.trim.clone(),null,P.trim);cPut(B,G.lower.clone(),null,P.lower);
+  const xr=L/2-T.fa-T.wb,xf=L/2-T.fa;
+  [xr,xf].forEach(function(a){cPut(B,new THREE.BoxGeometry(T.wr*2.1,T.wr*1.05,T.W-.52),mtx(a,T.wr*1.5,0),P.lower);});
+  [[xr,1],[xr,-1],[xf,1],[xf,-1]].forEach(function(w){
+    const z=w[1]*(W2-.14),hub=[w[0],T.wr];
+    cPut(B,G.wheel.tyre.clone(),mtx(w[0],T.wr,z),P.rub,1,hub);
+    cPut(B,G.wheel.rim.clone(),mtx(w[0],T.wr,z+w[1]*.04),P.rim,1,hub);
+    G.wheel.spokes.forEach(function(s){cPut(B,s.clone(),mtx(w[0],T.wr,z+w[1]*.06),P.rim,1,hub);});
+    cPut(B,G.wheel.hub.clone(),mtx(w[0],T.wr,z+w[1]*.06),P.eng,1,hub);
+    cPut(B,G.wheel.disc.clone(),mtx(w[0],T.wr,z+w[1]*.04),P.disc,1,hub);
+  });
+  const topF=carSpline(T.top,.965),topR=carSpline(T.top,.03),nose=L/2+.004,hl=new THREE.SphereGeometry(1,10,6);
+  for(const s of[-1,1]){
+    cPut(B,hl.clone(),mtx(L/2-.11,topF-.09,s*(W2-.3),0,s*.35,0,.07,.04,.25),P.head,5);
+    cPut(B,hl.clone(),mtx(-L/2+.06,Math.min(topR,T.belt)-.02,s*(W2-.2),0,0,0,.06,.07,.2),P.tail,6);
+    cPut(B,hl.clone(),mtx((T.glass[3]-.01)*L-L/2,T.belt+.07,s*(W2+.03),0,0,0,.08,.065,.1),P.white);
+  }
+  hl.dispose();
+  {const g=new THREE.PlaneGeometry(T.W-.9,.13);g.rotateY(Math.PI/2);cPut(B,g,mtx(nose,topF-.2,0),P.trim);}
+  {const g=new THREE.PlaneGeometry(T.W-.7,.1);g.rotateY(Math.PI/2);cPut(B,g,mtx(nose,T.sill+.2,0),P.trim);}
+  {const g=new THREE.PlaneGeometry(T.W-.5,.12);g.rotateY(-Math.PI/2);cPut(B,g,mtx(-nose,T.sill+.2,0),P.trim);}
+  /* THE GYROPHARES (Simon: "on doit voir le gyrophare tourner"): a black
+     crossbar over the B pillars on two feet, and on each end a blue dome —
+     a squat cylinder under a half-sphere — with its reflector turning
+     inside (kinds 3 and 4; the light is in the shader, see chaseMat). */
+  const bx=.02,by=carSpline(T.top,bx/L+.5),dz=.36,dy=by+.12;
+  cPut(B,new THREE.BoxGeometry(.11,.035,1.0),mtx(bx,by+.045,0),P.bar);
+  for(const s of[-1,1]){
+    cPut(B,new THREE.BoxGeometry(.05,.03,.05),mtx(bx,by+.015,s*.42),P.bar);
+    cPut(B,new THREE.CylinderGeometry(.1,.1,.02,20),mtx(bx,by+.07,s*dz),P.bar);
+    cPut(B,new THREE.CylinderGeometry(.084,.088,.07,20,1,true),mtx(bx,by+.115,s*dz),P.blue,s>0?3:4);
+    cPut(B,new THREE.SphereGeometry(.084,20,8,0,Math.PI*2,0,Math.PI/2),mtx(bx,by+.15,s*dz),P.blue,s>0?3:4);
+  }
+  return {geo:B.geo(),domes:[new THREE.Vector3(bx,dy,dz),new THREE.Vector3(bx,dy,-dz)],bar:new THREE.Vector3(bx,dy,0)};
+}
+/* The beam: what tells the eye "it turns". Two crossed quads, 3.5 m long,
+   opening ±6.5°, bright at the dome and gone at the tip, soft at the edges;
+   additive, depth-tested, writing no depth. Its own ShaderMaterial — so it
+   is kept out of every environment capture (noProbe; captureProbe drops
+   shader materials anyway: through PMREM they come out as NaN). */
+function chaseBeamGeo(){
+  const Lb=3.5,w0=.07,w1=Lb*Math.tan(.115),P=[],U=[],I=[];
+  [[0,1,0],[0,0,1]].forEach(function(ax,q){
+    const o=q*4;
+    [[0,-w0,0,-1],[0,w0,0,1],[Lb,w1,1,1],[Lb,-w1,1,-1]].forEach(function(v){
+      P.push(v[0],ax[1]*v[1],ax[2]*v[1]);U.push(v[2],v[3]);
+    });
+    I.push(o,o+1,o+2,o,o+2,o+3);
+  });
+  const g=new THREE.BufferGeometry();
+  g.setAttribute("position",new THREE.Float32BufferAttribute(P,3));
+  g.setAttribute("uv",new THREE.Float32BufferAttribute(U,2));
+  g.setIndex(I);g.computeBoundingSphere();
+  return g;
+}
+const CHASE_BEAM_MAT=new THREE.ShaderMaterial({
+  uniforms:{uI:{value:0},uCol:{value:new THREE.Color(.12,.36,1)}},
+  vertexShader:"varying vec2 vU;void main(){vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+  fragmentShader:"uniform float uI;uniform vec3 uCol;varying vec2 vU;void main(){"+
+    "float a=pow(1.-vU.x,1.7)*smoothstep(.0,.05,vU.x)*(1.-vU.y*vU.y);gl_FragColor=vec4(uCol*uI*a,1.);}",
+  transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false});
+function chaseShadow(w,d,o){
+  const sh=new THREE.Mesh(new THREE.PlaneGeometry(w,d),new THREE.MeshBasicMaterial({map:carShadowTex,
+    transparent:true,depthWrite:false,color:0x000000,opacity:o}));
+  sh.rotation.x=-Math.PI/2;sh.position.y=.012;sh.renderOrder=1;sh.userData.noProbe=true;
+  return sh;
+}
+(function buildChase(){
+  if(RM)return;                        /* reduced motion: nothing races past */
+  const bm=chaseMat("chase");
+  const bike=new THREE.Group(),pitch=new THREE.Group();bike.add(pitch);
+  const bg=chaseBikeGeo(),bmesh=new THREE.Mesh(bg.geo,bm);pitch.add(bmesh);
+  const shB=chaseShadow(2.1,.75,.62);bike.add(shB);
+  const livery=ctex(1024,512,drawLivery);
+  VC.fontsReady.then(function(){drawLivery(livery.userData.canvas.getContext("2d"),1024,512);livery.needsUpdate=true;});
+  const cm=chaseMat("chase",livery);
+  const car=new THREE.Group(),cg=chaseCarGeo(),cmesh=new THREE.Mesh(cg.geo,cm);car.add(cmesh);
+  const T=CAR_TYPES.estate,shC=chaseShadow(T.L+.5,T.W+.45,.82);car.add(shC);
+  const bgeo=chaseBeamGeo(),beams=cg.domes.map(function(d){
+    const b=new THREE.Mesh(bgeo,CHASE_BEAM_MAT);b.position.copy(d);b.renderOrder=2;car.add(b);return b;});
+  [bike,car].forEach(function(g){
+    g.visible=false;scene.add(g);
+    g.traverse(function(o){o.userData.outside=true;o.userData.noProbe=true;});
+  });
+  Object.assign(CHASE,{bike:bike,pitch:pitch,car:car,bikeU:bm.userData.U,carU:cm.userData.U,
+    shB:shB,shC:shC,bar:cg.bar,domes:cg.domes,beams:beams,bikeMat:bm});
+})();
+/* the rider: a real body (people.bin is async — no pass runs before he
+   exists), in a black leather jacket, jeans, boots and gloves, a white
+   full-face helmet. Posed once, in the bike's frame, at the start of the
+   wheelie's range: sat back, arms long to the bars, knees in to the tank. */
+function chaseRider(){
+  if(CHASE.rider||!REAL.ready||!CHASE.pitch)return;
+  const rig=buildPerson({shirt:lin(0x3a3b3f),pants:lin(0x34425c),skin:0xc8977a,hair:0x16110e});
+  rig.id="rider";
+  rig.outfit={top:"sweater",outer:"blazer",outerC:lin(0x232428),bottom:"trousers",shoes:"shoes",hair:"buzz",beard:0,
+    shoe:[lin(0x161618),lin(0x0e0e0f)],gloves:true,apronC:0,goatee:false,skin:0xc8977a,hairC:0x16110e};
+  rig.traits={fem:0,heavy:0,up:1,face:{}};
+  realizeRig(rig);
+  if(!rig.real){scene.remove(rig.root);CHASE.rider=false;return;}
+  /* the jacket is leather: the blazer's kind (7, woven wool, lapels) goes
+     to 4, the shoes' smooth leather */
+  [rig.body,rig.bodyLo].forEach(function(b){
+    if(!b)return;
+    const K=b.geometry.attributes.kind;for(let i=0;i<K.count;i++)if(K.array[i]===7)K.array[i]=4;
+    K.needsUpdate=true;b.castShadow=false;b.userData.noProbe=true;
+  });
+  const m=rig.body.material,real=m.onBeforeCompile;
+  m.onBeforeCompile=function(s){real.call(this,s);streetInject(s,{});};
+  m.customProgramCacheKey=function(){return "rider";};
+  m.fog=false;m.envMap=CAFE.streetEnv;m.envMapIntensity=.7;m.needsUpdate=true;
+  rig.eyes.forEach(function(e){e.eg.visible=false;});
+  const bike=CHASE.bike,pitch=CHASE.pitch,J=rig.J;
+  /* pose it with the bike level at the origin, so world = bike space */
+  bike.position.set(0,0,0);bike.rotation.set(0,0,0);pitch.rotation.set(0,0,0);
+  pitch.add(rig.root);
+  rig.root.rotation.set(0,Math.PI/2,0);
+  rig.root.position.set(MOTO.seat[0],MOTO.seat[1]+.075-rig.restJ.pelvis[1],0);
+  rig.root.traverse(function(o){o.userData.outside=true;o.userData.noProbe=true;});
+  J.pelvis.rotation.set(-.08,0,0);
+  J.spine.rotation.set(.17,0,0);J.chest.rotation.set(.14,0,0);
+  J.neck.rotation.set(.12,0,0);J.head.rotation.set(.25,0,0);
+  /* legs: two bones in the side plane, ankle over the peg, knee forward
+     (rig space faces +z: bike x is rig z, bike z is -rig x) */
+  bike.updateMatrixWorld(true);
+  const P=rig.restJ;
+  for(const S of["L","R"]){
+    const hip=J["hip"+S],knee=J["knee"+S],ankle=J["ankle"+S];
+    hip.rotation.set(0,0,S==="L"?-.2:.2);
+    const h=new THREE.Vector3();hip.getWorldPosition(h);
+    const az=MOTO.peg[0]+.02,ay=MOTO.peg[1]+.085;
+    const dz=az-h.x,dy=ay-h.y,d=Math.hypot(dz,dy);
+    const L1=Math.hypot(P["knee"+S][1]-P["hip"+S][1],P["knee"+S][2]-P["hip"+S][2]);
+    const L2=Math.hypot(P["ankle"+S][1]-P["knee"+S][1],P["ankle"+S][2]-P["knee"+S][2]);
+    const r1=Math.atan2(-(P["knee"+S][2]-P["hip"+S][2]),P["hip"+S][1]-P["knee"+S][1]);
+    const r2=Math.atan2(-(P["ankle"+S][2]-P["knee"+S][2]),P["knee"+S][1]-P["ankle"+S][1]);
+    const dd=Math.min(d,L1+L2-1e-3);
+    const gam=Math.acos(Math.max(-1,Math.min(1,(L1*L1+L2*L2-dd*dd)/(2*L1*L2)))),bend=Math.PI-gam;
+    const aD=Math.atan2(-dz,-dy),beta=Math.acos(Math.max(-1,Math.min(1,(L1*L1+dd*dd-L2*L2)/(2*L1*dd))));
+    const a1=aD-beta,a2=a1+bend;
+    hip.rotation.x=a1-r1-J.pelvis.rotation.x;knee.rotation.x=a2-a1+r1-r2;
+    ankle.rotation.set(.35,0,0);
+  }
+  /* hands round the grips, palms down, by the same descent Simon's hands
+     use on his table */
+  for(const S of["L","R"]){
+    const sh=new THREE.Vector3();J["shoulder"+S].getWorldPosition(sh);
+    const s=sh.z>0?1:-1,G=MOTO.grip;
+    const wr=new THREE.Vector3(G[0]-.075,G[1]+.03,s*(G[2]-.01));
+    const tip=wr.clone().add(new THREE.Vector3(.17,-.085,0));
+    J["shoulder"+S].rotation.set(-1.1,0,s>0?-.25:.25);J["elbow"+S].rotation.set(-.3,0,0);
+    const e=solveArm(rig,S,wr,tip,true,bike);
+    if(e>.04)console.warn("[vc] the rider's hand misses its grip by",e.toFixed(3));
+  }
+  /* the helmet rides the head joint */
+  const helm=new THREE.Mesh(chaseHelmetGeo(),CHASE.bikeMat);
+  helm.userData.outside=true;helm.userData.noProbe=true;
+  J.head.add(helm);
+  CHASE.rider=rig;CHASE.helmet=helm;
+  CHASE.headX=J.head.rotation.x;CHASE.neckX=J.neck.rotation.x;
+  /* compile now, not on the first pass: a 100-300 ms link in the middle of
+     the conversation is worse than one more at load */
+  bike.visible=CHASE.car.visible=true;
+  try{renderer.compile(scene,camera);}catch(e){}
+  bike.visible=CHASE.car.visible=false;
+}
+/* the wheelie: 30° give or take five, the front coming down once to kiss
+   the road and going back up — never on the stretch the chair sees */
+function chasePitch(s){
+  const C=CHASE;
+  let p=.52+.05*Math.sin(s*.29+C.ph)+.025*Math.sin(s*.83+C.ph*2.1);
+  const dd=(s-C.dropAt)/7;
+  if(Math.abs(dd)<1){const k=(1-dd*dd)*(1-dd*dd);p+=(.035-p)*k;}
+  return p*smooth01(0,5,s);
+}
+function chaseStart(){
+  const C=CHASE,dbg=C.debug;
+  const d=dbg==="far"?1:dbg==="near"?-1:(C.passes%2?-1:1);
+  C.dir=d;C.t=0;C.on=true;
+  C.vB=jit(15.3,.06);C.vC=C.vB*jit(1.01,.01);C.gap=jit(1.5,.12);
+  /* lanes: +z in the far one (drive on the right), -z in the near one; the
+     bike a little off the lane's middle, toward the centre line */
+  C.xB=d>0?-15.0:-12.15;C.xC=d>0?-15.45:-11.75;
+  C.z0=-95*d;C.len=190;C.ph=Math.random()*6.28;
+  /* where the front comes down: anywhere but z -26..-6, which is all the
+     chair can see of either lane */
+  const sOf=function(z){return (z-C.z0)*d;};
+  C.dropAt=Math.random()<.5?sOf(-34-Math.random()*30):sOf(4+Math.random()*30);
+  const yaw=d>0?-Math.PI/2:Math.PI/2;
+  C.bike.rotation.set(0,yaw,0);C.car.rotation.set(0,yaw,0);
+  C.bike.visible=true;C.car.visible=false;
+}
+function chaseEnd(){
+  const C=CHASE;
+  C.on=false;C.bike.visible=C.car.visible=false;STREET.beacon.value.w=0;
+  C.passes++;
+  C.next=C.debug?2:jit(150,.2);         /* every two to three minutes */
+}
+function updateChase(dt){
+  const C=CHASE;
+  if(RM||!C.bike)return;
+  if(!C.rider&&C.rider!==false&&REAL.ready)chaseRider();
+  if(!C.on){
+    /* the clock: 25-40 s after the visitor first sits (a reload seats him
+       at once), or ~50 s after he walks in if he looks around instead;
+       then every two to three minutes; at closing time too. ?chase starts
+       one at once and loops them (?chase=far / =near holds one lane). */
+    if(!C.armed){
+      if(C.debug){C.armed=2;C.next=1.5;}
+      else if(guest.state==="seated"||cafeClosed){C.armed=2;C.next=jit(32,.2);}
+      else if(guest.state!=="off"){C.armed=1;C.next=jit(50,.2);}
+    }else if(C.armed===1&&guest.state==="seated"){C.armed=2;if(!C.passes)C.next=jit(32,.2);}
+    if(!C.armed||!C.rider)return;
+    C.next-=dt;
+    if(C.next>0)return;
+    if(SKY.obj===skyHero){C.next=4;return;}    /* one act at a time */
+    chaseStart();
+  }
+  C.t+=dt*C.rate;
+  const d=C.dir,sB=C.vB*C.t,sC=C.vC*(C.t-C.gap);
+  if(sC>C.len){chaseEnd();return;}
+  const night=STREET.night.value;
+  /* the bike */
+  C.bike.visible=sB<=C.len;
+  C.bike.position.set(C.xB,0,C.z0+d*sB);
+  const p=chasePitch(sB);C.pitch.rotation.z=p;
+  C.bikeU.uSpin.value.x-=C.vB*dt*C.rate/MOTO.RR;
+  C.bikeU.uSpin.value.y-=C.vB*dt*C.rate/MOTO.RF*(p>.1?.92:1);
+  C.bikeU.uLamp.value.set(1,.35+.65*night);
+  /* he rides the bike's pitch from the hips up; the head keeps the road */
+  if(C.rider){
+    const J=C.rider.J,k=p-.52;
+    J.head.rotation.x=C.headX+k*.55;J.neck.rotation.x=C.neckX+k*.25;
+  }
+  /* the shadow: the bike's footprint, stretched forward as the nose lifts */
+  {const len=MOTO.WB*Math.cos(p)+.7;C.shB.scale.set(len/2.1,1,1);C.shB.position.x=len/2-.35;
+   C.shB.material.opacity=.62-.18*Math.min(1,p/.5);}
+  /* the car */
+  C.car.visible=sC>=0;
+  C.car.position.set(C.xC,0,C.z0+d*Math.max(0,sC));
+  C.carU.uSpin.value.x-=C.vC*dt*C.rate/CAR_TYPES.estate.wr;
+  C.carU.uLamp.value.set(1,.35+.65*night);
+  if(sC<0){STREET.beacon.value.w=0;return;}
+  /* THE GYROPHARES: two reflectors at 2.5 turns a second, half a turn
+     apart, so between them a beam leaves the car every fifth of a second.
+     Each dome glows on the side its reflector faces and flares when the
+     beam crosses the camera — the pulse a rotating beacon reads as from
+     across a street, where a strobe reads as on / off. */
+  C.rot=((C.rot||0)+dt*C.rate*CHASE_TURN)%(Math.PI*2);
+  const cy=Math.cos(C.car.rotation.y),sy=Math.sin(C.car.rotation.y);
+  C.car.updateMatrixWorld();
+  _chaseCam.copy(camera.position);C.car.worldToLocal(_chaseCam);
+  const U=C.carU;
+  for(let i=0;i<2;i++){
+    const a=C.rot+i*Math.PI,D=C.domes[i];
+    (i?U.uDomeB:U.uDomeA).value.set(D.x,D.y,D.z,a);
+    C.beams[i].rotation.y=a;
+    const cx=_chaseCam.x-D.x,cz=_chaseCam.z-D.z,cl=Math.hypot(cx,cz)||1;
+    const k=Math.max(0,(cx*Math.cos(a)-cz*Math.sin(a))/cl);
+    if(i)U.uStrobe.value.y=Math.pow(k,24);else U.uStrobe.value.x=Math.pow(k,24);
+  }
+  /* the shaft in the air: a hint by day, the whole show at night */
+  CHASE_BEAM_MAT.uniforms.uI.value=.5+.9*night;
+  /* and the street: a band of blue sweeping the facades, the parked cars
+     and the tarmac in step with beam A (beam B is its back: |cos|) */
+  const b=C.bar,bdx=Math.cos(C.rot),bdz=-Math.sin(C.rot);
+  STREET.beacon.value.set(C.car.position.x+b.x*cy+b.z*sy,b.y,C.car.position.z-b.x*sy+b.z*cy,night>.5?5:2.8);
+  STREET.beam.value.set(bdx*cy+bdz*sy,-bdx*sy+bdz*cy,16,.015);
 }
 
 /* ---------------- THE TELEVISION ----------------
@@ -14866,7 +15424,9 @@ const SIMON_POSE={spine:{x:.04},chest:{x:.10},neck:{x:-.06},head:{x:-.03}};
 /* Two-bone reach by coordinate descent on the rig itself: slow (a few hundred
    world-matrix updates) but run once, and it answers the only question that
    matters here — where the wrist and the fingertips actually land. */
-function solveArm(rig,S,wristAt,tipAt,palmDown){
+/* `upd` is the subtree whose world matrices each probe refreshes: Simon's
+   group by default; THE CHASE's rider passes his bike. */
+function solveArm(rig,S,wristAt,tipAt,palmDown,upd){
   const J=rig.J,sh=J["shoulder"+S],el=J["elbow"+S],wr=J["wrist"+S];
   const tip=new THREE.Object3D();tip.position.set(0,-.19,0);wr.add(tip);
   /* the palm: in the rest pose it faces the thigh, i.e. the body's middle
@@ -14880,7 +15440,7 @@ function solveArm(rig,S,wristAt,tipAt,palmDown){
   const V=[[sh.rotation,"x",-2.2,.3],[sh.rotation,"y",-1,1],[sh.rotation,"z",-.7,.7],
     [el.rotation,"x",-2.3,0],[wr.rotation,"x",-1,1],[wr.rotation,"y",-1.8,1.8]];
   const a=new THREE.Vector3(),b=new THREE.Vector3();
-  const err=()=>{simon.updateMatrixWorld(true);wr.getWorldPosition(a);tip.getWorldPosition(b);
+  const err=()=>{(upd||simon).updateMatrixWorld(true);wr.getWorldPosition(a);tip.getWorldPosition(b);
     let e=a.distanceToSquared(wristAt)+.5*b.distanceToSquared(tipAt);
     if(palmAt){palm.getWorldPosition(c);e+=.4*c.distanceToSquared(palmAt);}
     return e;};
@@ -18145,6 +18705,7 @@ function animate(){
     if(zoomItem&&zoomItem.live){paintZoom();updateZoomChrome();}
     updateClock();          /* the wall clock keeps the visitor's time */
   }
+  updateChase(dt);           /* outside the block: the street keeps its chases after closing */
 
   /* Simon */
   simonHead.position.y=SIMON_HEAD_Y+Math.sin(t*1.2)*.008;

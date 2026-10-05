@@ -918,6 +918,32 @@ regarde, et repart ; son ombre traverse la chaussée. Son point d'arrêt est
 articulations, sur une grille de positions — à l'ancien arrêt, un montant de
 la baie le coupait en deux ; à x −10,2 / z −12,5 rien ne le masque.
 
+**La course-poursuite** (Simon, 2026-10-05 : « un mec qui fait un wheeling en
+moto suivi d'une voiture de police avec des gyrophares »). Toutes les deux à
+trois minutes — la première 25 à 40 s après qu'on s'est assis — une roadster
+orange descend la rue ouest sur sa roue arrière à ~55 km/h, nez levé de 25 à
+35° autour du point de contact arrière, la roue avant ne retouchant le sol
+qu'une fois, là où la chaise ne voit pas ; le pilote est un vrai corps
+(blouson de cuir noir, jean, casque intégral blanc), assis en arrière, bras
+tendus vers le guidon. Une break de police bruxelloise suit à 1,4–1,7 s :
+blanche, damier bleu et jaune fluo, POLICE sur les portes avant et POLITIE à
+l'arrière, deux gyrophares bleus sur une barre de toit dont les réflecteurs
+tournent à 2,5 tours/s, en opposition de phase — chaque dôme s'allume du côté
+où regarde son réflecteur et flashe quand le faisceau passe sur nous, un
+faisceau bleu tourne dans l'air (discret de jour, spectaculaire la nuit) et
+une bande bleue balaie façades, voitures garées et chaussée — une lumière
+injectée dans les seuls matériaux de la rue (`STREET.beacon`), jamais une
+lumière three.js : la salle n'est pas rééclairée. Sens alterné, sans aucun
+son, rien n'est dessiné entre deux passages ; `?chase` en lance une tout de
+suite et les enchaîne (`=far` / `=near` pour une seule voie). Depuis la
+chaise, la baie ne montre la chaussée que par une fente entre un montant et
+la lectrice sur son tabouret : la berline noire garée (z −9,4 → −19,4) et le
+jeune platane sud (z −7,2 → −9,6, désormais derrière l'angle du mur de fond)
+la bouchaient ; l'arrêt de Superman est revérifié (18 rayons sur 18 dégagés).
+Le plan assis en portrait ne cadre pas la baie : sur un téléphone debout, la
+poursuite se voit en marchant, pas depuis la chaise. Coût pendant un passage :
++10 draw calls, +31 k triangles ; zéro entre deux.
+
 **Le jukebox** porte un bandeau LED ambre sous son fronton : « PICK A RECORD »
 (les mots du juke-box, pas ceux du joueur — le « cliquer » est dans la
 bulle d'aide de l'interface) clignote tant qu'il est au repos, et
