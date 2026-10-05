@@ -1944,7 +1944,7 @@ const compMat=new THREE.ShaderMaterial({
   uniforms:{tSrc:{value:null},tBloom:{value:null},tAO:{value:null},
     uRes:{value:new THREE.Vector2()},uTime:{value:0},
     uExposure:{value:1.15},uBloom:{value:.32},uCA:{value:.85},uGrain:{value:.055},
-    uVig:{value:.55},uSharp:{value:.45},uBarrel:{value:.02},
+    uVig:{value:.55},uSharp:{value:.45},uBarrel:{value:.02},uLens:{value:1},
     uSlope:{value:new THREE.Vector3(1.06,1.015,.935)},
     uOffset:{value:new THREE.Vector3(-.01,.002,.022)},
     uPower:{value:new THREE.Vector3(1,.975,1.03)},
@@ -1952,7 +1952,7 @@ const compMat=new THREE.ShaderMaterial({
   vertexShader:QUAD_VS,
   fragmentShader:`
     uniform sampler2D tSrc,tBloom,tAO;
-    uniform vec2 uRes; uniform float uTime,uExposure,uBloom,uCA,uGrain,uVig,uSharp,uBarrel;
+    uniform vec2 uRes; uniform float uTime,uExposure,uBloom,uCA,uGrain,uVig,uSharp,uBarrel,uLens;
     uniform vec3 uSlope,uOffset,uPower; uniform float uSat,uContrast,uPivot;
     uniform int uDebug;
     varying vec2 vUv;
@@ -1996,8 +1996,12 @@ const compMat=new THREE.ShaderMaterial({
       vec2 texel=1.0/uRes;
       vec2 d=vUv-.5;
       float r2=dot(d,d);
-      vec2 uv=vUv+d*r2*uBarrel;
-      vec2 ca=d*r2*uCA*texel*6.0;
+      /* uLens: 1 in the room, 0 with the resume up (readK). Barrel moves
+         every pixel by a fraction of one and the read is bilinear, so on
+         1-px strokes it is a blur: up to 1.5 px of shift at the sheet's
+         corners on a Retina frame (atelier .01; the night grade is .024) */
+      vec2 uv=vUv+d*r2*uBarrel*uLens;
+      vec2 ca=d*r2*uCA*uLens*texel*6.0;
       vec3 col=vec3(
         texture2D(tSrc,uv+ca).r,
         texture2D(tSrc,uv).g,
@@ -2109,8 +2113,24 @@ function resSet(lv){
   RES.lv=lv;RES.s=RES.L[lv];RES.win.length=0;RES.up=0;RES.hold=400;
   allocTargets();
 }
+/* Simon, 2026-10-05: "le CV est trop flou". The one frame the governor must
+   not touch is the resume held up to read: at the bottom step a Retina
+   frame renders at .52 — one pixel per CSS pixel — and the 7-px body copy
+   comes out as a smear the FXAA then stretches back to full size. Nothing
+   in that shot moves but the page (Simon is behind it), so a lower frame
+   rate costs nothing anyone can see, and sharpness is the whole point of
+   it. Pinned, the scale goes to 1 and the governor stands down; released,
+   it returns to the level it held and resumes its watch, held off again
+   for 400 ms so the reallocation is not read as a slow frame. */
+function resPin(on){
+  if(on===!!RES.pin)return;
+  RES.pin=on;
+  if(!RES.L)return;   /* never stepped down: already at 1 */
+  if(on){RES.saved=RES.lv;RES.trial=0;if(RES.lv)resSet(0);}
+  else if(RES.saved!==RES.lv)resSet(RES.saved);
+}
 function resTick(ms){
-  if(!RES.on||!CAFE.ready||ms>1000)return;  /* a hidden tab says nothing about fill */
+  if(!RES.on||!CAFE.ready||ms>1000||RES.pin)return;  /* a hidden tab says nothing about fill */
   if(RES.hold>0){RES.hold-=ms;return;}
   if(!RES.L){
     const lo=Math.min(1,1/renderer.getPixelRatio());
@@ -15297,6 +15317,22 @@ VC.fontsReady.then(()=>{drawResume();drawMenu();});
 
 const paper=new THREE.Mesh(new THREE.PlaneGeometry(.62,.877),
   new THREE.MeshStandardMaterial({map:tex,roughness:.85}));
+/* A mip bias on the page, for reading only. Held up on a 1440x900 Retina
+   frame the sheet is 1440 px tall for 1754 texels: LOD .28, so trilinear
+   mixes over a quarter of the HALF-resolution copy into every glyph. Minus
+   .5 reads the full bitmap there (minified 1.2x, nothing shimmers at that
+   ratio); on a 1x screen the sheet is 720 px, and what is mixed into the
+   877 copy comes from the full bitmap instead of from the 438 one. Measured
+   on the body copy: mean gradient 31.5 without, 34.8 with. paperBias
+   follows readK — on the tabletop, at a grazing angle, a bias would only
+   buy shimmer. */
+const paperBias={value:0};
+paper.material.onBeforeCompile=function(s){
+  s.uniforms.uMapBias=paperBias;
+  s.fragmentShader="uniform float uMapBias;\n"+s.fragmentShader.replace("#include <map_fragment>",
+    THREE.ShaderChunk.map_fragment.replace("texture2D( map, vUv )","texture2D( map, vUv, uMapBias )"));
+};
+paper.material.customProgramCacheKey=function(){return "paperBias";};
 paper.castShadow=true;paper.receiveShadow=true;
 scene.add(paper);
 /* z=0, not .24: the sheet used to sit 24 cm toward the visitor, which
@@ -15310,8 +15346,13 @@ const paperUp ={pos:new THREE.Vector3(0,1.00,.50),rot:-.85};
    to actually read the 18 px body copy. Both fields are solved from the
    shot in applyStaging() — a hand-tuned pose would be right in one
    aspect ratio and wrong in the other. */
-const paperRead={pos:new THREE.Vector3(0,1.32,1.45),rot:-.085};
-let paperT=0,paperGoal=paperUp;
+const paperRead={pos:new THREE.Vector3(0,1.32,1.45),rot:-.085,yaw:0};
+/* readK: how far the sheet is up in the READING pose, 0..1 — it is paperT
+   while that is the pose, so it falls back as smoothly as the sheet does.
+   What a page needs and a room does not hangs off it: the lens stops
+   moving with the mouse (updateCamera), stops bending and fringing
+   (uLens), and the resolution governor stands down (resPin). */
+let paperT=0,paperGoal=paperUp,readK=0;
 paper.position.copy(paperRest.pos);paper.rotation.x=paperRest.rot;
 
 /* ---------------- INTERACTION ----------------
@@ -17849,9 +17890,12 @@ function updateCamera(dt,t){
   }
   camera.position.copy(camPos);
   /* mouse parallax only on the gameplay shot — a cutscene must not wobble */
+  /* ...and not while a page is held up to it: 10 cm of drift at a sheet
+     1.5 m away turns it 4° off square — a keystone that follows the
+     mouse across the text being read */
   if(!RM&&!TOUCH&&shotName==="gameplay"){
-    camera.position.x+=Math.max(-1,Math.min(1,pointer.x))*.10;
-    camera.position.y+=Math.max(-1,Math.min(1,pointer.y))*.05;
+    camera.position.x+=Math.max(-1,Math.min(1,pointer.x))*.10*(1-readK);
+    camera.position.y+=Math.max(-1,Math.min(1,pointer.y))*.05*(1-readK);
   }
   if(!RM){
     const sh=shot.shake;
@@ -17926,8 +17970,8 @@ function applyStaging(){
   paperUp.rot=portrait?-.98:-.85;
   /* Reading pose, solved rather than tuned: park the sheet on the shot's
      own axis, at the distance where an A4 covers ~80% of the TIGHTER of the
-     two frame axes, and roll it back by the camera's own downward tilt so it
-     ends up square to the lens.
+     two frame axes, and stand it square to the lens (below — the image
+     plane, not the line of sight).
      Solving for the height alone is what cut the sheet in half on a phone. An
      A4 is .707 wide for every 1 tall and a phone held upright is .462, so at
      390x844 the page came out 513 px across a 390 px frame: 123 px of it, 62
@@ -17944,7 +17988,18 @@ function applyStaging(){
     const k=2*Math.tan(fov/2);
     const d=Math.max(.877/fill/k,.62/(fill*camera.aspect)/k);
     paperRead.pos.copy(from).addScaledVector(dir,d);
-    paperRead.rot=Math.asin(dir.y);
+    /* Square to the IMAGE PLANE, which is not the line of sight. This shot
+       is a shift lens (levelK in updateCamera): the camera looks level and
+       the frame slides down, so the plane it projects onto is vertical —
+       tipping the sheet back by the shot's pitch (3.7°) keystoned it. And
+       on a desktop the lens stands .75 right of where it aims, 3.4 m
+       deep: a 12.4° turn the sheet was never given, so its right edge came
+       out closer, and taller, than its left. Upright and turned to the
+       lens, the page sits at one depth from corner to corner — one scale
+       for every line of it, and one focus distance. Portrait aims straight
+       down the room: yaw 0, nothing moves there. */
+    paperRead.rot=0;
+    paperRead.yaw=Math.atan2(-dir.x,-dir.z);
   }
 }
 stagingReady=true;applyStaging();
@@ -18062,6 +18117,11 @@ function animate(){
   paperT+=(liftTarget-paperT)*Math.min(1,dt*(paperGoal===paperRead?4.2:7));
   paper.position.lerpVectors(paperRest.pos,paperGoal.pos,paperT);
   paper.rotation.x=paperRest.rot+(paperGoal.rot-paperRest.rot)*paperT;
+  paper.rotation.y=(paperGoal.yaw||0)*paperT;
+  readK=paperGoal===paperRead?paperT:0;
+  resPin(reading&&paperGoal===paperRead);
+  compMat.uniforms.uLens.value=1-readK;
+  paperBias.value=-.5*readK;
 
   if(cafeClosed){
     /* One lamp, breathing very slightly. Left perfectly steady under
@@ -18121,8 +18181,15 @@ function animate(){
     blit(aoBlurMat,RT_AO2);
     compMat.uniforms.tAO.value=RT_AO2.texture;
   }else compMat.uniforms.tAO.value=whiteTex;
-  blit(compMat,QUALITY.fxaa?RT_LDR:null);
-  if(QUALITY.fxaa){
+  /* No FXAA over the resume held up to read. FXAA finds an edge and blends
+     along it, and type is nothing but edges: measured on the reading pose
+     at 2880x1800, mean gradient over a block of body copy 21.8 with it,
+     29.7 without. The frame has nothing left to antialias anyway — the
+     page's own edges stand square to the lens and the room behind it is
+     out of focus. Only at full scale (resPin): FXAA is also the upscaler. */
+  const fxaa=QUALITY.fxaa&&!(readK>.5&&RES.s===1);
+  blit(compMat,fxaa?RT_LDR:null);
+  if(fxaa){
     fxaaMat.uniforms.tSrc.value=RT_LDR.texture;
     blit(fxaaMat,null);
   }

@@ -344,6 +344,15 @@ mechanics that bite:
   (`navigator.webdriver`) — at 5 fps in SwiftShader the governor would
   shrink the film. The rAF shim harnesses, which run frames back to back,
   read nothing like a vsync'd browser: never tune the thresholds on them.
+  **The resume held up to read is exempt** (`resPin`, driven by `readK`):
+  at the .52 step its 7-px body copy was a smear (Simon, 2026-10-05, "le CV
+  est trop flou" — mean gradient 8.7 against 34.8 now). While it is up the
+  scale is pinned to 1 and the governor stands down, FXAA is skipped (it
+  softens type: 21.8 → 29.7 without it), barrel and CA go to 0 (`uLens`),
+  the page's map takes a −.5 mip bias (`paperBias`), the mouse parallax
+  stops, and the sheet stands square to the shift lens's vertical image
+  plane (`paperRead.yaw`/`rot` — it used to be 12.4° off on desktop). Any
+  new softener in the post chain must stand down on `readK` too.
 - **Scanned materials** (`applyScans`, `tex/scan/`, 1.3 MB): oak, walnut,
   travertine, limewash/tadelakt and leather take a CC0 scan's normal and
   roughness, and its detail OVERLAID on the painted colour (luminance

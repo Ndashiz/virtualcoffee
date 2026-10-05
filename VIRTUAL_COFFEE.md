@@ -767,7 +767,11 @@ Quatre retours de Simon sur la prod :
   Même fenêtre : 24 → 48 i/s, images au-delà de 100 ms 24 → 2 en 20 s.
   `?fullres` le coupe, l'automatisation aussi (`navigator.webdriver`), et
   `film.js` / `cdp.js` le passent. L'habillage de la TV ne reconstruit plus
-  15 fois par seconde des mipmaps qu'il ne lit jamais.
+  15 fois par seconde des mipmaps qu'il ne lit jamais. Seule exception, le
+  CV levé pour être lu (`resPin`, 2026-10-05, « le CV est trop flou ») :
+  pleine échelle, pas de FXAA, ni barillet ni aberration chromatique, biais
+  de mipmap −0,5 sur la feuille, feuille d'équerre avec l'objectif — gradient
+  moyen du corps de texte 8,7 au palier le plus bas, 34,8 maintenant.
 
 ### Le visage suit la parole (2026-10-01)
 

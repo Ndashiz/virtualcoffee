@@ -669,7 +669,10 @@ Four reports from Simon, on the live café:
   frames over 100 ms 24 → 2 in 20 s. `?fullres` turns it off; so does
   automation (`navigator.webdriver`), and `film.js` / `cdp.js` pass it. The
   TV overlay no longer rebuilds a mip chain it never samples, 15 times a
-  second.
+  second. The one exception is the resume held up to read (`resPin`,
+  2026-10-05): full scale, no FXAA, no barrel/CA, a −.5 mip bias on the
+  page and the sheet square to the lens — measured on its body copy, a
+  mean gradient of 8.7 at the bottom step became 34.8.
 
 Cost, scene pass from the interview shot: 323 draw calls against 300,
 849k triangles against 829k on desktop; 292 / 646k against 263 / 625k on a
