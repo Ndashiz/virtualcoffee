@@ -57,7 +57,11 @@ Three mechanisms keep bodies apart, and they are not interchangeable:
   `a.ctl` branch, a route that argues with the keys is worse than a bump) and
   the pilot (a planned route) bypass it. Until October 2026 its comment said
   "not applied to the guest", which was only ever true of the keys (and,
-  since 530aa6c, of the pilot).
+  since 530aa6c, of the pilot). On a tap he does not steer round a SEATED
+  body — furniture, which his plan and the separation already handle — nor
+  round somebody stepping aside for him (`yieldT`), and when the side he
+  holds runs back against his heading he chooses again, and if it still
+  does he stops and lets them by instead of walking off with them.
 - **`separateAgents()`** (end of `animateAgents`) is the safety net, not the
   rule. It can only say "you are already inside someone, come out". On its own
   it holds two bodies at arm's length, grinding, because both are still pulling
@@ -79,35 +83,61 @@ on whether the obstacle is closing: a body merely in the way is furniture, so
 take the cheaper tangent; a body walking AT you is a negotiation, so both take
 the tangent on the SAME side of the line between them, which is opposite in
 the world for the two of them. Neither has to know what the other decided —
-the geometry decides, identically, for both. Letting each take "the tangent
-that goes my way" is what put the courier inside the waiter: two bodies
-choosing the same gap. The choice is committed for ~1 s, because re-deciding
-every frame as the angle drifts is what makes two people shuffle in a doorway.
-"Closing" is read off HIS heading (`yaw`): until October 2026 the test
-compared positions — `|Δ|²`, never negative — so it was never true and every
-head-on was the mirror this paragraph describes.
+the geometry decides, identically, for both. WHICH same side is
+`t·(my heading − his)`, the side they are already sliding apart on — both
+compute the same number. With side 1 always, a crossing at an angle turned one
+of the two back the way he came (Oct 2026: a guest whose tap lay south-west
+walked a metre north beside a sitter heading north). Letting each take "the
+tangent that goes my way" is what put the courier inside the waiter: two
+bodies choosing the same gap. The choice is committed for ~1 s, because
+re-deciding every frame as the angle drifts is what makes two people shuffle
+in a doorway. "Closing" and "his heading" are read off where he is
+GOING (`walkTarget − pos`), his `yaw` only when he has no target: until
+October 2026 the test compared positions — `|Δ|²`, never negative — so it
+was never true and every head-on was the mirror this paragraph describes;
+and a yaw lags its walk (a waiter setting off still facing the table he
+served walked the guest along beside him). Read off targets, the cast
+without the guest went from 2.0 give-ups per 600 s to 0.
 
 **Nothing may orbit.** A steering rule with no way to give up will circle a
 body that never moves: every approach is deflected, the waypoint behind it is
 never reached, and the route never ends. `steerAgents` counts how long it has
-been turned away by the same body and, past `STUCK_MAX`, walks straight at it
-and lets the separation pass part them. Better a shoulder brushed than a
+been turned away and, past `STUCK_MAX`, walks straight at whoever is in the
+way and lets the separation pass part them. Better a shoulder brushed than a
 delivery that never arrives. **The count belongs to the ENCOUNTER, not to the
-side chosen in it**: for five weeks the record was thrown away every
-`DETOUR_HOLD` (1.1 s) and rebuilt at zero against the same body, so the
-count never passed 1.1, `STUCK_MAX` (2.4) was unreachable and none of this
+side chosen in it, nor to one body**: for five weeks the record was thrown
+away every `DETOUR_HOLD` (1.1 s) and rebuilt at zero against the same body, so
+the count never passed 1.1, `STUCK_MAX` (2.4) was unreachable and none of this
 ran. The hold re-opens the choice of side and nothing else; a second body
 taking the first one's place carries the count on; the encounter ends when
-nobody has been in the way for `DETOUR_FREE`, or when the walk does (a
-count left over rode into the next walk). A guilty
-pattern to look for in a probe: a value that climbs and resets on a fixed
-period. The guest's tap orders are PLANNED (`tapTarget` / `tapPlan`: a 5 cm
-grid of every point 8 cm clear of the furniture, filled breadth-first from
-where he stands; the target is the reached point nearest the tap). Pushing
-the tapped point out of the furniture is not a target: it slid into the
-corners where shapes meet and into a pocket sealed on every side. A second
-without moving re-plans and rounds the obstacle the other way
-(`orderTick`); three tries and the order is dropped.
+nobody has been in the way for `DETOUR_FREE`, or when the walk does (a count
+left over rode into the next walk). The give-up trusts a push, so two never
+give up: **the guest** — the separation's first pass moves whoever he walks
+into (bar the courier and a seated body), and walking at them shoved the
+waiter into the stroller; his tap order has its own guarantee, below — and
+**anyone facing a body `separatePass` cannot part from him**: the courier and
+a seated customer are both fixed, and a count carried in from another body
+would have walked him straight through her. A guilty pattern to look for in a
+probe: a value that climbs and resets on a fixed period. The guest's tap
+orders are PLANNED (`tapTarget` / `tapPlan`: a 5 cm grid of every point 8 cm
+clear of the furniture, built at load, filled breadth-first from where he
+stands; the target is the reached point nearest the tap, re-resolved if it was
+given before the grid existed). Pushing the tapped point out of the furniture
+is not a target: it slid into the corners where shapes meet and into a pocket
+sealed on every side. **A corner is passed only when the next leg is clear
+from where he stands** (`tapLegClear`): corners sit 8 cm off the furniture,
+and turning at .2 put him on the window bar's face for up to 2.2 s, and a new
+leg re-opens the side `steerAgents` committed to for the last one. A second
+without getting 5 cm closer to his corner asks who is in the way (`orderTick`;
+three tries at most; ten ticks of .1 are 0.9999999999999999, so the test is
+`>1-1e-9`): somebody standing on a target he is close to — it is taken, he
+stops; somebody STANDING within a metre — closed off on the grid and planned
+round, since a deterministic plan drew the same line into the same body three
+times, and dropped at once if that leaves no way; only walkers — he keeps the
+plan and lets them by (closed off, the waiter's last position sent the new
+plan after him); nobody — the furniture, re-planned, dropped if that is the
+same line again. Seated bodies are never closed off: her seat is in the grid,
+and the rest of her shut the window corridor.
 
 **A seated body is furniture.** `seated(a)` is `rootY<0 || a.sit`, which is the
 pose layer's own definition — and it must be, because the second copy of that
@@ -204,11 +234,12 @@ mechanics that bite:
   `buildAtelier`): one chain of circles per table, from the table's
   `R + BODY_R` to each chair's `.55`. The circles used to be typed, for the
   map of 2026-08-12; the map of 08-15 moved three tables and for seven weeks
-  the visitor walked through table 3 and five chairs while a circle guarded
-  empty floor. The cabinet is read off the model too (`armoire_socle` →
-  `GUEST_RECTS[1]`; its old right half was table 4's circle). What is still
-  typed in `GUEST_BLOCKERS` is not a box: Simon's table with Simon, and the
-  plant's leaves.
+  the visitor walked through tables 3 and 4, 5 cm into table 1 and through
+  five chairs while a circle guarded empty floor. The cabinet is read off the
+  model too (`armoire_socle` → `GUEST_RECTS[1]`; its old right half was
+  table 4's circle). What is still typed in `GUEST_BLOCKERS` is not a box:
+  Simon's table with Simon, the plant's leaves, and `dressLife`'s three
+  floor objects (umbrella stand, radiator, extinguisher).
 - **`LatheGeometry` profiles run counter-clockwise in (r, y)** — out along the
   bottom, up the side, in across the top — or the faces wind inward and the
   object renders inside-out (the stool cushions did). `lathe()` also snaps the
