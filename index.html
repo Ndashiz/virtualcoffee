@@ -8954,14 +8954,18 @@ function updateSkyTraffic(dt){
    between passes: nothing of it is drawn then.
    WHERE: down the west street — +z in the far lane (x -15.45), -z in the
    near one (-11.75), alternating — 95 m either side of the café. From the
-   chair (SHOTS.gameplay, desktop) the bay shows the road only through a
-   slit between the mullion at z -1.88 and the reader on her stool, ~140 px
-   of 1440: the far lane at z -16.8..-19.2, the near at -12..-13.8, where the
-   bike is 70-90 px tall and the car's bar sits just above the sill. At 55
-   km/h that is under half a second of each — which is why the beams and
-   the blue they throw on the street (STREET.beacon) carry it for a few
-   seconds either side, at night above all. The seated PORTRAIT shot never frames the bay (its far end
-   projects at x -1.87 of ±1): on an upright phone it is seen walking. */
+   chair (SHOTS.gameplay, desktop) the bay shows the road only between the
+   mullion at z -1.88 and the back wall's corner: 187 px of 1440 (165 of
+   1280, 320 of 1920 with the left pane) once the reader has moved off it
+   (readerMakeRoom; 137 / 121 / 259 with her there). The far lane shows at
+   z -16.6..-21.2, the near at -12.2..-15.7; the bike is 70-90 px tall and
+   the car's bar sits just above the sill. At ~55 km/h, measured on the
+   rendered columns: 1440x900, far lane, the bike 0.63 s and the car 0.97 s
+   (near lane 0.55 / 0.90) — the window, not a body, is the limit now. That
+   is why the beams and the blue they throw on the street (STREET.beacon)
+   carry it for a few seconds either side, at night above all. The seated
+   PORTRAIT shot never frames the bay (its far end projects at x -1.87 of
+   ±1): on an upright phone it is seen walking. */
 const CHASE={on:false,t:0,next:Infinity,armed:0,passes:0,dir:1,rate:1,
   debug:(function(){const m=/[?&]chase(?:=(\w+))?/.exec(location.search);return m?(m[1]||"loop"):null;})(),
   bike:null,pitch:null,car:null,rider:null,bikeU:null,carU:null,shB:null,shC:null,
@@ -12430,6 +12434,10 @@ const PILOT_NODES=[[6.45,-1.55],[6.13,2],[1.45,1.75],[2.2,2.85],[3.85,2.54],[4.4
 const PILOT_ADV=.16;            /* the old autopilot's advance radius */
 function pilotObstacles(m){
   const o=GUEST_BLOCKERS.map(b=>[b[0],b[1],b[2]]);
+  /* the reader on window stool 8 (readerMakeRoom) is a STATION: the plan
+     keeps .8 off her, which drops the one leg along the stools that passed
+     her at .647 ([-1.05,.3]-[-1.069,2.18]) */
+  if(reader.moved&&reader.move==="done"&&!reader.leaving)o.push([READER_SEAT2.x,READER_SEAT2.z,.8]);
   CAFE.boxes.forEach(function(b,k){
     if(!/^(assise|plateau_table|assise_tabouret)\./.test(k))return;
     const x=(b.min[0]+b.max[0])/2,z=(b.min[2]+b.max[2])/2;
@@ -13217,7 +13225,51 @@ function tickDrinker(a,dtT){
     sipShot(a,a.cup);
   }
 }
+/* SHE MAKES ROOM FOR THE STREET (Simon, 2026-10-06: "déplacer la cliente
+   qui lit au bar lorsque le user est assis"). From the chair, her stool
+   (window stool 6, z -.809) stands in front of the one stretch of the bay
+   that shows the road — THE CHASE ran behind her shoulders. A couple of
+   seconds after the visitor sits she closes her book, gets off, walks two
+   stools along toward the front (window stool 8, READER_SEAT2) and sits
+   again, three-quarters to the room as before; she stays there for the
+   rest of the visit, however often he stands up and comes back. A visit
+   resumed already seated (and reduced motion) finds her there from the
+   first frame.
+   WHY STOOL 8, measured (magenta lane walls rendered from SHOTS.gameplay,
+   the road's visible columns counted): stool 8 frees exactly what her
+   absence would — 1440x900 137 → 187 px of road, 1280x800 121 → 165,
+   1920x1080 259 → 320. Stool 7 sits in the bay's left pane, which a 16:9
+   screen frames widely: 206 px at 1920, worse than where she was.
+   Her aisle (x -1.18) runs between stool 7 and the visitor in his chair,
+   the room's tightest gap: .526 off the stool's centre and .54 off his. */
+const READER_SEAT2={x:-1.706,z:1.191,yaw:-.25},READER_AISLE=-1.18;
+function readerMakeRoom(instant){
+  const a=reader;
+  if(a.moved||a.leaving||closing||cafeClosed)return;
+  a.moved=true;
+  if(instant||RM){
+    a.pos.set(READER_SEAT2.x,0,READER_SEAT2.z);a.yaw=READER_SEAT2.yaw;a.rootY=-.01;a.move="done";
+    return;
+  }
+  a.move="wait";a.moveT=jit(2.4,.3);
+}
+function readerMoveTick(a,dtT){
+  if(a.move==="wait"){
+    a.moveT-=dtT;
+    if(a.moveT>0||a.shots.length)return;          /* a page turn finishes first */
+    if(bookPages)bookPages.rotation.y=0;           /* the book closes */
+    a.move="off";a.hop={k:0,dur:.9,fx:a.pos.x,fz:a.pos.z,tx:READER_AISLE,tz:a.pos.z+.05,on:false};
+  }else if(a.move==="off"){
+    if(a.hop)return;
+    a.move="walk";a.active=true;a.speed=.7;a.aisle=true;a.walkTarget=[READER_AISLE,READER_SEAT2.z-.02];
+  }else if(a.move==="walk"){
+    if(Math.hypot(a.walkTarget[0]-a.pos.x,a.walkTarget[1]-a.pos.z)>.06)return;
+    a.active=false;a.walkTarget=null;a.rootY=-.01;a.aisle=false;
+    a.move="on";a.hop={k:0,dur:.9,fx:a.pos.x,fz:a.pos.z,tx:READER_SEAT2.x,tz:READER_SEAT2.z,on:true,yaw:READER_SEAT2.yaw};
+  }else if(a.move==="on"&&!a.hop){a.move="done";a.pageT=jit(14,.3);}
+}
 function tickReader(a,dtT){
+  if(a.move&&a.move!=="done"){readerMoveTick(a,dtT);return;}
   a.pageT-=dtT;
   if(a.pageT<=0&&a.shots.length===0){
     a.pageT=jit(42,.3);
@@ -13530,6 +13582,10 @@ function steerAgents(a,dx,dz,dt){
        on him it made him stand and wait for the waiter getting out of
        his way (1.57 s, 30 fps). */
     if(a===guest&&(seated(b)||b.yieldT>0))continue;
+    /* nor the reader in her aisle (readerMakeRoom): it is planned past the
+       visitor in his chair at .54, and steered round him she swung into
+       stool 7, .42 off its centre */
+    if(a.aisle&&seated(b))continue;
     const rx=a.pos.x-b.pos.x,rz=a.pos.z-b.pos.z,rl=Math.hypot(rx,rz);
     if(rl<1e-4||rl>AVOID_R||rl>=bd)continue;
     if(-(dx*rx+dz*rz)/rl<=.05)continue;      /* not heading into him */
@@ -13783,6 +13839,19 @@ function sitLayer(a,buf,dt){
   }
   addPose(buf,seatPose(a),easeInOut(s.k));
 }
+/* a window-stool sitter getting off (on:false) or back on (on:true): the
+   seat pose fades out or in over `dur` while the body slides between the
+   stool and the floor beside it. rootY stays -.01 for the whole hop, so
+   seated() holds and nobody pushes her mid-move; it is 0 once she is off. */
+function hopLayer(a,buf,dt){
+  const h=a.hop;
+  h.k=Math.min(1,h.k+dt/h.dur);
+  const e=easeInOut(h.k);
+  a.pos.x=h.fx+(h.tx-h.fx)*e;a.pos.z=h.fz+(h.tz-h.fz)*e;
+  if(h.yaw!==undefined)a.yaw=angleDamp(a.yaw,h.yaw,.12,dt);
+  addPose(buf,seatPose(a),h.on?e:1-e);
+  if(h.k>=1){a.hop=null;a.rootY=h.on?-.01:0;}
+}
 /* ---- typing ----
    These angles are MEASURED in the running scene, which is not the same
    thing as solved on paper. The first pair (-.62 shoulder, -.95 elbow)
@@ -13883,9 +13952,10 @@ function animateAgents(dt){
        stool on it) — the courier's set-down dip lowers the same field,
        and without the exclusion the trigger folded him into a full
        chair pose mid-delivery */
-    if(a.rootY<0&&!a.sit&&a.kind!=="courier")addPose(a.buf,seatPose(a),1);
+    if(a.rootY<0&&!a.sit&&!a.hop&&a.kind!=="courier")addPose(a.buf,seatPose(a),1);
     walkLayer(a,a.buf,ac,dt);
     if(a.sit)sitLayer(a,a.buf,dt);
+    if(a.hop)hopLayer(a,a.buf,dt);
     shotsLayer(a,a.buf,dt);
     listenerLayer(a,a.buf,dt);
     laughLayer(a,a.buf,ac);
@@ -14225,7 +14295,12 @@ function tickClosing(dt){
     sendHome(standC,[[-1.45,-3.1],[2.2,-2.4],[5.0,-1.8],EXIT],2.0);
     sendHome(worker,[[2.6,-2.35],[5.1,-1.35],EXIT],1.4);
     sendHome(drinker,[[-1.15,-2.15],[2.5,-1.55],[5.1,-1.1],EXIT],2.9);
-    sendHome(reader,[[-1.0,-1.75],[2.7,-1.3],[5.2,-1.0],EXIT],3.8);
+    /* moved two stools along (READER_SEAT2), she steps off into her aisle
+       (aimed 8 cm past it: she turns down it .1 short of the point) and
+       down it, past her old stool (.59 off its centre), to the same exit */
+    reader.aisle=!!reader.moved;
+    sendHome(reader,(reader.moved?[[READER_AISLE+.08,READER_SEAT2.z-.02],[READER_AISLE,-.3]]:[]).concat(
+      [[-1.0,-1.75],[2.7,-1.3],[5.2,-1.0],EXIT]),3.8);
     sendHome(barista,[[2.6,-1.7],[5.1,-1.45],EXIT],5.4);   /* last one out, of course */
     return;
   }
@@ -14238,7 +14313,7 @@ function tickLeaving(a,dtT){
   if(a.leaving==="gone")return;
   if(a.exitDelay>0){a.exitDelay-=dtT;return;}
   if(!a.stood){                          /* stand up, put the props down */
-    a.stood=true;a.active=true;a.rootY=0;a.group=null;a.gazeLock=null;
+    a.stood=true;a.active=true;a.rootY=0;a.group=null;a.gazeLock=null;a.hop=null;
     a.typing=false;a.shots.length=0;a.vPauseT=0;
     /* only what he was CARRYING: the book rides on his chest and would
        fly out with him, but the cup and the laptop belong to the bar and
@@ -14253,7 +14328,9 @@ function tickLeaving(a,dtT){
     a.walkTarget=null;a.leaving="gone";
     return;
   }
-  if(Math.hypot(wp[0]-a.pos.x,wp[1]-a.pos.z)<.3){a.exitLeg++;return;}
+  /* .3 cuts corners: in the reader's aisle (two legs, past the visitor in
+     his chair) that put her .44 off stool 7, so there it is .1 */
+  if(Math.hypot(wp[0]-a.pos.x,wp[1]-a.pos.z)<(a.aisle?.1:.3)){a.exitLeg++;if(a.exitLeg>=2)a.aisle=false;return;}
   a.walkTarget=[wp[0],wp[1]];
   /* leavers skip the gaze lottery (the tick returns before it), so left
      alone they walked out with their heads still parked on the room —
@@ -17637,6 +17714,9 @@ function tickNudge(raw){
    line, drops the sheet and brings the options straight up. */
 var reading=false,everSat=false;
 function arriveAtTable(){
+  /* the reader gives the bay back to the street (once per visit; at once
+     when he was found already seated) */
+  readerMakeRoom(!!(guest.sit&&guest.sit.k>=1));
   if(entered)return;
   entered=true;
   showSeatChip(false);

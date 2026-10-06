@@ -940,6 +940,18 @@ chaise, la baie ne montre la chaussée que par une fente entre un montant et
 la lectrice sur son tabouret : la berline noire garée (z −9,4 → −19,4) et le
 jeune platane sud (z −7,2 → −9,6, désormais derrière l'angle du mur de fond)
 la bouchaient ; l'arrêt de Superman est revérifié (18 rayons sur 18 dégagés).
+La lectrice était la troisième (Simon, 2026-10-06 : « déplacer la cliente qui
+lit au bar lorsque le user est assis ») : deux secondes après qu'on s'est
+assis, elle ferme son livre, descend, longe le bar de deux tabourets jusqu'au
+tabouret 8 et se rassied — pour le reste de la visite ; une visite reprise la
+trouve déjà là. La chaussée vue de la chaise passe de 137 à 187 px sur
+1440x900 (121 → 165 en 1280x800, 259 → 320 en 1920x1080) : c'est tout ce
+que la baie offre, le montant et l'angle du mur de fond la bornent désormais.
+À ~55 km/h : la moto 0,63 s et la voiture 0,97 s dans la voie lointaine
+(0,55 / 0,90 dans la proche). Audit : son allée passe entre le tabouret 7
+(,526) et le visiteur assis (,540), aucune paire sous ,52 sur 2 × 600 s de
+scène, le pilote garde ,8 de son nouveau tabouret et assied toujours 506
+départs sur 506.
 Le plan assis en portrait ne cadre pas la baie : sur un téléphone debout, la
 poursuite se voit en marchant, pas depuis la chaise. Coût pendant un passage :
 +10 draw calls, +31 k triangles ; zéro entre deux.

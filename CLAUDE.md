@@ -507,7 +507,12 @@ mesh not in the repo — see `people/README.md`).
   young tree (z -9.6) were moved OUT of the chair's only road-level slit —
   put anything back between z -8.5 and -11.3 on the café's parking lane, or
   a trunk anywhere the seat sees, and the chase is hidden again. The seated
-  portrait shot never frames the bay.
+  portrait shot never frames the bay. The READER leaves window stool 6 for
+  stool 8 once the visitor sits (`readerMakeRoom`, one-shot, instant on a
+  resumed visit): from then on she is a station the pilot keeps .8 off
+  (`pilotObstacles`), her aisle (x -1.18) is exempt from steering round a
+  seated body (`a.aisle`: steered round the visitor she swung into stool
+  7), and her closing route starts down that aisle.
 - **Clothes are allocated, not rolled** (`pickDistinct()`, NO TWO ALIKE):
   any new cast member or rack colour must keep ΔE ≥ 16 (cast) / ≥ 12
   (extras) against everything worn, measured on the DISPLAYED colour

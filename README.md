@@ -489,7 +489,20 @@ From the chair the bay shows the road through one slit — between a mullion
 and the reader on her window stool — and two things filled it: a parked
 black sedan (moved past the hatch, z -9.4 → -19.4) and the south young tree
 (z -7.2 → -9.6, now behind the back wall's corner from the seat; Superman's
-stop re-checked: 18/18 rays clear). The seated portrait shot does not frame
+stop re-checked: 18/18 rays clear). The reader herself was the third
+(Simon, 2026-10-06: "déplacer la cliente qui lit au bar lorsque le user est
+assis"): a couple of seconds after you sit, she closes her book, gets off,
+walks two stools along to window stool 8 and sits again — for the rest of
+the visit; a resumed visit finds her there already. The road you see from
+the chair goes from 137 to 187 px of a 1440x900 frame (121 → 165 at
+1280x800, 259 → 320 at 1920x1080), which is all the bay has: what bounds it
+now is the window itself, the mullion and the back wall's corner. At ~55
+km/h that is the bike for 0.63 s and the car for 0.97 s in the far lane
+(0.55 / 0.90 in the near one). Route audit (her aisle runs between stool 7
+and you in your chair): stool 7 .526, you .540, never a pair under .52 over
+2 × 600 s of the cast with the visitor tapping round the room; the pilot
+keeps .8 off her new stool and still seats 506 starts out of 506.
+The seated portrait shot does not frame
 the window at all, so on an upright phone the chase is seen while walking,
 not from the chair. Cost during a pass: +10 draw calls (bike, helmet, rider,
 car, two contact shadows, two beams drawn twice as double-sided
