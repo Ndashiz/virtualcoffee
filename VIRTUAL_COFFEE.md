@@ -923,9 +923,13 @@ moto suivi d'une voiture de police avec des gyrophares »). Toutes les deux à
 trois minutes — la première 25 à 40 s après qu'on s'est assis — une roadster
 orange descend la rue ouest sur sa roue arrière à ~55 km/h, nez levé de 25 à
 35° autour du point de contact arrière, la roue avant ne retouchant le sol
-qu'une fois, là où la chaise ne voit pas ; le pilote est un vrai corps
+qu'une fois, là où la chaise ne voit pas — et devant le café elle freine
+jusqu'à rouler au pas (15 km/h voie lointaine, 13 voie proche), wheeling lent
+tenu un peu plus haut, passe devant la baie puis repart pleine charge ; le pilote est un vrai corps
 (blouson de cuir noir, jean, casque intégral blanc), assis en arrière, bras
-tendus vers le guidon. Une break de police bruxelloise suit à 1,4–1,7 s :
+tendus vers le guidon. Une break de police bruxelloise suit à 1,7–2,3 s, sur le même profil de
+vitesse (elle ne peut jamais la rattraper, et au pas son nez reste à une
+longueur de voiture de la moto) :
 blanche, damier bleu et jaune fluo, POLICE sur les portes avant et POLITIE à
 l'arrière, deux gyrophares bleus sur une barre de toit dont les réflecteurs
 tournent à 2,5 tours/s, en opposition de phase — chaque dôme s'allume du côté
@@ -947,8 +951,14 @@ tabouret 8 et se rassied — pour le reste de la visite ; une visite reprise la
 trouve déjà là. La chaussée vue de la chaise passe de 137 à 187 px sur
 1440x900 (121 → 165 en 1280x800, 259 → 320 en 1920x1080) : c'est tout ce
 que la baie offre, le montant et l'angle du mur de fond la bornent désormais.
-À ~55 km/h : la moto 0,63 s et la voiture 0,97 s dans la voie lointaine
-(0,55 / 0,90 dans la proche). Audit : son allée passe entre le tabouret 7
+Soit 7,6 m de voie lointaine et 6,2 de voie proche — une demi-seconde à
+55 km/h. D'où le passage au pas (Simon, 2026-10-11) : depuis la chaise, en
+1440x900, la moto reste 1,8 s à l'écran et la voiture 3,2 s dans chaque voie
+(0,42–0,49 / 0,75–0,88 s à 55 km/h constants) ; 1280x800 pareil (voiture
+voie proche 3,0 s), 1920x1080 2,2–2,4 / 3,4 s — mesuré sur des images
+rendues, les deux véhicules peints d'une couleur clé. Les roues
+tournent selon la distance parcourue (aucun patinage) ; les gyrophares
+gardent leurs 2,5 tours/s quelle que soit la vitesse. Audit : son allée passe entre le tabouret 7
 (,526) et le visiteur assis (,540), aucune paire sous ,52 sur 2 × 600 s de
 scène, le pilote garde ,8 de son nouveau tabouret et assied toujours 506
 départs sur 506.

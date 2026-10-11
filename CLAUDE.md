@@ -507,7 +507,13 @@ mesh not in the repo — see `people/README.md`).
   young tree (z -9.6) were moved OUT of the chair's only road-level slit —
   put anything back between z -8.5 and -11.3 on the café's parking lane, or
   a trunk anywhere the seat sees, and the chase is hidden again. The seated
-  portrait shot never frames the bay. The READER leaves window stool 6 for
+  portrait shot never frames the bay. The chase CRAWLS through that slit
+  (`CHASE_SLOW`, `chaseProfile` / `chaseS`: one analytic speed profile in
+  time, the car on the same one `gap` seconds later): its z ranges are where
+  either vehicle shows from the chair at 1280/1440/1920 wide — move the
+  shot, the bay or anything in front of it and re-measure them. Wheels turn
+  by distance (`-s/r`), never by speed × dt, or they skate on the brakes.
+  The READER leaves window stool 6 for
   stool 8 once the visitor sits (`readerMakeRoom`, one-shot, instant on a
   resumed visit): from then on she is a station the pilot keeps .8 off
   (`pilotObstacles`), her aisle (x -1.18) is exempt from steering round a

@@ -8939,9 +8939,10 @@ function updateSkyTraffic(dt){
    Simon, 2026-10-05: "je veux que par la fenêtre on voit un mec qui fait
    un wheeling en moto suivi d'une voiture de police avec des gyrophares".
    A naked bike on its back wheel down the west street, and a Brussels
-   police estate 1.5 s behind it, its two rotating beacons going — both
-   at ~55 km/h, in the zone the sign by the corner says is 30. No sound: the
-   room has none, on purpose (see NO ROOM SOUND).
+   police estate ~2 s behind it, its two rotating beacons going — both
+   at ~55 km/h, in the zone the sign by the corner says is 30, slowing to a
+   crawl only in front of the bay (THE SLOW STRETCH). No sound: the room
+   has none, on purpose (see NO ROOM SOUND).
    Built like the street: the bike and the car are ONE mesh each (the
    helmet a third, on the rider's head joint), every part in one
    vertex-coloured material that reads metal / roughness / glow / clear
@@ -8957,20 +8958,34 @@ function updateSkyTraffic(dt){
    chair (SHOTS.gameplay, desktop) the bay shows the road only between the
    mullion at z -1.88 and the back wall's corner: 187 px of 1440 (165 of
    1280, 320 of 1920 with the left pane) once the reader has moved off it
-   (readerMakeRoom; 137 / 121 / 259 with her there). The far lane shows at
-   z -16.6..-21.2, the near at -12.2..-15.7; the bike is 70-90 px tall and
-   the car's bar sits just above the sill. At ~55 km/h, measured on the
-   rendered columns: 1440x900, far lane, the bike 0.63 s and the car 0.97 s
-   (near lane 0.55 / 0.90) — the window, not a body, is the limit now. That
-   is why the beams and the blue they throw on the street (STREET.beacon)
-   carry it for a few seconds either side, at night above all. The seated
+   (readerMakeRoom; 137 / 121 / 259 with her there). The bike shows while
+   it stands between z -21.7 and -14.1 in the far lane, -16.3 and -10.1 in
+   the near one (1440x900); it is 70-90 px tall and the car's bar sits just
+   above the sill. The window, not a body, is the limit now — 7.6 and 6.2 m
+   of road, half a second at 55 km/h — so the chase slows down there (THE
+   SLOW STRETCH) and the beams and the blue they throw on the street
+   (STREET.beacon) carry it either side, at night above all. The seated
    PORTRAIT shot never frames the bay (its far end projects at x -1.87 of
    ±1): on an upright phone it is seen walking. */
 const CHASE={on:false,t:0,next:Infinity,armed:0,passes:0,dir:1,rate:1,
   debug:(function(){const m=/[?&]chase(?:=(\w+))?/.exec(location.search);return m?(m[1]||"loop"):null;})(),
   bike:null,pitch:null,car:null,rider:null,bikeU:null,carU:null,shB:null,shC:null,
-  vB:15,vC:15,gap:1.5,z0:0,len:190,xB:0,xC:0,dropAt:0,ph:0,rot:0,bar:null};
+  vF:15,vS:5,aB:3.2,aG:4.5,sA:0,sB:0,prof:null,gap:1.5,z0:0,len:190,xB:0,xC:0,dropAt:0,ph:0,rot:0,bar:null};
 const CHASE_TURN=Math.PI*2*2.5,_chaseCam=new THREE.Vector3();   /* 2.5 turns a second */
+/* THE SLOW STRETCH, per lane: the z range held at the slow speed, and that
+   speed (m/s). The range is every position from which any part of either
+   vehicle shows through the bay from the chair, at 1280, 1440 or 1920 wide
+   (magenta lane walls rendered from SHOTS.gameplay, columns counted), plus
+   half a metre: far lane bike -21.8..-12.5 / car -23.2..-11.2, near lane
+   -16.4..-8.8 / -17.7..-7.5. The speed is what holds the bike ~1.8 s in
+   view at 1440x900 — 15 km/h in the far lane, 13 in the near one, whose
+   visible stretch is a metre and a half shorter. Measured on rendered
+   frames from the chair, both vehicles painted a key colour (0.2 s apart;
+   "before" = the stretch each one is seen over, at 55 km/h), bike / car:
+   1440x900 far 0.49 → 1.8 s / 0.88 → 3.2, near 0.42 → 1.8 / 0.75 → 3.2;
+   1280x800 the same (near car 3.0); 1920x1080 far 0.66 → 2.4 / 0.94 →
+   3.4, near 0.52 → 2.2 / 0.80 → 3.4. */
+const CHASE_SLOW={far:[-23.7,-10.7,4.2],near:[-18.2,-7.0,3.6]};
 /* bike space: x forward, y up, z to the rider's right, origin on the
    ground under the rear axle — the point a wheelie turns about */
 const MOTO={WB:1.40,RR:.315,RF:.30,seat:[.62,.835],peg:[.43,.37,.165],grip:[1.0,1.075,.335]};
@@ -9352,26 +9367,67 @@ function chaseRider(){
   bike.visible=CHASE.car.visible=false;
 }
 /* the wheelie: 30° give or take five, the front coming down once to kiss
-   the road and going back up — never on the stretch the chair sees */
-function chasePitch(s){
+   the road and going back up — never on the stretch the chair sees. Slow,
+   it balances higher (a slow wheelie is held near the balance point): up
+   to +4° through the slow stretch. */
+function chasePitch(s,v){
   const C=CHASE;
-  let p=.52+.05*Math.sin(s*.29+C.ph)+.025*Math.sin(s*.83+C.ph*2.1);
+  let p=.52+.07*Math.max(0,Math.min(1,(C.vF-v)/(C.vF-C.vS)))
+    +.05*Math.sin(s*.29+C.ph)+.025*Math.sin(s*.83+C.ph*2.1);
   const dd=(s-C.dropAt)/7;
   if(Math.abs(dd)<1){const k=(1-dd*dd)*(1-dd*dd);p+=(.035-p)*k;}
   return p*smooth01(0,5,s);
+}
+/* THE SLOW STRETCH (Simon, 2026-10-11: slow the chase in front of the
+   café). At 55 km/h each vehicle crossed the bay in under a second from the
+   chair. Now both brake before the stretch the chair sees, roll through it
+   at walking-bike pace — the wheelie held, nose higher — and accelerate
+   away hard after it. One profile in time, five pieces: cruise vF, brake
+   at aB to vS, hold vS across [sA,sB], accelerate at aG back to vF, cruise.
+   The car runs the SAME profile C.gap seconds later, so it reaches every
+   point exactly that long after the bike: it can never close in or pass,
+   and at vS its nose stays vS·gap - 2.35 m (a car length, 4.7 m, and
+   more) off the bike's rear tyre. Distance, not speed, turns the wheels
+   (angle = -s / r): they roll, never skate, whatever the speed does. The
+   beacons keep their 2.5 turns a second on their own clock. */
+function chaseProfile(C){
+  const vF=C.vF,vS=C.vS,dB=(vF*vF-vS*vS)/(2*C.aB),dG=(vF*vF-vS*vS)/(2*C.aG);
+  const s1=C.sA-dB,T1=s1/vF,T2=T1+(vF-vS)/C.aB,T3=T2+(C.sB-C.sA)/vS,T4=T3+(vF-vS)/C.aG;
+  C.prof={s1:s1,T1:T1,T2:T2,T3:T3,T4:T4,s4:C.sB+dG};
+}
+/* distance along the pass and speed at time t (t < 0: not started) */
+function chaseS(C,t){
+  const P=C.prof,vF=C.vF,vS=C.vS;
+  if(t<P.T1)return [vF*t,vF];
+  if(t<P.T2){const u=t-P.T1;return [P.s1+vF*u-.5*C.aB*u*u,vF-C.aB*u];}
+  if(t<P.T3){const u=t-P.T2;return [C.sA+vS*u,vS];}
+  if(t<P.T4){const u=t-P.T3;return [C.sB+vS*u+.5*C.aG*u*u,vS+C.aG*u];}
+  return [P.s4+vF*(t-P.T4),vF];
 }
 function chaseStart(){
   const C=CHASE,dbg=C.debug;
   const d=dbg==="far"?1:dbg==="near"?-1:(C.passes%2?-1:1);
   C.dir=d;C.t=0;C.on=true;
-  C.vB=jit(15.3,.06);C.vC=C.vB*jit(1.01,.01);C.gap=jit(1.5,.12);
   /* lanes: +z in the far one (drive on the right), -z in the near one; the
      bike a little off the lane's middle, toward the centre line */
   C.xB=d>0?-15.0:-12.15;C.xC=d>0?-15.45:-11.75;
   C.z0=-95*d;C.len=190;C.ph=Math.random()*6.28;
-  /* where the front comes down: anywhere but z -26..-6, which is all the
-     chair can see of either lane */
   const sOf=function(z){return (z-C.z0)*d;};
+  /* the speed profile (see THE SLOW STRETCH): ~55 km/h, braking at 3.2
+     m/s² — firm, a rider on a wheelie easing off — to the slow stretch,
+     then away at 4.5 m/s², a hard launch, nose up */
+  const Z=CHASE_SLOW[d>0?"far":"near"];
+  C.vF=jit(15.3,.06);C.vS=Z[2]*jit(1,.04);C.aB=3.2;C.aG=4.5;
+  C.sA=Math.min(sOf(Z[0]),sOf(Z[1]));C.sB=Math.max(sOf(Z[0]),sOf(Z[1]));
+  /* the car's lead is set at the crawl, where it is tightest: a car length
+     (4.7 m) from its nose — 2.35 m ahead of its centre — to the bike's rear
+     tyre, plus up to 8 %: 7.35 m over vS, so 1.7-2.0 s behind in the far
+     lane and 2.0-2.3 s in the near one (1.5 s would have put its bumper
+     3 m off the bike at 13 km/h). At 55 km/h that is 26-35 m. */
+  C.gap=7.35/C.vS*(1+Math.random()*.08);
+  chaseProfile(C);
+  /* where the front comes down: anywhere but z -26..-6 — all the chair can
+     see of either lane, and the slow stretch with it */
   C.dropAt=Math.random()<.5?sOf(-34-Math.random()*30):sOf(4+Math.random()*30);
   const yaw=d>0?-Math.PI/2:Math.PI/2;
   C.bike.rotation.set(0,yaw,0);C.car.rotation.set(0,yaw,0);
@@ -9404,15 +9460,14 @@ function updateChase(dt){
     chaseStart();
   }
   C.t+=dt*C.rate;
-  const d=C.dir,sB=C.vB*C.t,sC=C.vC*(C.t-C.gap);
+  const d=C.dir,qB=chaseS(C,C.t),qC=chaseS(C,C.t-C.gap),sB=qB[0],sC=qC[0];
   if(sC>C.len){chaseEnd();return;}
-  const night=STREET.night.value;
+  const night=STREET.night.value,TAU=Math.PI*2;
   /* the bike */
   C.bike.visible=sB<=C.len;
   C.bike.position.set(C.xB,0,C.z0+d*sB);
-  const p=chasePitch(sB);C.pitch.rotation.z=p;
-  C.bikeU.uSpin.value.x-=C.vB*dt*C.rate/MOTO.RR;
-  C.bikeU.uSpin.value.y-=C.vB*dt*C.rate/MOTO.RF*(p>.1?.92:1);
+  const p=chasePitch(sB,qB[1]);C.pitch.rotation.z=p;
+  C.bikeU.uSpin.value.set((-sB/MOTO.RR)%TAU,(-sB/MOTO.RF)%TAU);
   C.bikeU.uLamp.value.set(1,.35+.65*night);
   /* he rides the bike's pitch from the hips up; the head keeps the road */
   if(C.rider){
@@ -9425,7 +9480,7 @@ function updateChase(dt){
   /* the car */
   C.car.visible=sC>=0;
   C.car.position.set(C.xC,0,C.z0+d*Math.max(0,sC));
-  C.carU.uSpin.value.x-=C.vC*dt*C.rate/CAR_TYPES.estate.wr;
+  C.carU.uSpin.value.x=(-Math.max(0,sC)/CAR_TYPES.estate.wr)%TAU;
   C.carU.uLamp.value.set(1,.35+.65*night);
   if(sC<0){STREET.beacon.value.w=0;return;}
   /* THE GYROPHARES: two reflectors at 2.5 turns a second, half a turn

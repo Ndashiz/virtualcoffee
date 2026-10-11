@@ -472,9 +472,12 @@ police car with its lights going). Every two to three minutes — the first
 one 25–40 s after you sit down — an orange naked bike comes down the west
 street on its back wheel at ~55 km/h, nose up 25–35° about the rear contact
 patch, the front coming down once to kiss the road somewhere the chair
-cannot see; the rider is a real body in a black leather jacket, jeans and a
+cannot see — and in front of the café it brakes to a crawl (15 km/h in the
+far lane, 13 in the near one), a slow wheelie held a little higher, rolls
+past the bay and launches away; the rider is a real body in a black leather jacket, jeans and a
 white full-face helmet, sat back with his arms long to the bars. A Brussels
-police estate follows 1.4–1.7 s behind, white with the blue and fluorescent
+police estate follows 1.7–2.3 s behind on the same speed profile — it can
+never close in, and at the crawl its nose stays a car length off the bike — white with the blue and fluorescent
 yellow Battenburg, POLICE on the front doors and POLITIE on the rear, and two
 blue domes on a roof bar whose reflectors turn at 2.5 turns a second, half a
 turn apart: each dome glows on the side its reflector faces and flares as
@@ -496,9 +499,14 @@ walks two stools along to window stool 8 and sits again — for the rest of
 the visit; a resumed visit finds her there already. The road you see from
 the chair goes from 137 to 187 px of a 1440x900 frame (121 → 165 at
 1280x800, 259 → 320 at 1920x1080), which is all the bay has: what bounds it
-now is the window itself, the mullion and the back wall's corner. At ~55
-km/h that is the bike for 0.63 s and the car for 0.97 s in the far lane
-(0.55 / 0.90 in the near one). Route audit (her aisle runs between stool 7
+now is the window itself, the mullion and the back wall's corner: 7.6 m of
+the far lane, 6.2 of the near one — half a second at 55 km/h. Hence the
+slow stretch (Simon, 2026-10-11): from the chair, at 1440x900, the bike is
+on screen 1.8 s and the car 3.2 s in either lane (0.42–0.49 / 0.75–0.88 s at
+a constant 55 km/h); 1280x800 the same (near car 3.0 s), 1920x1080 2.2–2.4
+/ 3.4 s — measured on rendered frames, both vehicles painted a key colour. The wheels roll with the
+distance, so they slow with the bike; the beacons keep turning at 2.5
+turns a second whatever the speed. Route audit (her aisle runs between stool 7
 and you in your chair): stool 7 .526, you .540, never a pair under .52 over
 2 × 600 s of the cast with the visitor tapping round the room; the pilot
 keeps .8 off her new stool and still seats 506 starts out of 506.
