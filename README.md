@@ -179,7 +179,14 @@ Like the plaque they are registered readables: walk up and they open full
 size, article legible, ink illustration and all — and once one is open,
 **an arrow either side steps to the next story** without walking back to the
 wall (the plaque and the television stay out of that ring: one is not an
-article and the other is not a page). The preprocessor also squares up the eight wheels (the export
+article and the other is not a page). On the back wall, between the HENRY TV
+and the menu board, a poster in a snap frame advertises **La Goffinerie**, the
+studio that built the café ("Like this café? We built it."): hung where the
+guest chair looks, it opens full size like the papers, with a **Visit
+lagoffinerie.be** pill beside Back (`it.href` on a readable). Its opens are
+not counted yet — `goffinerie` is not in VCPing's `ITEMS`, which must change
+together with the server's `store.ts`. The welcome card's footer credits the
+studio too (*Developed by La Goffinerie*). The preprocessor also squares up the eight wheels (the export
 mounts them sideways), copies the ICE CUBE lettering onto the van's rear doors,
 moves the plant off the one run of wall a toilet door fits on, and clones the
 van one parking bay over for a second firm — BravoReno the electrician, whose

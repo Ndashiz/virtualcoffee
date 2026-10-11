@@ -194,6 +194,18 @@
     font-size:15px;cursor:pointer;box-shadow:0 6px 22px rgba(0,0,0,.45);
     transition:transform .12s ease;}
   .zoomback:hover{transform:scale(1.05);}
+  /* the way out to the web, for a wall piece that points somewhere (it.href).
+     In the flow under the picture, not in a corner: the top right belongs to
+     .tools (z 75, over this overlay), and the canvas's max-height leaves 79
+     px of slack under it — this pill and its gap take 58. Outlined, so it
+     never reads as the same choice as Back. */
+  .zoomlink{flex:none;display:flex;align-items:center;gap:8px;
+    color:var(--gold);border:1.5px solid var(--gold);border-radius:999px;background:rgba(9,13,18,.6);
+    padding:10px 18px;font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:15px;
+    text-decoration:none;box-shadow:0 6px 22px rgba(0,0,0,.45);transition:transform .12s,background .15s;}
+  .zoomlink:hover{transform:scale(1.05);background:rgba(240,182,74,.12);}
+  .zoomlink:focus-visible{outline:2px solid var(--gold);outline-offset:3px;}
+  .zoomlink[hidden]{display:none;}
   /* 52 px, which clears the 44 px touch floor without a mobile-only rule,
      and parked against the gutters rather than over the page: the paper
      pans under a finger and a control sitting on it would eat the pan. */
@@ -257,6 +269,7 @@
     .zoomnav{top:auto;bottom:calc(12px + env(safe-area-inset-bottom));
       transform:none;width:56px;height:56px;}
     .zoomback{top:14px;left:14px;padding:10px 17px 10px 12px;font-size:14px;}
+    .zoomlink{padding:9px 16px;font-size:14px;}
     .zoomfig canvas{border-width:8px;max-height:calc(100dvh - 200px);}
     .readhint{font-size:12px;padding:6px 12px;}
   }
@@ -531,6 +544,13 @@
     text-decoration:underline;text-underline-offset:3px;}
   .hmore:hover{color:var(--gold);}
   .hmore[hidden]{display:none;}
+  .hfoot{margin-top:16px;padding-top:12px;border-top:1px solid rgba(159,180,188,.14);}
+  .hfoot[hidden]{display:none;}
+  .hcredit{display:inline-flex;align-items:center;gap:7px;padding:3px 6px;border-radius:6px;
+    color:#7f939b;font-family:"Space Grotesk",sans-serif;font-size:12px;letter-spacing:.02em;text-decoration:none;}
+  .hcredit b{color:#c9d6dd;font-weight:700;transition:color .15s;}
+  .hcredit:hover b{color:var(--gold);}
+  .hcredit:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
   #helpBtn{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:14px;
     min-width:34px;justify-content:center;line-height:1;}
   /* The nudge. It takes the prompt's place rather than sitting over it:
@@ -585,6 +605,7 @@
     #enterBtn{padding:10px 26px;font-size:14px;}
     #altBtn{padding:9px 22px;font-size:14px;}
     .hmore{margin-top:8px;}
+    .hfoot{margin-top:8px;padding-top:6px;}
   }
   /* Width the card can use once it no longer has to fit a phone: at
      852 px the six touch steps go from three-of-six wrapped to one line
@@ -683,7 +704,18 @@
 <div class="howto" id="howto">
   <div class="hcard"><h2></h2><ul class="hsteps"></ul>
     <div class="hbtns"><button id="enterBtn" type="button"></button><button id="altBtn" type="button"></button></div>
-    <button class="hmore" id="howMore" type="button"></button></div>
+    <button class="hmore" id="howMore" type="button"></button>
+    <!-- The maker's credit (Simon, 2026-10-11). The mark is La Goffinerie's
+         own three shapes, painted opaque in their logo order: the site
+         blends them with multiply, which on this navy card would turn
+         them to soot. -->
+    <div class="hfoot" id="hCredit"><a class="hcredit" href="https://lagoffinerie.be/" target="_blank" rel="noopener"
+       aria-label="Developed by La Goffinerie (opens in a new tab)">
+      <svg viewBox="0 0 120 112" width="17" height="16" aria-hidden="true">
+        <path d="M62 6 L102 80 L22 80 Z" fill="#EDAF2F"/>
+        <rect x="12" y="48" width="58" height="58" rx="15" fill="#2823EE"/>
+        <circle cx="90" cy="78" r="27" fill="#E2452C"/>
+      </svg><span>Developed by <b>La Goffinerie</b></span></a></div></div>
 </div>
 <div class="sign" id="sign">Virtual Coffee<small>discussion with Simon</small></div>
 <div class="tools">
@@ -871,6 +903,13 @@
     </div>
     <figcaption id="zoomTitle"></figcaption>
   </figure>
+  <a class="zoomlink" id="zoomLink" href="https://lagoffinerie.be/" target="_blank" rel="noopener" hidden>
+    <span>Visit lagoffinerie.be</span>
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+         stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M7 17 17 7"/><path d="M9 7h8v8"/>
+    </svg>
+  </a>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════
@@ -8462,6 +8501,85 @@ const menuBoard=new THREE.Group();
     g.restore();
   },false);
   READABLES[READABLES.length-1].read=1100;
+}
+
+/* ---------------- THE STUDIO'S POSTER ----------------
+   Simon, 2026-10-11: "mets quelque part une affiche qui fait la pub du site".
+   The site is lagoffinerie.be, the studio this café was built by, so the
+   poster says exactly that. Where it hangs is measured from the guest
+   chair (desktop, 1440x900): the 80 cm of olive between the HENRY TV's
+   right edge (x -.59) and the menu board's left one (.20), under the west
+   bar globe (its bottom projects at y 255, the poster's top at 268) and
+   above the counter (its edge cuts the wall at 1.2 m, the frame stops at
+   1.26). It reads there at 83x114 px — the three shapes and the name;
+   the rest is for the click, which opens it full size like every other
+   paper on these walls, with the way out to the site beside it.
+   The mark is the site's own: three shapes in multiply, which on paper
+   overlap the way they do on lagoffinerie.be. A snap frame, not the
+   gallery's oak — it is an advert, not a piece. */
+const GOF_URL="https://lagoffinerie.be/";
+const GOF_W=420,GOF_H=594;                 /* A-series, painted in units of 1 */
+function paintGofPoster(x){
+  const w=GOF_W,h=GOF_H,R=rng(1011);
+  x.globalCompositeOperation="source-over";
+  x.fillStyle="#f3eee5";x.fillRect(0,0,w,h);
+  for(let i=0;i<1400;i++){x.fillStyle=R()<.5?"rgba(255,255,255,.18)":"rgba(90,70,50,.05)";
+    x.fillRect(R()*w,R()*h,1,1);}
+  /* the mark, viewBox 120x112 scaled 1.5 */
+  x.save();x.translate(w/2-90,40);x.scale(1.5,1.5);
+  x.globalCompositeOperation="multiply";
+  x.fillStyle="#EDAF2F";x.beginPath();x.moveTo(62,6);x.lineTo(102,80);x.lineTo(22,80);x.closePath();x.fill();
+  x.fillStyle="#2823EE";x.beginPath();
+  if(x.roundRect)x.roundRect(12,48,58,58,15);else x.rect(12,48,58,58);
+  x.fill();
+  x.fillStyle="#E2452C";x.beginPath();x.arc(90,78,27,0,Math.PI*2);x.fill();
+  x.restore();
+  x.globalCompositeOperation="source-over";
+  x.textAlign="center";x.textBaseline="alphabetic";
+  x.fillStyle="#151515";x.font="700 50px 'Space Grotesk', sans-serif";
+  x.fillText("La Goffinerie",w/2,272);
+  x.fillStyle="#5a5650";x.font="500 21px 'Inter', sans-serif";
+  x.fillText("Websites that work for you",w/2,306);
+  x.fillStyle="#151515";x.fillRect(w/2-22,332,44,3);
+  x.font="700 31px 'Space Grotesk', sans-serif";
+  x.fillText("Like this café?",w/2,384);
+  x.fillStyle="#2823EE";x.fillText("We built it.",w/2,422);
+  x.fillStyle="#5a5650";x.font="400 16px 'Inter', sans-serif";
+  x.fillText("Websites · AI automation · Digital strategy",w/2,466);
+  x.fillStyle="#151515";x.fillRect(0,h-82,w,82);
+  x.fillStyle="#f6f2ea";x.font="700 31px 'Space Grotesk', sans-serif";
+  x.fillText("lagoffinerie.be",w/2,h-30);
+}
+{
+  const S=2,PW=.45,PH=PW*GOF_H/GOF_W,T=.014,D=.016;
+  const gofTex=ctex(GOF_W*S,GOF_H*S,function(g){g.scale(S,S);paintGofPoster(g);});
+  const sheet=new THREE.Mesh(new THREE.PlaneGeometry(PW,PH),
+    /* a little light of its own, like the menu beside it: the cove's wash
+       is baked into the wall's light map, which a new sheet does not get */
+    new THREE.MeshStandardMaterial({map:gofTex,roughness:.6,envMapIntensity:.3,
+      emissive:0xffffff,emissiveMap:gofTex,emissiveIntensity:.12}));
+  sheet.position.z=D+.001;
+  const g=new THREE.Group();g.add(sheet);
+  const fb=new Batch(),al=new THREE.MeshStandardMaterial({color:0x1b1c1e,roughness:.45,metalness:.6});
+  fb.add(al,new THREE.BoxGeometry(PW+2*T,T,D),mtx(0,PH/2+T/2,D/2));
+  fb.add(al,new THREE.BoxGeometry(PW+2*T,T,D),mtx(0,-PH/2-T/2,D/2));
+  fb.add(al,new THREE.BoxGeometry(T,PH,D),mtx(PW/2+T/2,0,D/2));
+  fb.add(al,new THREE.BoxGeometry(T,PH,D),mtx(-PW/2-T/2,0,D/2));
+  fb.build(g);
+  g.position.set(-.195,1.59,-4.75);
+  scene.add(g);
+  VC.fontsReady.then(function(){
+    const c=gofTex.userData.canvas,gg=c.getContext("2d");
+    gg.setTransform(S,0,0,S,0,0);paintGofPoster(gg);gg.setTransform(1,0,0,1,0,0);
+    gofTex.needsUpdate=true;
+  });
+  addReadable(sheet,"La Goffinerie — the studio that built this café","goffinerie",GOF_W,GOF_H,paintGofPoster,false);
+  const it=READABLES[READABLES.length-1];
+  it.href=GOF_URL;it.hrefLabel="lagoffinerie.be";
+  /* a poster is taken in whole, not read line by line: at 340 px across a
+     phone shows all of it (its smallest line lands at 13 px) instead of
+     panning a 560 px page */
+  it.read=340;
 }
 
 /* ---------------- THE TOILET DOOR ----------------
@@ -16744,6 +16862,8 @@ function renderHowto(mode){
     alt.textContent=H.look;alt.hidden=RM;
     more.textContent=H.more;more.hidden=false;
   }
+  /* the credit sits on the front door (welcome, closed), not in the manual */
+  document.getElementById("hCredit").hidden=mode==="help";
   el.querySelector("h2").textContent=title;
   el.querySelector(".hsteps").innerHTML=lines.map(x=>"<li>"+x+"</li>").join("");
 }
@@ -17462,6 +17582,7 @@ const zoomEl=document.getElementById("zoom");
 const zoomC=document.getElementById("zoomC");
 const zoomStage=document.getElementById("zoomStage");
 const zoomCap=document.getElementById("zoomTitle");
+const zoomLink=document.getElementById("zoomLink");
 const zoomLoad=document.getElementById("zoomLoad");
 const zoomLoadBar=document.getElementById("zoomLoadBar");
 const zoomPlayer=document.getElementById("zoomPlayer");
@@ -17587,6 +17708,8 @@ function openZoom(it){
   zoomEl.style.setProperty("--zw",it.read||Math.round(it.w*4/3));
   zoomEl.classList.toggle("paper",!it.live);
   zoomCap.textContent=it.title;
+  zoomLink.hidden=!it.href;
+  if(it.href){zoomLink.href=it.href;zoomLink.setAttribute("aria-label","Visit "+it.hrefLabel+" (opens in a new tab)");}
   paintZoom();
   /* a live feed does not appear instantly, and the wait is where the
      player says what you are about to watch and how far in it is */

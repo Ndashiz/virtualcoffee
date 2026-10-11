@@ -34,6 +34,11 @@ seul jusqu'à la chaise** — une flèche ou un tap sur le sol reprend la main
 à tout moment. « **Look around first** » : la salle est à vous et **rien ne
 bouge tant que vous ne bougez pas** ; deux façons de le déplacer, **les
 flèches** ou **un tap sur le sol** — la seule dont dispose un téléphone.
+En pied de carte, « *Developed by La Goffinerie* » renvoie vers
+lagoffinerie.be, le studio qui a construit le café ; dans la salle, une
+affiche du studio est accrochée au mur du fond entre la télé HENRY et le
+menu, là où regarde la chaise (« Like this café? We built it. ») — un clic
+l'ouvre en grand, avec un bouton « Visit lagoffinerie.be ».
 
 Pourquoi deux boutons : il n'y en avait qu'un, « Take a seat », et il
 n'asseyait personne — il vous posait debout dans l'entrée. Qui vient de
